@@ -35,7 +35,7 @@ export async function loadUser(req, res, next) {
   try {
     const payload = jwt.verify(token, config.jwtSecret, { algorithms: ['HS256'] });
     const [user] = await query(
-      'SELECT id, role, name, email, phone, avatar_key, active, must_change_password, token_version FROM users WHERE id = ?',
+      'SELECT id, role, name, email, phone, sender_name, avatar_key, active, must_change_password, token_version FROM users WHERE id = ?',
       [payload.sub],
     );
     if (user && user.active && user.role === payload.role && user.token_version === payload.v) req.user = user;

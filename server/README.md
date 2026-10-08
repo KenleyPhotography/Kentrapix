@@ -39,6 +39,19 @@ Guide MySQL détaillé (installation, schéma, requêtes utiles, sauvegardes) : 
 
 Une galerie peut être livrée à n'importe quel compte (client, admin ou propriétaire).
 
+### Plusieurs photographes (abonnés)
+
+Chaque **admin** est un photographe indépendant :
+
+- il ne voit que **ses** clients, **ses** galeries, leurs photos, commentaires, visages et **ses** e-mails envoyés
+  (colonnes `users.created_by` et `events.created_by`, migration `006_photographers.sql`) ;
+- il ne voit ni la page **Équipe** ni les **Réglages** globaux (réservés au propriétaire) ;
+- ses e-mails partent avec **son nom** (« Mon profil » → *Nom d’expéditeur des e-mails*), depuis l'adresse
+  du domaine vérifié de `MAIL_FROM`, et les réponses arrivent dans **sa** boîte (`reply_to`) ;
+- les sélections de ses clients lui sont envoyées directement.
+
+Le propriétaire voit tout. Tous les e-mails portent le logo KentraPix (`logo/kentrapix-email.png`, joint en image intégrée).
+
 ## E-mails automatiques (Resend)
 
 1. Créez une clé sur https://resend.com/api-keys et collez-la dans `server/.env` : `RESEND_API_KEY=re_...`
@@ -61,6 +74,32 @@ La clé Resend reste sur le serveur : elle n'est jamais envoyée au navigateur.
 ## Mode sélection (épreuves)
 
 Dans « Gérer » une galerie, cochez **Mode sélection** (et éventuellement un nombre maximum). Le client voit des aperçus **filigranés et numérotés**, choisit des photos (clic ou numéros « 3, 7, 12-15 ») et envoie sa sélection : l'équipe reçoit un e-mail et la retrouve via le bouton **Sélection** de la galerie. Sur ces galeries, **aucun téléchargement n'est possible** : l'API refuse toute demande, et les originaux ne sont jamais servis.
+
+## Expiration des galeries
+
+Dans « Gérer », **Disponible jusqu’au** fixe le dernier jour où le client voit la galerie (vide = pour toujours).
+Le client voit la date en haut de la galerie (en orange les 7 derniers jours). **7 jours avant**, il reçoit
+automatiquement l’e-mail « Votre galerie ferme dans X jours » (vérifié au démarrage puis toutes les heures,
+`src/lib/expiry.js`). Après la date, la galerie disparaît de son espace ; le studio la garde. Changer la date relance le rappel.
+
+## Partage famille
+
+Si **Partage** est activé dans les Réglages, le client a un bouton **Partager** dans sa galerie : il crée un lien
++ un mot de passe (10 liens max par galerie) et l’envoie à sa famille. La page `share.html` demande le mot de passe,
+puis montre les photos et le diaporama — **jamais de téléchargement ni d’original** (aperçus seulement, filigranés
+en mode sélection). Le lien cesse de fonctionner si le client le supprime, si la galerie est dépubliée, archivée ou expirée.
+
+## Diaporama et musique
+
+Bouton **Diaporama** (client et lien de partage) : plein écran, fondu enchaîné, commandes qui s’effacent, glisser
+sur mobile. Dans « Gérer », **Musique du diaporama** ajoute un fichier audio (MP3, M4A, AAC, OGG, WAV — 20 Mo max,
+stocké dans `storage/music/`). Utilisez une musique dont vous avez les droits.
+
+## Application installable (PWA)
+
+`manifest.webmanifest` + `sw.js` : le site s’installe sur l’écran d’accueil (Android/Chrome : bouton **Installer**
+dans « Mon profil » ; iPhone : Safari → Partager → Sur l’écran d’accueil). Le service worker ne met en cache que
+l’interface (css/js/logo/img) ; photos, musique et API restent toujours privées. **HTTPS obligatoire** en ligne.
 
 ## Reconnaissance des visages
 
@@ -134,13 +173,25 @@ server/
 - Images vérifiées par leur contenu (pas seulement l'extension), originales conservées intactes, aperçus WEBP générés côté serveur.
 - En-têtes de sécurité (helmet, CSP stricte, HSTS en production).
 
-## Mise en production (VPS)
+## Mise en production (Ubuntu + Cloudflare Tunnel)
 
-1. `NODE_ENV=production`, `TRUST_PROXY=true` derrière Nginx, **HTTPS obligatoire** (Let's Encrypt).
-2. Lancer avec un gestionnaire de processus : `pm2 start src/server.js --name kentrapix`.
-3. Nginx : `client_max_body_size 60m;` (≥ `MAX_UPLOAD_MB`) et `proxy_pass http://127.0.0.1:3000;`.
-4. **Sauvegardes** : base (`mysqldump kentrapix`) **et** dossier `storage/`, tous les jours, hors du serveur.
-5. Utilisateur MySQL dédié avec droits limités à la base `kentrapix`.
+Scripts dans `deploy/` (lancés depuis Windows, aucune commande Linux à taper) :
+
+| Script | Rôle |
+|---|---|
+| `deploy.ps1 -Ip <IP>` | Envoie le code et installe / met à jour : Node 24, MySQL 8, service `kentrapix` (redémarrage auto), sauvegarde MySQL quotidienne (`/opt/kentrapix/backups`, 14 jours), Cloudflare Tunnel si `deploy/tunnel-token.txt` existe. |
+| `migrate-data.ps1 -Ip <IP>` | Copie une fois la base et les photos du PC vers le serveur (**remplace** celles du serveur). |
+| `setup-server.sh` | Exécuté sur le serveur par `deploy.ps1` ; relançable sans risque. |
+
+Sur le serveur : code `/opt/kentrapix/app`, photos `/opt/kentrapix/storage`, configuration `/opt/kentrapix/kentrapix.env`
+(`NODE_ENV=production`, `HOST=127.0.0.1` : joignable seulement via le tunnel, `TRUST_PROXY=true`, `APP_URL=https://…`).
+Commandes utiles : `sudo systemctl status kentrapix`, `sudo journalctl -u kentrapix -f`.
+
+Cloudflare : Zero Trust → Networks → Tunnels → *Create a tunnel* (Cloudflared) → copier le **token** dans
+`deploy/tunnel-token.txt` → *Public hostname* `kentrapix.kenleyelysee.com` → service `HTTP` `localhost:3000`.
+Les envois de photos passent par Cloudflare : 100 Mo max par requête (plan gratuit), au-dessus de `MAX_UPLOAD_MB=50`.
+
+Pensez aussi à copier régulièrement `/opt/kentrapix/backups` et `/opt/kentrapix/storage` **hors du serveur**.
 
 ## À prévoir ensuite
 

@@ -1,8 +1,29 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { config } from '../config.js';
 import { query } from '../db.js';
 
 // Envoi d'e-mails via l'API Resend (https://resend.com/docs/api-reference/emails/send-email).
 // La clé reste sur le serveur ; chaque envoi est noté dans email_log.
+
+// Logo KentraPix joint à chaque e-mail (image intégrée « cid: », affichée sans dépendre du site).
+export const LOGO_CID = 'kentrapix-logo';
+const LOGO_FILE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../logo/kentrapix-email.png');
+let logo;
+const logoAttachment = () => {
+  if (logo === undefined) {
+    try { logo = fs.readFileSync(LOGO_FILE).toString('base64'); } catch { logo = null; }
+  }
+  return logo ? [{ filename: 'kentrapix.png', content: logo, content_id: LOGO_CID, content_type: 'image/png' }] : [];
+};
+
+/** « Nom du photographe <adresse du domaine vérifié> » : seul le nom change, l'adresse reste celle de MAIL_FROM. */
+export function fromLine(name) {
+  const address = (config.mail.from.match(/<([^>]+)>/)?.[1] || config.mail.from).trim();
+  const clean = String(name || '').replace(/["<>,;\r\n]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80);
+  return clean && address ? `${clean} <${address}>` : config.mail.from;
+}
 
 export const mailConfigured = () => Boolean(config.mail.resendKey && config.mail.from);
 
@@ -10,7 +31,7 @@ export const mailConfigured = () => Boolean(config.mail.resendKey && config.mail
  * @returns {Promise<{status: 'sent'|'failed'|'skipped', error: string|null}>}
  * Ne lève jamais d'erreur : un e-mail raté ne doit pas annuler l'action (création de client, publication…).
  */
-export async function sendMail({ to, subject, html, text, kind, userId = null, eventId = null, sentBy = null }) {
+export async function sendMail({ to, subject, html, text, kind, userId = null, eventId = null, sentBy = null, fromName = null, replyTo = null }) {
   let status = 'skipped';
   let providerId = null;
   let error = null;
@@ -19,19 +40,25 @@ export async function sendMail({ to, subject, html, text, kind, userId = null, e
     error = 'E-mails désactivés : RESEND_API_KEY ou MAIL_FROM manquant dans server/.env.';
   } else {
     try {
-      const res = await fetch('https://api.resend.com/emails', {
+      const reply = replyTo || config.mail.replyTo;
+      const payload = {
+        from: fromName ? fromLine(fromName) : config.mail.from,
+        to: [to],
+        subject,
+        html,
+        text,
+        ...(reply ? { reply_to: reply } : {}),
+      };
+      const post = (body) => fetch('https://api.resend.com/emails', {
         method: 'POST',
         headers: { Authorization: `Bearer ${config.mail.resendKey}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          from: config.mail.from,
-          to: [to],
-          subject,
-          html,
-          text,
-          ...(config.mail.replyTo ? { reply_to: config.mail.replyTo } : {}),
-        }),
+        body: JSON.stringify(body),
         signal: AbortSignal.timeout(15000),
       });
+      const attachments = html?.includes(`cid:${LOGO_CID}`) ? logoAttachment() : [];
+      let res = await post(attachments.length ? { ...payload, attachments } : payload);
+      // Logo refusé par le service : on renvoie l'e-mail sans pièce jointe plutôt que de l'abandonner.
+      if (res.status === 422 && attachments.length) res = await post(payload);
       const body = await res.json().catch(() => ({}));
       if (res.ok) {
         status = 'sent';

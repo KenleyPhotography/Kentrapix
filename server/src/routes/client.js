@@ -1,12 +1,14 @@
 import { Router } from 'express';
 import crypto from 'node:crypto';
 import archiver from 'archiver';
+import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { query, placeholders } from '../db.js';
 import { httpError } from '../lib/errors.js';
 import { resolveKey, fileExists } from '../lib/storage.js';
 import {
   uuid, mapEvent, mapPhoto, mapDownload, mapComment, getPermissions, EVENT_COLUMNS, PHOTO_COLUMNS, COMMENT_SELECT,
+  NOT_EXPIRED,
 } from '../lib/data.js';
 import { audit } from '../lib/audit.js';
 import { sendMail } from '../lib/mailer.js';
@@ -14,11 +16,13 @@ import { selectionEmail } from '../lib/emails.js';
 import { config } from '../config.js';
 import { toIso } from '../db.js';
 import { requireRole } from '../middleware/auth.js';
+import { BCRYPT_COST } from './auth.js';
 
 const router = Router();
 router.use(requireRole());
 
-const VISIBLE = 'e.client_id = ? AND e.published = 1 AND e.archived = 0';
+// Une galerie expirée disparaît de l'espace du client (le studio la garde).
+const VISIBLE = `e.client_id = ? AND e.published = 1 AND e.archived = 0 AND ${NOT_EXPIRED}`;
 const DOWNLOAD_LINK_MINUTES = 10;
 
 /** Tout ce dont l'espace client a besoin, en un seul appel. */
@@ -182,10 +186,15 @@ router.post('/events/:id/selection/submit', async (req, res) => {
     [event.id, req.user.id, note || null, numbers.length],
   );
   audit(req, 'selection.submit', { entity: 'event', entityId: event.id, details: { count: numbers.length } });
-  // Prévenir l'équipe : adresse de réponse du studio, sinon les propriétaires.
-  const studio = config.mail.replyTo
-    ? [{ email: config.mail.replyTo.replace(/^.*<|>.*$/g, ''), id: null }]
-    : await query("SELECT id, email FROM users WHERE role = 'owner' AND active = 1");
+  // Prévenir le photographe de la galerie ; à défaut, l'adresse de réponse du studio ou les propriétaires.
+  const [photographer] = event.created_by
+    ? await query("SELECT id, email FROM users WHERE id = ? AND active = 1 AND role IN ('owner', 'admin')", [event.created_by])
+    : [];
+  const studio = photographer
+    ? [photographer]
+    : config.mail.replyTo
+      ? [{ email: config.mail.replyTo.replace(/^.*<|>.*$/g, ''), id: null }]
+      : await query("SELECT id, email FROM users WHERE role = 'owner' AND active = 1");
   const tpl = selectionEmail({ clientName: req.user.name, eventName: event.name, numbers, note });
   await Promise.all(studio.map((s) => sendMail({ to: s.email, userId: s.id, eventId: event.id, kind: 'selection', ...tpl })));
   const [saved] = await query('SELECT submitted_at FROM event_selections WHERE event_id = ? AND user_id = ?', [event.id, req.user.id]);
@@ -296,6 +305,50 @@ router.get('/downloads/:id/file', async (req, res) => {
     zip.file(resolveKey(p.original_key), { name: entry });
   }
   await zip.finalize();
+});
+
+// ---------- Partage famille ----------
+// Le client crée un lien + mot de passe pour une de ses galeries ; la famille voit sans télécharger.
+async function shareableEvent(req, id) {
+  if (!(await getPermissions()).sharing) throw httpError(403, 'Le partage est désactivé.');
+  const [event] = await query(`SELECT e.id FROM events e WHERE e.id = ? AND ${VISIBLE}`, [uuid.parse(id), req.user.id]);
+  if (!event) throw httpError(404, 'Galerie introuvable.');
+  return event;
+}
+
+const mapShare = (l) => ({
+  id: l.id, label: l.label || '', url: `${config.appUrl}/share.html?t=${l.token}`,
+  views: Number(l.views), lastUsedAt: toIso(l.last_used_at), createdAt: toIso(l.created_at),
+});
+
+router.get('/events/:id/shares', async (req, res) => {
+  const event = await shareableEvent(req, req.params.id);
+  const rows = await query('SELECT * FROM share_links WHERE event_id = ? AND user_id = ? ORDER BY created_at DESC', [event.id, req.user.id]);
+  res.json({ shares: rows.map(mapShare) });
+});
+
+router.post('/events/:id/shares', async (req, res) => {
+  const event = await shareableEvent(req, req.params.id);
+  const { label, password } = z.object({
+    label: z.string().trim().max(120).optional(),
+    password: z.string().min(6, 'Mot de passe : 6 caractères minimum.').max(100),
+  }).parse(req.body);
+  const [{ n }] = await query('SELECT COUNT(*) AS n FROM share_links WHERE event_id = ? AND user_id = ?', [event.id, req.user.id]);
+  if (Number(n) >= 10) throw httpError(400, '10 liens maximum par galerie : supprimez-en un d’abord.');
+  const id = crypto.randomUUID();
+  await query('INSERT INTO share_links (id, event_id, user_id, token, password_hash, label) VALUES (?, ?, ?, ?, ?, ?)', [
+    id, event.id, req.user.id, crypto.randomBytes(24).toString('base64url'), await bcrypt.hash(password, BCRYPT_COST), label || null,
+  ]);
+  audit(req, 'share.create', { entity: 'event', entityId: event.id });
+  const [row] = await query('SELECT * FROM share_links WHERE id = ?', [id]);
+  res.status(201).json({ share: mapShare(row) });
+});
+
+router.delete('/shares/:id', async (req, res) => {
+  const result = await query('DELETE FROM share_links WHERE id = ? AND user_id = ?', [uuid.parse(req.params.id), req.user.id]);
+  if (!result.affectedRows) throw httpError(404, 'Lien introuvable.');
+  audit(req, 'share.delete', { entity: 'share', entityId: req.params.id });
+  res.status(204).end();
 });
 
 export default router;

@@ -24,6 +24,8 @@ export const config = {
   env,
   isProd: env === 'production',
   port: Number(process.env.PORT || 3000),
+  // Production derrière Cloudflare Tunnel : 127.0.0.1 (le site n'est joignable que par le tunnel).
+  host: process.env.HOST || undefined,
   trustProxy: process.env.TRUST_PROXY === 'true',
   db: {
     host: process.env.DB_HOST || '127.0.0.1',

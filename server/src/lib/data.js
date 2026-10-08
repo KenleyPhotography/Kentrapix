@@ -14,6 +14,7 @@ export const publicUser = (u) => ({
   email: u.email,
   phone: u.phone || '',
   avatar: avatarUrl(u),
+  senderName: u.sender_name || '',
   mustChangePassword: !!u.must_change_password,
 });
 
@@ -47,7 +48,14 @@ export const mapEvent = (e) => ({
   selectionMode: !!e.selection_mode,
   selectionLimit: e.selection_limit ?? null,
   archived: !!e.archived,
+  expiresAt: e.expires_at || null,
+  music: e.music_key ? `/media/music/${e.id}?v=${e.music_key.split('/').pop().split('.')[0]}` : null,
 });
+
+/** Galerie expirée : le dernier jour de disponibilité est passé (dates en UTC, format AAAA-MM-JJ). */
+export const isExpired = (e) => !!e.expires_at && String(e.expires_at).slice(0, 10) < new Date().toISOString().slice(0, 10);
+/** Condition SQL équivalente. */
+export const NOT_EXPIRED = '(e.expires_at IS NULL OR e.expires_at >= UTC_DATE())';
 
 export const mapPhoto = (p) => ({
   id: p.id,
@@ -99,6 +107,8 @@ export async function getPermissions() {
   return perms;
 }
 
-/** L'équipe voit tout ; tout autre compte ne voit que ses événements publiés et non archivés. */
+// Propriétaire : tout. Photographe (admin) : les galeries qu'il a créées. Tous : leurs galeries publiées.
 export const canSeeEvent = (user, e) =>
-  ['owner', 'admin'].includes(user.role) || (e.client_id === user.id && !!e.published && !e.archived);
+  user.role === 'owner' ||
+  (user.role === 'admin' && e.created_by === user.id) ||
+  (e.client_id === user.id && !!e.published && !e.archived && !isExpired(e));

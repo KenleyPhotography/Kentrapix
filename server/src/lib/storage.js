@@ -8,7 +8,7 @@ import { httpError } from './errors.js';
 
 // Fichiers privés : jamais servis directement, uniquement via /media et
 // /api/client/downloads après vérification des droits.
-const FOLDERS = ['originals', 'previews', 'covers', 'avatars', 'watermarks', 'faces', 'tmp'];
+const FOLDERS = ['originals', 'previews', 'covers', 'avatars', 'watermarks', 'faces', 'music', 'tmp'];
 // Sans cache libvips : sinon Windows garde les images ouvertes et refuse de les supprimer (EBUSY).
 sharp.cache(false);
 
@@ -155,4 +155,29 @@ export async function removeWatermarks(photoId) {
 export function sendPrivate(res, key) {
   res.set('Cache-Control', 'private, max-age=3600');
   res.sendFile(resolveKey(key));
+}
+
+// ---------- Musique du diaporama ----------
+const AUDIO = { 'audio/mpeg': 'mp3', 'audio/mp3': 'mp3', 'audio/mp4': 'm4a', 'audio/x-m4a': 'm4a', 'audio/aac': 'aac', 'audio/ogg': 'ogg', 'audio/wav': 'wav', 'audio/x-wav': 'wav', 'audio/webm': 'webm' };
+
+/** Upload d'un fichier audio (20 Mo max). */
+export const uploadAudio = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, path.join(config.storageDir, 'tmp')),
+    filename: (req, file, cb) => cb(null, crypto.randomUUID()),
+  }),
+  limits: { fileSize: 20 * 1024 * 1024, files: 1, fields: 5 },
+  fileFilter: (req, file, cb) => cb(null, file.mimetype in AUDIO),
+});
+
+/** Range le fichier audio dans music/ et renvoie sa clé. */
+export async function storeMusic(file) {
+  const ext = AUDIO[file.mimetype];
+  if (!ext) {
+    await fs.rm(file.path, { force: true });
+    throw httpError(400, 'Format audio non pris en charge (MP3, M4A, AAC, OGG, WAV).');
+  }
+  const key = `music/${crypto.randomUUID()}.${ext}`;
+  await fs.rename(file.path, resolveKey(key));
+  return key;
 }

@@ -6,8 +6,10 @@ import { config } from '../config.js';
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const firstName = (name) => String(name || '').trim().split(/\s+/)[0] || '';
 const loginUrl = () => `${config.appUrl}/login.html`;
+/** Nom du studio par défaut : celui de MAIL_FROM (« Kenley Photography <…> »). */
+const defaultStudio = () => config.mail.from.replace(/\s*<.*$/, '').replace(/"/g, '').trim() || 'KentraPix';
 
-function layout({ preheader, title, body, cta }) {
+function layout({ preheader, title, body, cta, studio = defaultStudio() }) {
   const button = cta
     ? `<tr><td style="padding:8px 0 4px"><a href="${esc(cta.url)}" style="display:inline-block;padding:14px 26px;border-radius:999px;background:#1265d8;background-image:linear-gradient(115deg,#1c77ee,#1056bf);color:#ffffff;font-weight:700;font-size:15px;text-decoration:none">${esc(cta.label)}</a></td></tr>`
     : '';
@@ -16,8 +18,11 @@ function layout({ preheader, title, body, cta }) {
 <span style="display:none;max-height:0;overflow:hidden;opacity:0">${esc(preheader)}</span>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f7fc;padding:32px 12px"><tr><td align="center">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border-radius:20px;overflow:hidden;box-shadow:0 20px 50px -24px rgba(8,36,69,.35)">
-<tr><td style="padding:26px 32px;background:#0c4088;background-image:linear-gradient(135deg,#1c77ee,#0c4088)">
-  <span style="font-size:24px;font-weight:800;letter-spacing:-0.5px;color:#ffffff">Kentra<span style="color:#bcd6fb">Pix</span></span>
+<tr><td style="padding:22px 32px;border-bottom:4px solid #1265d8;background:#ffffff">
+  <table role="presentation" cellpadding="0" cellspacing="0"><tr>
+    <td style="padding-right:12px;vertical-align:middle"><img src="cid:kentrapix-logo" width="44" height="44" alt="" style="display:block;width:44px;height:44px;border:0;border-radius:11px"></td>
+    <td style="vertical-align:middle;font-size:24px;font-weight:800;letter-spacing:-0.5px;color:#082445">Kentra<span style="color:#1265d8">Pix</span></td>
+  </tr></table>
 </td></tr>
 <tr><td style="padding:32px">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
@@ -27,7 +32,7 @@ function layout({ preheader, title, body, cta }) {
   </table>
 </td></tr>
 <tr><td style="padding:20px 32px;border-top:1px solid #e0eaf8;font-size:12px;line-height:1.6;color:#8a9ab3">
-  Kenley Photography · Vos souvenirs, votre espace.<br>Cet e-mail vous est envoyé car un espace KentraPix a été créé pour vous.
+  <strong style="color:#3c577c">${esc(studio)}</strong> · Vos souvenirs, votre espace.<br>Envoyé avec KentraPix, car un espace photo a été créé pour vous.
 </td></tr>
 </table></td></tr></table></body></html>`;
 }
@@ -37,26 +42,28 @@ const credentials = (email, password) =>
     E-mail : <strong>${esc(email)}</strong><br>Mot de passe temporaire : <strong style="font-family:Consolas,monospace">${esc(password)}</strong>
   </div>Vous choisirez votre propre mot de passe à la première connexion.`;
 
-export function welcomeEmail({ name, email, password }) {
+export function welcomeEmail({ name, email, password, studio = defaultStudio() }) {
   const title = `Bienvenue ${firstName(name)} !`;
   return {
     subject: 'Votre espace photo KentraPix est prêt',
     html: layout({
+      studio,
       preheader: 'Vos accès à votre espace photo privé.',
       title,
-      body: `Kenley Photography vous a créé un espace privé pour retrouver vos photos.${credentials(email, password)}`,
+      body: `${esc(studio)} vous a créé un espace privé pour retrouver vos photos.${credentials(email, password)}`,
       cta: { label: 'Me connecter', url: loginUrl() },
     }),
-    text: `${title}\n\nKenley Photography vous a créé un espace privé.\nE-mail : ${email}\nMot de passe temporaire : ${password}\nVous choisirez votre mot de passe à la première connexion.\n\nConnexion : ${loginUrl()}`,
+    text: `${title}\n\n${studio} vous a créé un espace privé.\nE-mail : ${email}\nMot de passe temporaire : ${password}\nVous choisirez votre mot de passe à la première connexion.\n\nConnexion : ${loginUrl()}`,
   };
 }
 
-export function galleryReadyEmail({ name, eventName, count }) {
+export function galleryReadyEmail({ name, eventName, count, studio = defaultStudio() }) {
   const title = 'Vos photos sont prêtes';
   const url = `${config.appUrl}/client.html`;
   return {
     subject: `Vos photos « ${eventName} » sont prêtes`,
     html: layout({
+      studio,
       preheader: `${count} photos vous attendent.`,
       title,
       body: `Bonjour ${esc(firstName(name))},<br><br>Votre galerie <strong style="color:#082445">${esc(eventName)}</strong> est disponible : <strong style="color:#1265d8">${count} photo${count > 1 ? 's' : ''}</strong> vous attendent.`,
@@ -66,10 +73,29 @@ export function galleryReadyEmail({ name, eventName, count }) {
   };
 }
 
-export function passwordResetEmail({ name, email, password }) {
+const longDate = (iso) => new Date(`${String(iso).slice(0, 10)}T12:00:00Z`).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
+
+export function expiryEmail({ name, eventName, expiresAt, daysLeft, studio = defaultStudio() }) {
+  const when = daysLeft <= 0 ? 'aujourd’hui' : daysLeft === 1 ? 'demain' : `dans ${daysLeft} jours`;
+  const url = `${config.appUrl}/client.html`;
+  return {
+    subject: `Votre galerie « ${eventName} » ferme ${when}`,
+    html: layout({
+      studio,
+      preheader: `Disponible jusqu’au ${longDate(expiresAt)}.`,
+      title: `Votre galerie ferme ${when}`,
+      body: `Bonjour ${esc(firstName(name))},<br><br>Votre galerie <strong style="color:#082445">${esc(eventName)}</strong> reste disponible jusqu’au <strong style="color:#1265d8">${esc(longDate(expiresAt))}</strong>.<br><br>Pensez à télécharger vos photos préférées avant cette date : ensuite, la galerie ne sera plus accessible.`,
+      cta: { label: 'Voir mes photos', url },
+    }),
+    text: `Bonjour ${firstName(name)},\n\nVotre galerie « ${eventName} » reste disponible jusqu'au ${longDate(expiresAt)}.\nPensez à télécharger vos photos avant cette date.\n\n${url}`,
+  };
+}
+
+export function passwordResetEmail({ name, email, password, studio = defaultStudio() }) {
   return {
     subject: 'Votre nouveau mot de passe KentraPix',
     html: layout({
+      studio,
       preheader: 'Un nouveau mot de passe temporaire a été créé.',
       title: 'Nouveau mot de passe',
       body: `Bonjour ${esc(firstName(name))},<br><br>Un nouveau mot de passe temporaire a été créé pour vous.${credentials(email, password)}`,
@@ -79,10 +105,11 @@ export function passwordResetEmail({ name, email, password }) {
   };
 }
 
-export function adminInviteEmail({ name, email, password }) {
+export function adminInviteEmail({ name, email, password, studio = defaultStudio() }) {
   return {
     subject: 'Vous faites partie de l’équipe KentraPix',
     html: layout({
+      studio,
       preheader: 'Vous avez maintenant accès au studio.',
       title: `Bienvenue dans l’équipe, ${firstName(name)} !`,
       body: `Vous avez maintenant accès au studio KentraPix : clients, galeries et photos.${password ? credentials(email, password) : '<br><br>Connectez-vous avec votre mot de passe habituel.'}`,
@@ -111,7 +138,7 @@ export function signupEmail({ name }) {
     html: layout({
       preheader: 'Votre compte est créé.',
       title: `Bienvenue ${firstName(name)} !`,
-      body: 'Votre compte KentraPix est prêt. Vos galeries apparaîtront ici dès que Kenley Photography les aura publiées.',
+      body: 'Votre compte KentraPix est prêt. Vos galeries apparaîtront ici dès que votre photographe les aura publiées.',
       cta: { label: 'Ouvrir mon espace', url: `${config.appUrl}/client.html` },
     }),
     text: `Bienvenue ${firstName(name)} !\n\nVotre compte KentraPix est prêt.\n${config.appUrl}/client.html`,
@@ -134,10 +161,11 @@ export function selectionEmail({ clientName, eventName, numbers, note }) {
   };
 }
 
-export function messageEmail({ name, subject, message }) {
+export function messageEmail({ name, subject, message, studio = defaultStudio() }) {
   return {
     subject,
     html: layout({
+      studio,
       preheader: message.slice(0, 90),
       title: subject,
       body: `Bonjour ${esc(firstName(name))},<br><br>${esc(message).replace(/\r?\n/g, '<br>')}`,

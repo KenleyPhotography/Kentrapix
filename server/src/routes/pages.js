@@ -17,6 +17,19 @@ router.use('/logo', express.static(path.join(frontendRoot, 'logo'), { maxAge: '7
 router.use('/img', express.static(path.join(frontendRoot, 'img'), { maxAge: '7d' }));
 router.use('/js', express.static(path.join(frontendRoot, 'js'), assetCache));
 
+// Application installable (PWA) : manifeste + service worker à la racine du site.
+router.get('/manifest.webmanifest', (req, res) => {
+  res.type('application/manifest+json').set('Cache-Control', 'no-cache').sendFile(page('manifest.webmanifest'));
+});
+router.get('/sw.js', (req, res) => {
+  res.type('application/javascript').set('Cache-Control', 'no-cache').sendFile(page('sw.js'));
+});
+
+// Lien de partage famille : page publique, le mot de passe est vérifié par l'API.
+router.get('/share.html', (req, res) => {
+  res.set('Referrer-Policy', 'no-referrer').sendFile(page('share.html'));
+});
+
 const ready = (user) => user && !user.must_change_password;
 
 router.get('/login.html', (req, res) => {

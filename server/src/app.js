@@ -11,6 +11,7 @@ import clientRoutes from './routes/client.js';
 import adminRoutes from './routes/admin.js';
 import mediaRoutes from './routes/media.js';
 import pageRoutes from './routes/pages.js';
+import { shareApi, shareMedia } from './routes/share.js';
 
 export function createApp() {
   const app = express();
@@ -49,7 +50,9 @@ export function createApp() {
   app.use('/api/auth', authRoutes);
   app.use('/api/client', clientRoutes);
   app.use('/api/admin', adminRoutes);
+  app.use('/api/share', shareApi); // lien de partage famille (sans compte)
   app.use('/api', apiNotFound);
+  app.use('/media/share', shareMedia);
   app.use('/media', mediaRoutes);
   app.use(pageRoutes);
   app.use((req, res) => res.status(404).type('text').send('Page introuvable.'));

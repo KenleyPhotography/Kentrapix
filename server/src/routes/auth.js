@@ -165,11 +165,15 @@ router.get('/me', requireAuth, (req, res) => {
 const profileSchema = z.object({
   name: z.string().trim().min(1, 'Le nom est obligatoire.').max(120),
   phone: z.string().trim().max(40).optional().transform((v) => v || null),
+  // Photographes : nom affiché comme expéditeur de leurs e-mails (vide = nom du compte).
+  senderName: z.string().trim().max(80).optional(),
 });
 
 router.patch('/profile', requireRole(), async (req, res) => {
-  const { name, phone } = profileSchema.parse(req.body);
-  await query('UPDATE users SET name = ?, phone = ? WHERE id = ?', [name, phone, req.user.id]);
+  const { name, phone, senderName } = profileSchema.parse(req.body);
+  const staff = ['owner', 'admin'].includes(req.user.role);
+  const sender = staff && senderName !== undefined ? senderName || null : req.user.sender_name ?? null;
+  await query('UPDATE users SET name = ?, phone = ?, sender_name = ? WHERE id = ?', [name, phone, sender, req.user.id]);
   audit(req, 'profile.update');
   const [user] = await query('SELECT * FROM users WHERE id = ?', [req.user.id]);
   res.json({ user: publicUser(user) });

@@ -1,0 +1,149 @@
+2026-10-08T21:07:20Z INF Starting tunnel tunnelID=bc945ae2-7fd1-4a63-ac33-cb54213de161
+2026-10-08T21:07:20Z INF Version 2026.10.0 (Checksum 5b6a5840659fc4ff3bf2c2b7160af0e5ad8157b09c6bd302f8e4033f5bcc7401)
+2026-10-08T21:07:20Z INF GOOS: windows, GOVersion: go1.26.8, GoArch: amd64
+2026-10-08T21:07:20Z INF Settings: map[cred-file:C:\Users\Kenley ELYSEE\.cloudflared\bc945ae2-7fd1-4a63-ac33-cb54213de161.json credentials-file:C:\Users\Kenley ELYSEE\.cloudflared\bc945ae2-7fd1-4a63-ac33-cb54213de161.json no-autoupdate:true]
+2026-10-08T21:07:20Z INF cloudflared will not automatically update on Windows systems.
+2026-10-08T21:07:20Z INF Generated Connector ID: 4cebf17d-16ab-463b-a06c-5dca1304d9e2
+2026-10-08T21:07:20Z INF Initial protocol quic
+2026-10-08T21:07:20Z INF ICMP proxy will use 192.168.0.143 as source for IPv4
+2026-10-08T21:07:20Z INF ICMP proxy will use fe80::bd99:4c04:8e23:b256 in zone Wi-Fi as source for IPv6
+2026-10-08T21:07:21Z INF cloudflared does not support loading the system root certificate pool on Windows. Please use --origin-ca-pool <PATH> to specify the path to the certificate pool
+2026-10-08T21:07:21Z INF ICMP proxy will use 192.168.0.143 as source for IPv4
+2026-10-08T21:07:21Z INF Tunnel connection curve preferences: [X25519MLKEM768 CurveID(65074) CurveP256] connIndex=0 event=0 ip=198.41.200.113
+2026-10-08T21:07:21Z INF ICMP proxy will use fe80::bd99:4c04:8e23:b256 in zone Wi-Fi as source for IPv6
+2026-10-08T21:07:21Z INF Starting metrics server on 127.0.0.1:20241/metrics
+2026-10-08T21:07:21Z INF Registered tunnel connection connIndex=0 connection=d120636c-d90a-4644-b9ec-80989f27cefe event=0 ip=198.41.200.113 location=mia04 protocol=quic
+2026-10-08T21:07:21Z INF Tunnel connection curve preferences: [X25519MLKEM768 CurveID(65074) CurveP256] connIndex=1 event=0 ip=198.41.192.27
+2026-10-08T21:07:22Z INF Registered tunnel connection connIndex=1 connection=a17543c8-3099-44b1-a8b6-6c658614c326 event=0 ip=198.41.192.27 location=mia10 protocol=quic
+2026-10-08T21:07:22Z INF Tunnel connection curve preferences: [X25519MLKEM768 CurveID(65074) CurveP256] connIndex=2 event=0 ip=198.41.200.233
+2026-10-08T21:07:23Z INF Registered tunnel connection connIndex=2 connection=a811bfb0-ebc1-468b-a951-524b657d6f00 event=0 ip=198.41.200.233 location=mia05 protocol=quic
+2026-10-08T21:07:23Z INF Tunnel connection curve preferences: [X25519MLKEM768 CurveID(65074) CurveP256] connIndex=3 event=0 ip=198.41.192.77
+2026-10-08T21:07:24Z INF Registered tunnel connection connIndex=3 connection=b99650d5-d5a5-49e6-9bc5-dcfcc2a125b4 event=0 ip=198.41.192.77 location=mia01 protocol=quic
+2026-10-08T21:07:28Z INF +-------------------------------------------------------------------------------------+
+2026-10-08T21:07:28Z INF |                               CONNECTIVITY PRE-CHECKS                               |
+2026-10-08T21:07:28Z INF +-------------------------------------------------------------------------------------+
+2026-10-08T21:07:28Z INF |  COMPONENT         TARGET                     STATUS  DETAILS                       |
+2026-10-08T21:07:28Z INF |  DNS Resolution    region1.v2.argotunnel.com  PASS    DNS Resolved successfully     |
+2026-10-08T21:07:28Z INF |  DNS Resolution    region2.v2.argotunnel.com  PASS    DNS Resolved successfully     |
+2026-10-08T21:07:28Z INF |  UDP Connectivity  region1.v2.argotunnel.com  PASS    QUIC connection successful    |
+2026-10-08T21:07:28Z INF |  UDP Connectivity  region2.v2.argotunnel.com  PASS    QUIC connection successful    |
+2026-10-08T21:07:28Z INF |  TCP Connectivity  region1.v2.argotunnel.com  PASS    HTTP/2 connection successful  |
+2026-10-08T21:07:28Z INF |  TCP Connectivity  region2.v2.argotunnel.com  PASS    HTTP/2 connection successful  |
+2026-10-08T21:07:28Z INF |  Cloudflare API    api.cloudflare.com:443     PASS    API is reachable              |
+2026-10-08T21:07:28Z INF |                                                                                     |
+2026-10-08T21:07:28Z INF |  SUMMARY: Environment is healthy. cloudflared will use 'quic' as primary protocol.  |
+2026-10-08T21:07:28Z INF +-------------------------------------------------------------------------------------+
+2026-10-08T21:07:28Z INF precheck component="DNS Resolution" details="DNS Resolved successfully" run_id=5b502ab3-bf65-4a4f-94ea-c198383bd30c status=pass target=region1.v2.argotunnel.com
+2026-10-08T21:07:28Z INF precheck component="DNS Resolution" details="DNS Resolved successfully" run_id=5b502ab3-bf65-4a4f-94ea-c198383bd30c status=pass target=region2.v2.argotunnel.com
+2026-10-08T21:07:28Z INF precheck component="UDP Connectivity" details="QUIC connection successful" run_id=5b502ab3-bf65-4a4f-94ea-c198383bd30c status=pass target=region1.v2.argotunnel.com
+2026-10-08T21:07:28Z INF precheck component="UDP Connectivity" details="QUIC connection successful" run_id=5b502ab3-bf65-4a4f-94ea-c198383bd30c status=pass target=region2.v2.argotunnel.com
+2026-10-08T21:07:28Z INF precheck component="TCP Connectivity" details="HTTP/2 connection successful" run_id=5b502ab3-bf65-4a4f-94ea-c198383bd30c status=pass target=region1.v2.argotunnel.com
+2026-10-08T21:07:28Z INF precheck component="TCP Connectivity" details="HTTP/2 connection successful" run_id=5b502ab3-bf65-4a4f-94ea-c198383bd30c status=pass target=region2.v2.argotunnel.com
+2026-10-08T21:07:28Z INF precheck component="Cloudflare API" details="API is reachable" run_id=5b502ab3-bf65-4a4f-94ea-c198383bd30c status=pass target=api.cloudflare.com:443
+2026-10-08T21:07:28Z INF precheck complete hard_fail=false run_id=5b502ab3-bf65-4a4f-94ea-c198383bd30c suggested_protocol=quic
+2026-10-08T21:17:44Z INF Initiating graceful shutdown due to signal terminated ...
+2026-10-08T21:17:45Z INF Retrying connection in up to 2s connIndex=2 event=0 ip=198.41.200.233
+2026-10-08T21:17:45Z INF Retrying connection in up to 2s connIndex=0 event=0 ip=198.41.200.113
+2026-10-08T21:17:45Z INF Retrying connection in up to 2s connIndex=3 event=0 ip=198.41.192.77
+2026-10-08T21:17:45Z INF Retrying connection in up to 2s connIndex=1 event=0 ip=198.41.192.27
+2026-10-08T21:17:45Z ERR Connection terminated connIndex=2
+2026-10-08T21:17:45Z ERR Connection terminated connIndex=0
+2026-10-08T21:17:45Z ERR Connection terminated connIndex=3
+2026-10-08T21:17:45Z ERR Connection terminated connIndex=1
+2026-10-08T21:17:45Z ERR no more connections active and exiting
+2026-10-08T21:17:45Z INF Tunnel server stopped
+2026-10-08T21:17:45Z INF Metrics server stopped
+2026-10-08T21:24:50Z INF Starting tunnel tunnelID=bc945ae2-7fd1-4a63-ac33-cb54213de161
+2026-10-08T21:24:50Z INF Version 2026.10.0 (Checksum 5b6a5840659fc4ff3bf2c2b7160af0e5ad8157b09c6bd302f8e4033f5bcc7401)
+2026-10-08T21:24:50Z INF GOOS: windows, GOVersion: go1.26.8, GoArch: amd64
+2026-10-08T21:24:50Z INF Settings: map[cred-file:C:\Users\Kenley ELYSEE\.cloudflared\bc945ae2-7fd1-4a63-ac33-cb54213de161.json credentials-file:C:\Users\Kenley ELYSEE\.cloudflared\bc945ae2-7fd1-4a63-ac33-cb54213de161.json no-autoupdate:true]
+2026-10-08T21:24:50Z INF cloudflared will not automatically update on Windows systems.
+2026-10-08T21:24:51Z INF Generated Connector ID: a98fc273-93ad-44a2-8e46-dfb9fe1e2258
+2026-10-08T21:24:51Z INF Initial protocol quic
+2026-10-08T21:24:51Z INF ICMP proxy will use 192.168.0.143 as source for IPv4
+2026-10-08T21:24:51Z INF ICMP proxy will use fe80::bd99:4c04:8e23:b256 in zone Wi-Fi as source for IPv6
+2026-10-08T21:24:52Z INF cloudflared does not support loading the system root certificate pool on Windows. Please use --origin-ca-pool <PATH> to specify the path to the certificate pool
+2026-10-08T21:24:52Z INF ICMP proxy will use 192.168.0.143 as source for IPv4
+2026-10-08T21:24:52Z INF ICMP proxy will use fe80::bd99:4c04:8e23:b256 in zone Wi-Fi as source for IPv6
+2026-10-08T21:24:52Z INF Tunnel connection curve preferences: [X25519MLKEM768 CurveID(65074) CurveP256] connIndex=0 event=0 ip=198.41.200.23
+2026-10-08T21:24:52Z INF Starting metrics server on 127.0.0.1:20241/metrics
+2026-10-08T21:24:54Z INF Registered tunnel connection connIndex=0 connection=94cbc89a-8822-4b0d-a132-8093dfbd32bb event=0 ip=198.41.200.23 location=mia04 protocol=quic
+2026-10-08T21:24:54Z INF Tunnel connection curve preferences: [X25519MLKEM768 CurveID(65074) CurveP256] connIndex=1 event=0 ip=198.41.192.37
+2026-10-08T21:24:54Z INF Registered tunnel connection connIndex=1 connection=ef7e2f3e-ea2e-4a66-bb47-e744cd8c5505 event=0 ip=198.41.192.37 location=mia01 protocol=quic
+2026-10-08T21:24:55Z INF Tunnel connection curve preferences: [X25519MLKEM768 CurveID(65074) CurveP256] connIndex=2 event=0 ip=198.41.200.73
+2026-10-08T21:24:55Z INF Registered tunnel connection connIndex=2 connection=f3a3d04b-2857-4886-aed0-e08610fca2a3 event=0 ip=198.41.200.73 location=mia09 protocol=quic
+2026-10-08T21:24:55Z ERR  error="Unable to reach the origin service. The service may be down or it may not be responding to traffic from cloudflared: dial tcp 127.0.0.1:3000: connectex: No connection could be made because the target machine actively refused it." connIndex=0 event=1 ingressRule=0 originService=http://127.0.0.1:3000
+2026-10-08T21:24:55Z ERR Request failed error="Unable to reach the origin service. The service may be down or it may not be responding to traffic from cloudflared: dial tcp 127.0.0.1:3000: connectex: No connection could be made because the target machine actively refused it." connIndex=0 dest=https://kentrapix.kenleyelysee.com/api/health event=0 ip=198.41.200.23 type=http
+2026-10-08T21:24:56Z INF Tunnel connection curve preferences: [X25519MLKEM768 CurveID(65074) CurveP256] connIndex=3 event=0 ip=198.41.192.47
+2026-10-08T21:24:56Z INF Registered tunnel connection connIndex=3 connection=9a1a553c-d55b-4fa6-bc13-795defeea5aa event=0 ip=198.41.192.47 location=mia10 protocol=quic
+2026-10-08T21:24:57Z INF +-------------------------------------------------------------------------------------+
+2026-10-08T21:24:57Z INF |                               CONNECTIVITY PRE-CHECKS                               |
+2026-10-08T21:24:57Z INF +-------------------------------------------------------------------------------------+
+2026-10-08T21:24:57Z INF |  COMPONENT         TARGET                     STATUS  DETAILS                       |
+2026-10-08T21:24:57Z INF |  DNS Resolution    region1.v2.argotunnel.com  PASS    DNS Resolved successfully     |
+2026-10-08T21:24:57Z INF |  DNS Resolution    region2.v2.argotunnel.com  PASS    DNS Resolved successfully     |
+2026-10-08T21:24:57Z INF |  UDP Connectivity  region1.v2.argotunnel.com  PASS    QUIC connection successful    |
+2026-10-08T21:24:57Z INF |  UDP Connectivity  region2.v2.argotunnel.com  PASS    QUIC connection successful    |
+2026-10-08T21:24:57Z INF |  TCP Connectivity  region1.v2.argotunnel.com  PASS    HTTP/2 connection successful  |
+2026-10-08T21:24:57Z INF |  TCP Connectivity  region2.v2.argotunnel.com  PASS    HTTP/2 connection successful  |
+2026-10-08T21:24:57Z INF |  Cloudflare API    api.cloudflare.com:443     PASS    API is reachable              |
+2026-10-08T21:24:57Z INF |                                                                                     |
+2026-10-08T21:24:57Z INF |  SUMMARY: Environment is healthy. cloudflared will use 'quic' as primary protocol.  |
+2026-10-08T21:24:57Z INF +-------------------------------------------------------------------------------------+
+2026-10-08T21:24:57Z INF precheck component="DNS Resolution" details="DNS Resolved successfully" run_id=4f01fa54-8e4a-43af-9677-817e5954daf1 status=pass target=region1.v2.argotunnel.com
+2026-10-08T21:24:57Z INF precheck component="DNS Resolution" details="DNS Resolved successfully" run_id=4f01fa54-8e4a-43af-9677-817e5954daf1 status=pass target=region2.v2.argotunnel.com
+2026-10-08T21:24:57Z INF precheck component="UDP Connectivity" details="QUIC connection successful" run_id=4f01fa54-8e4a-43af-9677-817e5954daf1 status=pass target=region1.v2.argotunnel.com
+2026-10-08T21:24:57Z INF precheck component="UDP Connectivity" details="QUIC connection successful" run_id=4f01fa54-8e4a-43af-9677-817e5954daf1 status=pass target=region2.v2.argotunnel.com
+2026-10-08T21:24:57Z INF precheck component="TCP Connectivity" details="HTTP/2 connection successful" run_id=4f01fa54-8e4a-43af-9677-817e5954daf1 status=pass target=region1.v2.argotunnel.com
+2026-10-08T21:24:57Z INF precheck component="TCP Connectivity" details="HTTP/2 connection successful" run_id=4f01fa54-8e4a-43af-9677-817e5954daf1 status=pass target=region2.v2.argotunnel.com
+2026-10-08T21:24:57Z INF precheck component="Cloudflare API" details="API is reachable" run_id=4f01fa54-8e4a-43af-9677-817e5954daf1 status=pass target=api.cloudflare.com:443
+2026-10-08T21:24:57Z INF precheck complete hard_fail=false run_id=4f01fa54-8e4a-43af-9677-817e5954daf1 suggested_protocol=quic
+2026-10-08T21:33:22Z ERR  error="Incoming request ended abruptly: context canceled" connIndex=0 event=1 ingressRule=0 originService=http://127.0.0.1:3000
+2026-10-08T21:33:22Z ERR Request failed error="Incoming request ended abruptly: context canceled" connIndex=0 dest=https://kentrapix.kenleyelysee.com/api/auth/avatar event=0 ip=198.41.200.23 type=http
+2026-10-08T21:36:12Z ERR  error="stream 509 canceled by remote with error code 0" connIndex=0 event=1 ingressRule=0 originService=http://127.0.0.1:3000
+2026-10-08T21:36:12Z ERR Request failed error="stream 509 canceled by remote with error code 0" connIndex=0 dest=https://kentrapix.kenleyelysee.com/api/client/downloads/2ff741f4-c678-4fb1-90f7-c03b6eac7bbb/file event=0 ip=198.41.200.23 type=http
+2026-10-08T21:36:12Z ERR  error="stream 513 canceled by remote with error code 0" connIndex=0 event=1 ingressRule=0 originService=http://127.0.0.1:3000
+2026-10-08T21:36:12Z ERR Request failed error="stream 513 canceled by remote with error code 0" connIndex=0 dest=https://kentrapix.kenleyelysee.com/api/client/downloads/2ff741f4-c678-4fb1-90f7-c03b6eac7bbb/file event=0 ip=198.41.200.23 type=http
+2026-10-08T21:37:30Z WRN Serve tunnel error error="datagram manager error: timeout: no recent network activity" connIndex=3 event=0 ip=198.41.192.47
+2026-10-08T21:37:30Z WRN Serve tunnel error error="datagram manager error: timeout: no recent network activity" connIndex=0 event=0 ip=198.41.200.23
+2026-10-08T21:37:30Z WRN Serve tunnel error error="datagram manager error: timeout: no recent network activity" connIndex=2 event=0 ip=198.41.200.73
+2026-10-08T21:37:32Z INF Retrying connection in up to 2s connIndex=0 event=0 ip=198.41.200.23
+2026-10-08T21:37:32Z INF Retrying connection in up to 2s connIndex=3 event=0 ip=198.41.192.47
+2026-10-08T21:37:32Z INF Retrying connection in up to 2s connIndex=2 event=0 ip=198.41.200.73
+2026-10-08T21:37:32Z WRN Connection terminated error="datagram manager error: timeout: no recent network activity" connIndex=3
+2026-10-08T21:37:33Z WRN Connection terminated error="datagram manager error: timeout: no recent network activity" connIndex=2
+2026-10-08T21:37:33Z INF Tunnel connection curve preferences: [X25519MLKEM768 CurveID(65074) CurveP256] connIndex=0 event=0 ip=198.41.200.43
+2026-10-08T21:37:34Z INF Tunnel connection curve preferences: [X25519MLKEM768 CurveID(65074) CurveP256] connIndex=3 event=0 ip=198.41.192.57
+2026-10-08T21:37:34Z INF Tunnel connection curve preferences: [X25519MLKEM768 CurveID(65074) CurveP256] connIndex=2 event=0 ip=198.41.200.13
+2026-10-08T21:37:34Z ERR Serve tunnel error error="accept stream listener error: failed to accept QUIC stream: timeout: no recent network activity" connIndex=1 event=0 ip=198.41.192.37
+2026-10-08T21:37:34Z INF Retrying connection in up to 2s connIndex=1 event=0 ip=198.41.192.37
+2026-10-08T21:37:35Z INF Registered tunnel connection connIndex=0 connection=18ce6b3d-cfc0-4e1e-b7c9-4ee2e4aadc62 event=0 ip=198.41.200.43 location=mia09 protocol=quic
+2026-10-08T21:37:35Z INF Registered tunnel connection connIndex=3 connection=245983b5-2257-4001-bf78-0d660c21d347 event=0 ip=198.41.192.57 location=mia10 protocol=quic
+2026-10-08T21:37:36Z INF Registered tunnel connection connIndex=2 connection=d1638b86-fb43-4fd5-812e-8551abf67856 event=0 ip=198.41.200.13 location=mia05 protocol=quic
+2026-10-08T21:37:36Z WRN Connection terminated error="accept stream listener error: failed to accept QUIC stream: timeout: no recent network activity" connIndex=1
+2026-10-08T21:38:07Z INF Tunnel connection curve preferences: [X25519MLKEM768 CurveID(65074) CurveP256] connIndex=1 event=0 ip=198.41.192.227
+2026-10-08T21:38:08Z INF Registered tunnel connection connIndex=1 connection=01afc53b-e060-45d9-9055-fe4a5c0fc545 event=0 ip=198.41.192.227 location=mia01 protocol=quic
+2026-10-08T21:39:11Z ERR  error="Incoming request ended abruptly: context canceled" connIndex=0 event=1 ingressRule=0 originService=http://127.0.0.1:3000
+2026-10-08T21:39:12Z ERR Request failed error="Incoming request ended abruptly: context canceled" connIndex=0 dest=https://kentrapix.kenleyelysee.com/api/auth/login event=0 ip=198.41.200.43 type=http
+2026-10-08T21:40:55Z WRN Serve tunnel error error="datagram manager error: timeout: no recent network activity" connIndex=2 event=0 ip=198.41.200.13
+2026-10-08T21:40:55Z INF Retrying connection in up to 2s connIndex=2 event=0 ip=198.41.200.13
+2026-10-08T21:40:55Z WRN Serve tunnel error error="accept stream listener error: failed to accept QUIC stream: timeout: no recent network activity" connIndex=0 event=0 ip=198.41.200.43
+2026-10-08T21:40:55Z INF Retrying connection in up to 2s connIndex=0 event=0 ip=198.41.200.43
+2026-10-08T21:40:55Z WRN Serve tunnel error error="accept stream listener error: failed to accept QUIC stream: timeout: no recent network activity" connIndex=1 event=0 ip=198.41.192.227
+2026-10-08T21:40:55Z INF Retrying connection in up to 2s connIndex=1 event=0 ip=198.41.192.227
+2026-10-08T21:40:56Z WRN Connection terminated error="datagram manager error: timeout: no recent network activity" connIndex=2
+2026-10-08T21:40:56Z WRN Connection terminated error="accept stream listener error: failed to accept QUIC stream: timeout: no recent network activity" connIndex=1
+2026-10-08T21:40:57Z INF Tunnel connection curve preferences: [X25519MLKEM768 CurveID(65074) CurveP256] connIndex=0 event=0 ip=198.41.200.33
+2026-10-08T21:40:59Z ERR Serve tunnel error error="accept stream listener error: failed to accept QUIC stream: timeout: no recent network activity" connIndex=3 event=0 ip=198.41.192.57
+2026-10-08T21:40:59Z INF Retrying connection in up to 2s connIndex=3 event=0 ip=198.41.192.57
+2026-10-08T21:41:00Z ERR Connection terminated error="accept stream listener error: failed to accept QUIC stream: timeout: no recent network activity" connIndex=3
+2026-10-08T21:41:02Z INF Tunnel connection curve preferences: [X25519MLKEM768 CurveID(65074) CurveP256] connIndex=2 event=0 ip=198.41.200.113
+2026-10-08T21:41:02Z INF Tunnel connection curve preferences: [X25519MLKEM768 CurveID(65074) CurveP256] connIndex=1 event=0 ip=198.41.192.67
+2026-10-08T21:41:02Z INF Tunnel connection curve preferences: [X25519MLKEM768 CurveID(65074) CurveP256] connIndex=3 event=0 ip=198.41.192.7
+2026-10-08T21:41:02Z ERR Failed to dial a quic connection error="failed to dial to edge with quic: timeout: no recent network activity" connIndex=0 event=0 ip=198.41.200.33
+2026-10-08T21:41:02Z INF Retrying connection in up to 4s connIndex=0 event=0 ip=198.41.200.33
+2026-10-08T21:41:04Z INF Registered tunnel connection connIndex=3 connection=814ebadd-077f-4325-87b6-32e09119967c event=0 ip=198.41.192.7 location=mia10 protocol=quic
+2026-10-08T21:41:04Z INF Registered tunnel connection connIndex=1 connection=03b537a3-24c6-44e8-89e4-6606b932d67a event=0 ip=198.41.192.67 location=mia01 protocol=quic
+2026-10-08T21:41:04Z INF Registered tunnel connection connIndex=2 connection=ccfee44b-4a86-46e7-879a-7dc010ded89a event=0 ip=198.41.200.113 location=mia09 protocol=quic
+2026-10-08T21:41:05Z INF Tunnel connection curve preferences: [X25519MLKEM768 CurveID(65074) CurveP256] connIndex=0 event=0 ip=198.41.200.193
+2026-10-08T21:41:06Z INF Registered tunnel connection connIndex=0 connection=47849ee9-e501-4f29-8d6e-6e8cc26a89f2 event=0 ip=198.41.200.193 location=mia04 protocol=quic
