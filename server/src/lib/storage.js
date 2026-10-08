@@ -8,7 +8,7 @@ import { httpError } from './errors.js';
 
 // Fichiers privés : jamais servis directement, uniquement via /media et
 // /api/client/downloads après vérification des droits.
-const FOLDERS = ['originals', 'previews', 'covers', 'avatars', 'watermarks', 'tmp'];
+const FOLDERS = ['originals', 'previews', 'covers', 'avatars', 'watermarks', 'faces', 'tmp'];
 // Sans cache libvips : sinon Windows garde les images ouvertes et refuse de les supprimer (EBUSY).
 sharp.cache(false);
 
@@ -109,7 +109,7 @@ export async function storeAvatar(file) {
   try {
     await inspect(file.path);
     const key = `avatars/${crypto.randomUUID()}.webp`;
-    await sharp(file.path).rotate().resize(256, 256, { fit: 'cover' }).webp({ quality: 85 }).toFile(resolveKey(key));
+    await sharp(file.path).rotate().resize(400, 400, { fit: 'cover', position: sharp.strategy.attention }).webp({ quality: 85 }).toFile(resolveKey(key));
     return key;
   } finally {
     await fs.rm(file.path, { force: true });

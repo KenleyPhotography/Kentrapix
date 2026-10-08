@@ -62,6 +62,16 @@ La clé Resend reste sur le serveur : elle n'est jamais envoyée au navigateur.
 
 Dans « Gérer » une galerie, cochez **Mode sélection** (et éventuellement un nombre maximum). Le client voit des aperçus **filigranés et numérotés**, choisit des photos (clic ou numéros « 3, 7, 12-15 ») et envoie sa sélection : l'équipe reçoit un e-mail et la retrouve via le bouton **Sélection** de la galerie. Sur ces galeries, **aucun téléchargement n'est possible** : l'API refuse toute demande, et les originaux ne sont jamais servis.
 
+## Reconnaissance des visages
+
+Chaque photo importée est analysée **en arrière-plan** (moteur Human + TensorFlow WASM, sans module natif, environ 5 s par photo) : les visages sont regroupés par personne dans chaque galerie.
+
+- Studio : bouton **Visages** sur une galerie → nommer les personnes, masquer, fusionner deux groupes, réanalyser.
+- Client : seules les personnes **nommées** apparaissent dans la rangée « Personnes » de la galerie (filtre). Désactivable dans Réglages.
+- Seuil de ressemblance : `FACE_MATCH` (cosinus, défaut 0,78 — strict : une même personne peut apparaître en deux groupes, à fusionner ; deux personnes ne sont pas mélangées).
+- Limite : les très petits visages (fond d’une photo de groupe) ne sont pas détectés.
+- Données biométriques : supprimées avec la photo ou la galerie ; analyse interrompue ou en échec relancée au démarrage du serveur.
+
 ## Architecture
 
 ```

@@ -90,7 +90,7 @@ export const mapDownload = (d) => ({
 export const EVENT_COLUMNS = `e.*, (SELECT p.id FROM photos p WHERE p.event_id = e.id ORDER BY p.position, p.created_at LIMIT 1) AS first_photo_id`;
 
 // ---------- Autorisations globales ----------
-export const PERMISSION_KEYS = ['individual', 'selection', 'event', 'favorites', 'comments', 'signup', 'sharing'];
+export const PERMISSION_KEYS = ['individual', 'selection', 'event', 'favorites', 'comments', 'faces', 'signup', 'sharing'];
 
 export async function getPermissions() {
   const rows = await query('SELECT perm_key, enabled FROM permissions');

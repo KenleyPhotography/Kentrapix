@@ -52,6 +52,17 @@ export async function clientBootstrap(id) {
     ),
     query('SELECT * FROM event_selections WHERE user_id = ?', [id]),
   ]);
+  // Personnes nommées par le studio (et non masquées) : filtre « photos de Marie ».
+  const people = permissions.faces && events.length
+    ? await query(
+      `SELECT pe.id, pe.event_id, pe.name, GROUP_CONCAT(DISTINCT f.photo_id) AS photo_ids,
+         SUBSTRING_INDEX(GROUP_CONCAT(f.id ORDER BY f.score DESC), \',\', 1) AS face_id
+       FROM people pe JOIN photo_faces f ON f.person_id = pe.id JOIN events e ON e.id = pe.event_id
+       WHERE ${VISIBLE} AND pe.name IS NOT NULL AND pe.hidden = 0
+       GROUP BY pe.id ORDER BY pe.name`,
+      [id],
+    )
+    : [];
   // Sélection par galerie : photos choisies + dernier envoi au studio.
   const selections = {};
   for (const e of events.filter((e) => e.selection_mode)) {
@@ -69,6 +80,9 @@ export async function clientBootstrap(id) {
     downloads: downloads.map(mapDownload),
     permissions,
     selections,
+    people: people.map((p) => ({
+      id: p.id, eventId: p.event_id, name: p.name, face: `/media/face/${p.face_id}`, photoIds: String(p.photo_ids || '').split(',').filter(Boolean),
+    })),
   };
 }
 

@@ -7,7 +7,7 @@ import { httpError } from '../lib/errors.js';
 import { upload, storePhoto, storeCover, removeKeys, removeWatermarks } from '../lib/storage.js';
 import {
   uuid, mapClient, mapEvent, mapPhoto, mapDownload, mapComment, getPermissions, PERMISSION_KEYS, EVENT_COLUMNS,
-  PHOTO_COLUMNS, COMMENT_SELECT,
+  PHOTO_COLUMNS, COMMENT_SELECT, avatarUrl,
 } from '../lib/data.js';
 import { audit } from '../lib/audit.js';
 import { sendMail, mailConfigured } from '../lib/mailer.js';
@@ -15,6 +15,7 @@ import {
   welcomeEmail, galleryReadyEmail, passwordResetEmail, adminInviteEmail, messageEmail,
 } from '../lib/emails.js';
 import { requireStaff, requireOwner, STAFF_ROLES } from '../middleware/auth.js';
+import { kickFaces, mergePeople, rescanEvent, removeEmptyPeople } from '../lib/faces.js';
 import { config } from '../config.js';
 import { BCRYPT_COST, passwordRule } from './auth.js';
 import { clientBootstrap } from './client.js';
@@ -52,7 +53,7 @@ router.get('/bootstrap', async (req, res) => {
        ORDER BY d.created_at DESC LIMIT 100`,
     ),
     query(
-      `SELECT u.id, u.name,
+      `SELECT u.id, u.name, u.avatar_key,
          (SELECT COUNT(*) FROM favorites f WHERE f.user_id = u.id) AS favorites,
          (SELECT COALESCE(SUM(d.photo_count), 0) FROM downloads d WHERE d.user_id = u.id) AS downloads,
          u.last_login_at
@@ -75,7 +76,7 @@ router.get('/bootstrap', async (req, res) => {
     downloads: downloads.map(mapDownload),
     favorites: [],
     activity: activity.map((a) => ({
-      id: a.id, name: a.name, favorites: Number(a.favorites), downloads: Number(a.downloads), lastLoginAt: toIso(a.last_login_at),
+      id: a.id, name: a.name, avatar: avatarUrl(a), favorites: Number(a.favorites), downloads: Number(a.downloads), lastLoginAt: toIso(a.last_login_at),
     })),
     stats: { storageBytes: Number(storage.originals) + Number(storage.previews) },
     permissions,
@@ -413,6 +414,7 @@ router.post('/events/:id/photos', upload.single('photo'), async (req, res) => {
         stored.previewBytes, stored.width, stored.height, event.id],
     );
     const [photo] = await query('SELECT * FROM photos WHERE id = ?', [id]);
+    kickFaces(); // analyse des visages en arrière-plan
     res.status(201).json({ photo: mapPhoto(photo) });
   } catch (err) {
     await removeKeys([stored.originalKey, stored.previewKey]);
@@ -451,8 +453,10 @@ router.post('/photos/:id/move-up', async (req, res) => {
 router.delete('/photos/:id', async (req, res) => {
   const photo = await findPhoto(req.params.id);
   await query('UPDATE events SET cover_key = NULL WHERE id = ? AND cover_key = ?', [photo.event_id, photo.preview_key]);
+  const faces = await query('SELECT id FROM photo_faces WHERE photo_id = ?', [photo.id]);
   await query('DELETE FROM photos WHERE id = ?', [photo.id]);
-  await removeKeys([photo.original_key, photo.preview_key]);
+  await removeKeys([photo.original_key, photo.preview_key, ...faces.map((f) => `faces/${f.id}.webp`)]);
+  await removeEmptyPeople();
   await removeWatermarks(photo.id);
   audit(req, 'photo.delete', { entity: 'photo', entityId: photo.id, details: { filename: photo.filename, eventId: photo.event_id } });
   res.status(204).end();
@@ -502,6 +506,69 @@ router.delete('/comments/:id', async (req, res) => {
   if (!result.affectedRows) throw httpError(404, 'Commentaire introuvable.');
   audit(req, 'comment.delete', { entity: 'comment', entityId: req.params.id });
   res.status(204).end();
+});
+
+// ---------- Visages ----------
+router.get('/events/:id/people', async (req, res) => {
+  const event = await findEvent(req.params.id);
+  const [people, [status]] = await Promise.all([
+    query(
+      `SELECT pe.id, pe.name, pe.hidden, COUNT(DISTINCT f.photo_id) AS photo_count,
+         SUBSTRING_INDEX(GROUP_CONCAT(f.id ORDER BY f.score DESC), ',', 1) AS face_id
+       FROM people pe JOIN photo_faces f ON f.person_id = pe.id
+       WHERE pe.event_id = ? GROUP BY pe.id ORDER BY pe.name IS NULL, pe.name, photo_count DESC`,
+      [event.id],
+    ),
+    query(
+      `SELECT SUM(faces_status IN ('pending', 'processing')) AS pending, SUM(faces_status = 'done') AS done,
+         SUM(faces_status = 'failed') AS failed, COUNT(*) AS total FROM photos WHERE event_id = ?`,
+      [event.id],
+    ),
+  ]);
+  res.json({
+    people: people.map((p) => ({
+      id: p.id, name: p.name, hidden: !!p.hidden, photoCount: Number(p.photo_count), face: `/media/face/${p.face_id}`,
+    })),
+    status: { pending: Number(status.pending || 0), done: Number(status.done || 0), failed: Number(status.failed || 0), total: Number(status.total) },
+  });
+});
+
+async function findPerson(id) {
+  const [person] = await query('SELECT * FROM people WHERE id = ?', [uuid.parse(id)]);
+  if (!person) throw httpError(404, 'Personne introuvable.');
+  return person;
+}
+
+router.patch('/people/:id', async (req, res) => {
+  const person = await findPerson(req.params.id);
+  const data = z.object({
+    name: z.string().trim().max(120).optional().transform((v) => (v === undefined ? undefined : v || null)),
+    hidden: z.boolean().optional(),
+  }).parse(req.body);
+  await query('UPDATE people SET name = ?, hidden = ? WHERE id = ?', [
+    data.name !== undefined ? data.name : person.name,
+    (data.hidden ?? !!person.hidden) ? 1 : 0,
+    person.id,
+  ]);
+  audit(req, 'people.update', { entity: 'person', entityId: person.id, details: { name: data.name, hidden: data.hidden } });
+  res.status(204).end();
+});
+
+router.post('/people/:id/merge', async (req, res) => {
+  const from = await findPerson(req.params.id);
+  const { intoId } = z.object({ intoId: uuid }).parse(req.body);
+  const into = await findPerson(intoId);
+  if (from.event_id !== into.event_id || from.id === into.id) throw httpError(400, 'Fusion impossible entre ces personnes.');
+  await mergePeople(from.id, into.id);
+  audit(req, 'people.merge', { entity: 'person', entityId: into.id, details: { from: from.id } });
+  res.status(204).end();
+});
+
+router.post('/events/:id/faces/rescan', async (req, res) => {
+  const event = await findEvent(req.params.id);
+  await rescanEvent(event.id);
+  audit(req, 'faces.rescan', { entity: 'event', entityId: event.id });
+  res.status(202).json({ ok: true });
 });
 
 // ---------- Autorisations ----------

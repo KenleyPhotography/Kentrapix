@@ -2,6 +2,7 @@ import { config, assertServerConfig } from './config.js';
 import { pool } from './db.js';
 import { ensureStorage } from './lib/storage.js';
 import { createApp } from './app.js';
+import { kickFaces, resetInterruptedFaces } from './lib/faces.js';
 
 assertServerConfig();
 await ensureStorage();
@@ -12,6 +13,8 @@ await pool.query('SELECT 1').catch((err) => {
 
 const server = createApp().listen(config.port, () => {
   console.log(`KentraPix prêt sur http://localhost:${config.port} (${config.env})`);
+  // Photos importées pas encore analysées (ou interrompues par un arrêt du serveur).
+  resetInterruptedFaces().then(kickFaces).catch((err) => console.error('Visages :', err.message));
 });
 
 // Arrêt propre : termine les requêtes en cours puis ferme MySQL.

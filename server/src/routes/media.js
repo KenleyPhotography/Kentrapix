@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { query } from '../db.js';
 import { httpError } from '../lib/errors.js';
 import { sendPrivate, watermarkedPreview } from '../lib/storage.js';
+import { faceThumbnail } from '../lib/faces.js';
 import { uuid, canSeeEvent } from '../lib/data.js';
 import { requireAuth } from '../middleware/auth.js';
 
@@ -36,6 +37,17 @@ router.get('/cover/:id', async (req, res) => {
     return sendPrivate(res, await watermarkedPreview(event.cover_key, `cover-${name}`, null));
   }
   sendPrivate(res, event.cover_key);
+});
+
+// Vignette d'un visage (filtre « personnes »).
+router.get('/face/:id', async (req, res) => {
+  const [face] = await query(
+    `SELECT f.*, p.preview_key, e.client_id, e.published, e.archived
+     FROM photo_faces f JOIN photos p ON p.id = f.photo_id JOIN events e ON e.id = p.event_id WHERE f.id = ?`,
+    [uuid.parse(req.params.id)],
+  );
+  if (!face || !canSeeEvent(req.user, face)) throw httpError(404, 'Image introuvable.');
+  sendPrivate(res, await faceThumbnail(face));
 });
 
 // Photo de profil : la sienne, toutes pour l'équipe, et celles de l'équipe pour tous (commentaires).
