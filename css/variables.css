@@ -1,0 +1,102 @@
+/* ==========================================================================
+   KentraPix — Design tokens
+   Tout le design part d'ici : couleurs, typo, espacements, rayons, ombres.
+   Changez une valeur ici et elle s'applique partout.
+   ========================================================================== */
+
+:root {
+  color-scheme: light;
+
+  /* Marque — mêmes couleurs que Kentra Gestion */
+  --blue: #1265d8;
+  --blue-hover: #0d50b2;
+  --blue-light: #1c77ee;
+  --blue-soft: #e8f1ff;
+  --blue-line: #c4d9f7;
+  --gradient-primary: linear-gradient(115deg, #1c77ee, #1056bf);
+  --gradient-sidebar: linear-gradient(160deg, #0c4088, #1466d3);
+  --gradient-feature: linear-gradient(130deg, #10458c, #1670df);
+  --accent: #a8ed00; /* vert du logo Kentra, à utiliser avec parcimonie */
+
+  /* Neutres */
+  --bg: #f3f7ff;
+  --surface: #ffffff;
+  --surface-2: #f5f8fd;
+  --ink: #082445;
+  --text: #172b46;
+  --muted: #64748b;
+  --subtle: #8a9ab3;
+  --label: #3c577c;
+  --border: #e0eaf8;
+  --border-strong: #ccdaee;
+  --navy: #082445;
+
+  /* États */
+  --success: #13804b;
+  --success-soft: #e6f4ec;
+  --warning: #9a5b00;
+  --warning-soft: #fdf1dc;
+  --danger: #c4282b;
+
+  /* Typographie */
+  --font-sans: "Segoe UI", "Inter", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --font-serif: "Fraunces", Georgia, "Times New Roman", serif;
+
+  --text-xs: 0.75rem;   /* 12px */
+  --text-sm: 0.8125rem; /* 13px */
+  --text-md: 0.9375rem; /* 15px */
+  --text-lg: 1.125rem;  /* 18px */
+  --text-xl: 1.5rem;    /* 24px */
+  --text-2xl: clamp(1.75rem, 1.2rem + 1.8vw, 2.5rem);
+  --text-3xl: clamp(2.1rem, 1.3rem + 2.8vw, 3.4rem);
+
+  /* Espacements (échelle de 4px) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* Rayons */
+  --radius-sm: 8px;
+  --radius: 12px;
+  --radius-lg: 18px;
+  --radius-xl: 24px;
+  --radius-full: 999px;
+
+  /* Ombres */
+  --shadow-xs: 0 1px 2px rgba(8, 36, 69, 0.04);
+  --shadow-sm: 0 7px 25px rgba(36, 87, 142, 0.06);
+  --shadow-md: 0 20px 60px rgba(21, 43, 70, 0.10);
+  --shadow-lg: 0 28px 65px rgba(23, 63, 112, 0.25);
+  --shadow-btn: 0 6px 15px rgba(18, 101, 216, 0.22);
+  --ring: 0 0 0 3px rgba(18, 101, 216, 0.25);
+
+  /* Mouvement */
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --fast: 0.16s;
+  --slow: 0.5s;
+
+  /* Mise en page */
+  --sidebar-w: 250px;
+  --topbar-h: 76px;
+  --content-max: 1480px;
+  --gutter: 40px;
+}
+
+@media (max-width: 1200px) {
+  :root { --sidebar-w: 216px; --gutter: 28px; }
+}
+
+@media (max-width: 800px) {
+  :root { --topbar-h: 64px; --gutter: 20px; }
+}
+
+@media (max-width: 480px) {
+  :root { --gutter: 16px; }
+}

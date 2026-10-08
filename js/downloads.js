@@ -1,0 +1,3 @@
+// Le serveur vérifie les droits, prépare la photo ou le ZIP et renvoie un lien valable 10 minutes.
+import{api,service}from'./service.js';
+export async function downloadPhotos(photos,notify,eventId){if(service.readOnly)return notify('Aperçu : le téléchargement est désactivé.');if(!eventId&&!photos.length)return notify('Choisissez au moins une photo.');try{const r=await api('/api/client/downloads',{method:'POST',body:eventId?{eventId}:{photoIds:photos.map(p=>p.id)}});const a=document.createElement('a');a.href=r.url;a.download='';document.body.append(a);a.click();a.remove();service.data.downloads.unshift(r.download);notify(r.download.count>1?'Préparation du fichier ZIP…':'Téléchargement lancé.')}catch(e){notify(e.message)}}

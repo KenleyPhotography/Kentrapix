@@ -1,0 +1,32 @@
+KENTRAPIX — SITE + BACKEND MYSQL
+
+Le site fonctionne maintenant avec un vrai serveur (Node.js + MySQL).
+Live Server n'est plus utilise : c'est le serveur qui affiche le site.
+
+DEMARRER (details complets dans server/README.md)
+1. Installez Node.js et MySQL.
+2. Dans un terminal :
+     cd server
+     npm install
+     copy .env.example .env      (puis remplissez .env : base MySQL + JWT_SECRET)
+     npm run db:init
+     npm run create-admin
+     npm run dev
+3. Ouvrez http://localhost:3000
+
+COMPTES
+- Admin (studio) : cree avec "npm run create-admin".
+- Clients : crees par l'admin dans Clients, avec un mot de passe temporaire.
+  Le client choisit son propre mot de passe a la premiere connexion.
+- Tout le site demande une connexion. Le studio est invisible pour les clients :
+  le serveur refuse admin.html a toute personne qui n'est pas admin.
+
+FICHIERS
+css/modern.css    : style (bleu Kentra)
+js/               : interface (appelle l'API du serveur)
+server/           : backend, base de donnees, photos privees (server/storage)
+_ancien-css/      : sauvegarde de l'ancien design
+
+IMPORTANT
+- Ne partagez jamais server/.env.
+- Sauvegardez chaque jour la base MySQL ET le dossier server/storage.

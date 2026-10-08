@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="description" content="KentraPix, votre espace photo privé par Kenley Photography.">
+  <meta name="theme-color" content="#f4f7fc">
+  <title>KentraPix</title>
+  <link rel="icon" type="image/svg+xml" href="/logo/kentrapix-icon.svg">
+  <link rel="apple-touch-icon" href="/logo/kentrapix-icon.png">
+
+  <!-- Polices -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..600;1,9..144,300..500&family=Inter:wght@400..700&display=swap">
+  <link rel="preconnect" href="https://images.unsplash.com">
+
+  <!-- Styles (ordre important : tokens → base → layout → composants → pages) -->
+  <link rel="stylesheet" href="../css/variables.css">
+  <link rel="stylesheet" href="../css/base.css">
+  <link rel="stylesheet" href="../css/layout.css">
+  <link rel="stylesheet" href="../css/components.css">
+  <link rel="stylesheet" href="../css/home.css">
+  <link rel="stylesheet" href="../css/gallery.css">
+  <link rel="stylesheet" href="../css/admin.css">
+  <link rel="stylesheet" href="../css/login.css">
+  <link rel="stylesheet" href="../css/modern.css">
+</head>
+<body>
+  <div id="app"></div>
+  <div id="overlays"></div>
+  <div id="toast" role="status" aria-live="polite"></div>
+
+  <noscript>
+    <p style="padding:40px;text-align:center">KentraPix a besoin de JavaScript. Ouvrez ce dossier avec Live Server.</p>
+  </noscript>
+
+  <script type="module" src="../js/app.js"></script>
+</body>
+</html>

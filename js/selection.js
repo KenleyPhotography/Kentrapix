@@ -1,0 +1,1 @@
+export const selection={ids:new Set(),active:false,toggle(id){this.ids.has(id)?this.ids.delete(id):this.ids.add(id)},clear(){this.ids.clear();this.active=false}};
