@@ -30,7 +30,6 @@ router.get('/sw.js', (req, res) => {
 router.get('/robots.txt', (req, res) => res.type('text').send([
   'User-agent: *',
   'Allow: /$',
-  'Allow: /login.html',
   'Allow: /conditions.html',
   'Disallow: /api/',
   'Disallow: /media/',
@@ -46,7 +45,7 @@ router.get('/robots.txt', (req, res) => res.type('text').send([
 router.get('/sitemap.xml', (req, res) => res.type('application/xml').send(
   `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n  <url><loc>${config.appUrl}/</loc><changefreq>monthly</changefreq><priority>1.0</priority></url>\n  <url><loc>${config.appUrl}/conditions.html</loc><changefreq>yearly</changefreq><priority>0.3</priority></url>\n</urlset>\n`,
 ));
-router.get('/favicon.ico', (req, res) => res.redirect(301, '/logo/kentrapix-icon.png'));
+router.get('/favicon.ico', (req, res) => res.type('image/png').set('Cache-Control', 'public, max-age=86400').sendFile(page('logo/icon-192.png')));
 
 // Conditions d'utilisation : page publique (liée depuis la connexion et la barre latérale).
 router.get('/conditions.html', (req, res) => res.sendFile(page('conditions.html')));
