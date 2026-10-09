@@ -1,10 +1,10 @@
-# KentraPix — Backend (Node.js + Express + MySQL)
+# KentraPix — Backend (Node.js + Express + PostgreSQL/Supabase)
 
 Le serveur sert le site (HTML/CSS/JS du dossier parent) **et** l'API. Live Server n'est plus utilisé.
 
 ## Installation (une seule fois)
 
-Prérequis : Node.js 20.12+ et MySQL 8 (ou MariaDB 10.6+).
+Prérequis : Node.js 20.12+ et un projet [Supabase](https://supabase.com) (base PostgreSQL).
 
 ```bash
 cd server
@@ -13,21 +13,21 @@ cp .env.example .env        # Windows : copy .env.example .env
 ```
 
 Remplissez `.env` :
-- `DB_USER`, `DB_PASSWORD`, `DB_NAME` : votre base MySQL.
+- `DATABASE_URL` : adresse **Session pooler** de Supabase (bouton *Connect*), avec le mot de passe de la base.
 - `JWT_SECRET` : générez-le avec
   `node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"`
 
 Puis :
 
 ```bash
-npm run db:init         # crée la base et les tables (sql/schema.sql)
+npm run db:init         # crée les tables et les vues (sql/schema.sql)
 npm run create-admin    # crée votre compte studio (mot de passe demandé au clavier)
 npm run dev             # http://localhost:3000
 ```
 
 Ensuite, connectez-vous en admin et créez vos clients depuis **Clients** (mot de passe temporaire : le client choisit le sien à sa première connexion).
 
-Guide MySQL détaillé (installation, schéma, requêtes utiles, sauvegardes) : [sql/README.md](sql/README.md).
+Guide de la base (Supabase, schéma, requêtes utiles, sauvegardes) : [sql/README.md](sql/README.md).
 
 ## Rôles
 
@@ -95,6 +95,29 @@ Bouton **Diaporama** (client et lien de partage) : plein écran, fondu enchaîn�
 sur mobile. Dans « Gérer », **Musique du diaporama** ajoute un fichier audio (MP3, M4A, AAC, OGG, WAV — 20 Mo max,
 stocké dans `storage/music/`). Utilisez une musique dont vous avez les droits.
 
+## Photos en ligne (Backblaze B2 / S3)
+
+Avec `B2_KEY_ID`, `B2_APPLICATION_KEY`, `B2_BUCKET` et `B2_ENDPOINT` dans `.env` (bucket **privé**), les photos
+ne sont plus enregistrées sur le serveur :
+
+- **import** : le navigateur du studio crée l'aperçu WEBP (orientation EXIF appliquée) puis envoie original + aperçu
+  **directement au bucket** via des adresses signées (15 min) ; le serveur vérifie leur arrivée puis enregistre la fiche ;
+- **affichage / téléchargement** : `/media/…` vérifie les droits puis redirige vers un lien signé (2 h, identique pendant
+  une heure pour profiter du cache du navigateur) — les photos ne transitent pas par le serveur ;
+- passent encore par le serveur, sans y être conservés : le ZIP « Tout télécharger », la création des filigranes
+  (mode sélection) et des vignettes de visages (à partir de l'aperçu), les couvertures, avatars et musiques envoyés.
+
+Mise en route : `npm run storage:setup` (vérifie la connexion et autorise le site dans les règles CORS du bucket),
+puis `npm run storage:migrate` (copie les photos existantes ; `-- --delete-local` supprime ensuite les copies locales).
+Sans ces variables, tout reste dans `STORAGE_DIR` comme avant.
+
+## Base PostgreSQL / Supabase
+
+Base : Supabase (`DATABASE_URL`). Les routes écrivent leurs requêtes avec des `?`, numérotés par
+[src/db.js](src/db.js). Schéma : [sql/schema.sql](sql/schema.sql), évolutions dans `sql/migrations/`.
+L'API publique de Supabase est bloquée (RLS sans règle) : seul ce serveur lit la base.
+Ancienne base MySQL : sauvegarde `kentrapix-mysql-2026-10-09.sql` (dossier `backups`, hors du dépôt).
+
 ## Application installable (PWA)
 
 `manifest.webmanifest` + `sw.js` : le site s’installe sur l’écran d’accueil (Android/Chrome : bouton **Installer**
@@ -122,7 +145,7 @@ server/
   src/
     server.js             Démarrage, vérifications, arrêt propre
     app.js                Express : sécurité (helmet/CSP), routes, erreurs
-    config.js  db.js      Configuration .env, pool MySQL (requêtes préparées, UTC)
+    config.js  db.js      Configuration .env, pool PostgreSQL (requêtes préparées, UTC)
     middleware/auth.js    Session (cookie httpOnly signé), rôles
     lib/                  storage (sharp), data (mappers, permissions), errors
     routes/
@@ -173,27 +196,26 @@ server/
 - Images vérifiées par leur contenu (pas seulement l'extension), originales conservées intactes, aperçus WEBP générés côté serveur.
 - En-têtes de sécurité (helmet, CSP stricte, HSTS en production).
 
-## Mise en production (Ubuntu + Cloudflare Tunnel)
+## Mise en production (Render)
 
-Scripts dans `deploy/` (lancés depuis Windows, aucune commande Linux à taper) :
+Le site tourne sur [Render](https://render.com), la base sur Supabase et les photos sur Cloudflare R2 : rien n'est
+gardé sur le disque du serveur. Configuration : [render.yaml](../render.yaml) à la racine du dépôt.
 
-| Script | Rôle |
-|---|---|
-| `deploy.ps1 -Ip <IP>` | Envoie le code et installe / met à jour : Node 24, MySQL 8, service `kentrapix` (redémarrage auto), sauvegarde MySQL quotidienne (`/opt/kentrapix/backups`, 14 jours), Cloudflare Tunnel si `deploy/tunnel-token.txt` existe. |
-| `migrate-data.ps1 -Ip <IP>` | Copie une fois la base et les photos du PC vers le serveur (**remplace** celles du serveur). |
-| `setup-server.sh` | Exécuté sur le serveur par `deploy.ps1` ; relançable sans risque. |
+1. Render : **New > Blueprint** > dépôt GitHub `KenleyPhotography/Kentrapix` > *Apply*.
+2. Renseignez les valeurs demandées (copiées depuis `server/.env`) : `DATABASE_URL`, `JWT_SECRET`,
+   `RESEND_API_KEY`, `MAIL_FROM`, `S3_ENDPOINT`, `S3_BUCKET`, `S3_KEY_ID`, `S3_SECRET`.
+3. Vérifiez `https://kentrapix.onrender.com/api/health` → `{"ok":true}`.
+4. Render : *Settings > Custom Domains* > `kentrapix.kenleyelysee.com`. Cloudflare : supprimez le *Public hostname* du
+   tunnel, puis *DNS* > `CNAME kentrapix → kentrapix.onrender.com` (**DNS only**, nuage gris).
+5. Chaque `git push` sur `master` redéploie le site.
 
-Sur le serveur : code `/opt/kentrapix/app`, photos `/opt/kentrapix/storage`, configuration `/opt/kentrapix/kentrapix.env`
-(`NODE_ENV=production`, `HOST=127.0.0.1` : joignable seulement via le tunnel, `TRUST_PROXY=true`, `APP_URL=https://…`).
-Commandes utiles : `sudo systemctl status kentrapix`, `sudo journalctl -u kentrapix -f`.
+Offre gratuite : 512 Mo de mémoire (visages ≈ 300 Mo ; `FACES_ENABLED=false` les désactive) et mise en veille après
+15 min sans visite (≈ 1 min d'attente pour le visiteur suivant ; les rappels d'expiration ne partent pas pendant la veille).
 
-Cloudflare : Zero Trust → Networks → Tunnels → *Create a tunnel* (Cloudflared) → copier le **token** dans
-`deploy/tunnel-token.txt` → *Public hostname* `kentrapix.kenleyelysee.com` → service `HTTP` `localhost:3000`.
-Les envois de photos passent par Cloudflare : 100 Mo max par requête (plan gratuit), au-dessus de `MAX_UPLOAD_MB=50`.
-
-Pensez aussi à copier régulièrement `/opt/kentrapix/backups` et `/opt/kentrapix/storage` **hors du serveur**.
+En attendant Render, le PC peut toujours servir le site : `deploy/windows/run-kentrapix.ps1` (relance automatique)
+et `run-tunnel.ps1` (Cloudflare Tunnel, *Public hostname* `kentrapix.kenleyelysee.com` → `HTTP localhost:3000`).
 
 ## À prévoir ensuite
 
 - Envoi d'e-mails (bienvenue, mot de passe oublié par lien) via un service SMTP.
-- Pour un très grand volume de photos : stockage S3/R2 (seul `lib/storage.js` change) et pagination de la page Albums.
+- Pour un très grand volume de photos : pagination de la page Albums.

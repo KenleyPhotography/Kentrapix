@@ -1,0 +1,47 @@
+# Render (https://render.com) : New > Blueprint > ce dépôt GitHub.
+# Les valeurs marquées sync: false sont demandées à la création (copiez-les depuis server/.env).
+# Base : Supabase (DATABASE_URL). Photos : Cloudflare R2 (S3_*). Rien n'est gardé sur le disque de Render.
+services:
+  - type: web
+    name: kentrapix
+    runtime: node
+    plan: free
+    region: virginia # même région que Supabase (us-east-1) : requêtes plus rapides
+    buildCommand: cd server && npm ci --omit=dev
+    startCommand: cd server && npm start
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "24"
+      - key: NODE_ENV
+        value: production
+      - key: TRUST_PROXY
+        value: "true"
+      - key: APP_URL
+        value: https://kentrapix.kenleyelysee.com
+      - key: SESSION_DAYS
+        value: "7"
+      - key: MAX_UPLOAD_MB
+        value: "50"
+      - key: PREVIEW_WIDTH
+        value: "1600"
+      # 512 Mo de mémoire sur l'offre gratuite : mettre false si le serveur manque de mémoire.
+      - key: FACES_ENABLED
+        value: "true"
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: MAIL_FROM
+        sync: false
+      - key: S3_ENDPOINT
+        sync: false
+      - key: S3_BUCKET
+        sync: false
+      - key: S3_KEY_ID
+        sync: false
+      - key: S3_SECRET
+        sync: false

@@ -1,4 +1,4 @@
-// Client de l'API KentraPix (backend Node.js + MySQL, dossier server/).
+// Client de l'API KentraPix (backend Node.js + PostgreSQL, dossier server/).
 export const image=(id,w=1100)=>`https://images.unsplash.com/${id}?auto=format&fit=crop&w=${w}&q=85`;
 export async function api(path,{method='GET',body,form}={}){const opts={method,credentials:'same-origin',headers:{Accept:'application/json'}};if(form)opts.body=form;else if(body!==undefined){opts.headers['Content-Type']='application/json';opts.body=JSON.stringify(body)}let res;try{res=await fetch(path,opts)}catch{throw Error('Connexion au serveur impossible. Vérifiez votre connexion.')}if(res.status===401&&!path.startsWith('/api/auth/')){location.href='/login.html';throw Error('Session expirée.')}if(res.status===204)return null;
 // Page ouverte sans le serveur KentraPix (ex. Live Server sur le port 5500) : pas d'API JSON.

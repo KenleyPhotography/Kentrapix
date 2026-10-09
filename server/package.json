@@ -2,7 +2,7 @@
   "name": "kentrapix-server",
   "version": "1.0.0",
   "private": true,
-  "description": "Backend KentraPix — API Node.js/Express + MySQL",
+  "description": "Backend KentraPix — API Node.js/Express + PostgreSQL (Supabase)",
   "type": "module",
   "main": "src/server.js",
   "engines": {
@@ -12,9 +12,13 @@
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
     "db:init": "node scripts/db-init.js",
-    "create-admin": "node scripts/create-admin.js"
+    "create-admin": "node scripts/create-admin.js",
+    "storage:setup": "node scripts/storage-setup.js",
+    "storage:migrate": "node scripts/storage-migrate.js"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1148.0",
+    "@aws-sdk/s3-request-presigner": "^3.1148.0",
     "@tensorflow/tfjs": "^4.22.0",
     "@tensorflow/tfjs-backend-wasm": "^4.22.0",
     "@vladmandic/human": "^3.3.6",
@@ -27,7 +31,7 @@
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.0",
     "multer": "^2.0.1",
-    "mysql2": "^3.14.1",
+    "pg": "^8.23.1",
     "sharp": "^0.34.2",
     "zod": "^3.25.0"
   }

@@ -3,7 +3,7 @@ import crypto from 'node:crypto';
 import bcrypt from 'bcryptjs';
 import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
-import { query } from '../db.js';
+import { query, utcStamp } from '../db.js';
 import { httpError } from '../lib/errors.js';
 import { publicUser, getPermissions } from '../lib/data.js';
 import { config } from '../config.js';
@@ -118,8 +118,8 @@ router.post('/forgot', resetLimiter, async (req, res) => {
     await query('UPDATE password_resets SET used_at = CURRENT_TIMESTAMP WHERE user_id = ? AND used_at IS NULL', [user.id]);
     await query(
       `INSERT INTO password_resets (id, user_id, token_hash, expires_at)
-       VALUES (?, ?, ?, CURRENT_TIMESTAMP + INTERVAL ${RESET_MINUTES} MINUTE)`,
-      [crypto.randomUUID(), user.id, sha256(token)],
+       VALUES (?, ?, ?, ?)`,
+      [crypto.randomUUID(), user.id, sha256(token), utcStamp(new Date(Date.now() + RESET_MINUTES * 60000))],
     );
     audit(req, 'auth.reset_request', { userId: user.id });
     await sendMail({

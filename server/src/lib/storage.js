@@ -1,21 +1,47 @@
 import fs from 'node:fs/promises';
+import { createReadStream } from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import sharp from 'sharp';
 import multer from 'multer';
+import {
+  S3Client, PutObjectCommand, GetObjectCommand, HeadObjectCommand, DeleteObjectCommand, ListObjectsV2Command,
+} from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { config } from '../config.js';
 import { httpError } from './errors.js';
 
 // Fichiers privés : jamais servis directement, uniquement via /media et
 // /api/client/downloads après vérification des droits.
+//
+// Deux modes, choisis automatiquement :
+//  - en ligne (B2_* dans .env) : photos dans un bucket privé Backblaze B2 / S3. Les navigateurs envoient
+//    et reçoivent les photos directement depuis le bucket via des liens signés à durée limitée :
+//    elles ne sont jamais enregistrées sur ce serveur ;
+//  - local : photos dans STORAGE_DIR.
+// Les clés sont identiques dans les deux modes : 'originals/…', 'previews/…', 'covers/…', etc.
 const FOLDERS = ['originals', 'previews', 'covers', 'avatars', 'watermarks', 'faces', 'music', 'tmp'];
 // Sans cache libvips : sinon Windows garde les images ouvertes et refuse de les supprimer (EBUSY).
 sharp.cache(false);
 
 const FORMATS = { jpeg: 'jpg', png: 'png', webp: 'webp', tiff: 'tif', avif: 'avif' };
+const TYPES = { jpg: 'image/jpeg', png: 'image/png', webp: 'image/webp', tif: 'image/tiff', avif: 'image/avif' };
+
+export const isRemote = !!config.s3;
+const s3 = isRemote
+  ? new S3Client({
+    endpoint: config.s3.endpoint,
+    region: config.s3.region,
+    forcePathStyle: true, // un seul domaine pour tous les liens (CSP simple)
+    credentials: { accessKeyId: config.s3.keyId, secretAccessKey: config.s3.secret },
+  })
+  : null;
+const Bucket = config.s3?.bucket;
 
 export async function ensureStorage() {
-  await Promise.all(FOLDERS.map((f) => fs.mkdir(path.join(config.storageDir, f), { recursive: true })));
+  // tmp/ sert toujours : fichiers reçus par le serveur (couverture, avatar, musique) avant traitement.
+  const folders = isRemote ? ['tmp'] : FOLDERS;
+  await Promise.all(folders.map((f) => fs.mkdir(path.join(config.storageDir, f), { recursive: true })));
 }
 
 /** Clé de stockage (ex. 'previews/abc.webp') -> chemin absolu, sans sortie du dossier. */
@@ -25,7 +51,18 @@ export function resolveKey(key) {
   return abs;
 }
 
+const typeOf = (key) => TYPES[key.split('.').pop()] || (key.startsWith('music/') ? 'audio/mpeg' : 'application/octet-stream');
+
+// ---------- Opérations de base (local ou en ligne) ----------
 export async function fileExists(key) {
+  if (isRemote) {
+    try {
+      await s3.send(new HeadObjectCommand({ Bucket, Key: key }));
+      return true;
+    } catch {
+      return false;
+    }
+  }
   try {
     await fs.access(resolveKey(key));
     return true;
@@ -34,14 +71,155 @@ export async function fileExists(key) {
   }
 }
 
-/** Supprime des fichiers privés. Un fichier verrouillé est signalé mais ne fait pas échouer l'action. */
+/** Taille d'un fichier stocké (null s'il n'existe pas). */
+export async function fileSize(key) {
+  if (isRemote) {
+    try {
+      return (await s3.send(new HeadObjectCommand({ Bucket, Key: key }))).ContentLength ?? null;
+    } catch {
+      return null;
+    }
+  }
+  return (await fs.stat(resolveKey(key)).catch(() => null))?.size ?? null;
+}
+
+/** Enregistre un Buffer ou un fichier local sous une clé. */
+export async function putFile(key, source, contentType = typeOf(key)) {
+  if (isRemote) {
+    const Body = Buffer.isBuffer(source) ? source : await fs.readFile(source);
+    await s3.send(new PutObjectCommand({ Bucket, Key: key, Body, ContentType: contentType }));
+    return;
+  }
+  const target = resolveKey(key);
+  await fs.mkdir(path.dirname(target), { recursive: true });
+  if (Buffer.isBuffer(source)) await fs.writeFile(target, source);
+  else await fs.copyFile(source, target);
+}
+
+/** Contenu d'un fichier stocké (aperçus : filigrane, visages). */
+export async function readFile(key) {
+  if (isRemote) {
+    const res = await s3.send(new GetObjectCommand({ Bucket, Key: key }));
+    return Buffer.from(await res.Body.transformToByteArray());
+  }
+  return fs.readFile(resolveKey(key));
+}
+
+/** Flux de lecture (ZIP des originaux). */
+async function readStream(key) {
+  if (isRemote) return (await s3.send(new GetObjectCommand({ Bucket, Key: key }))).Body;
+  return createReadStream(resolveKey(key));
+}
+
+/** Supprime des fichiers privés. Un échec est signalé mais ne fait pas échouer l'action. */
 export async function removeKeys(keys) {
+  if (config.keepFiles) return; // copie de test : les fichiers appartiennent à la production
   await Promise.all(
-    keys.filter(Boolean).map((k) => fs.rm(resolveKey(k), { force: true, maxRetries: 3 }).catch((err) => console.error(`Suppression impossible (${k}) : ${err.code}`))),
+    keys.filter(Boolean).map((k) => (isRemote
+      ? s3.send(new DeleteObjectCommand({ Bucket, Key: k }))
+      : fs.rm(resolveKey(k), { force: true, maxRetries: 3 })
+    ).catch((err) => console.error(`Suppression impossible (${k}) : ${err.code || err.name}`))),
   );
 }
 
-/** Upload multipart vers storage/tmp, avant traitement. */
+// ---------- Liens signés (mode en ligne) ----------
+// Signés au début de l'heure et valables 2 h : même adresse pendant une heure,
+// donc le navigateur garde les photos en cache au lieu de les retélécharger.
+const hourStart = () => new Date(Math.floor(Date.now() / 3_600_000) * 3_600_000);
+const disposition = (filename) =>
+  `attachment; filename="${String(filename).replace(/[^\x20-\x7e]|["\\]/g, '_')}"; filename*=UTF-8''${encodeURIComponent(filename)}`;
+
+function signedGet(key, filename) {
+  const cmd = new GetObjectCommand({ Bucket, Key: key, ...(filename ? { ResponseContentDisposition: disposition(filename) } : {}) });
+  return getSignedUrl(s3, cmd, { expiresIn: 7200, signingDate: hourStart() });
+}
+
+/**
+ * Envoie un fichier privé après vérification des droits par la route appelante.
+ * En ligne : redirection vers un lien signé (le fichier ne passe pas par ce serveur).
+ * `filename` : téléchargement sous ce nom au lieu d'un affichage.
+ */
+export async function sendPrivate(res, key, filename = null) {
+  if (isRemote) {
+    res.set('Cache-Control', 'private, max-age=900');
+    return res.redirect(302, await signedGet(key, filename));
+  }
+  if (filename) return res.download(resolveKey(key), filename);
+  res.set('Cache-Control', 'private, max-age=3600');
+  res.sendFile(resolveKey(key));
+}
+
+/** Ajoute les originaux à un ZIP, l'un après l'autre (noms en double numérotés). */
+export async function zipOriginals(zip, photos) {
+  const used = new Set();
+  for (const p of photos) {
+    let entry = p.filename;
+    for (let n = 2; used.has(entry.toLowerCase()); n++) entry = p.filename.replace(/(\.[^.]*)?$/, ` (${n})$1`);
+    used.add(entry.toLowerCase());
+    const done = new Promise((resolve) => zip.once('entry', resolve));
+    zip.append(await readStream(p.original_key), { name: entry });
+    await done; // un seul téléchargement depuis le bucket à la fois
+  }
+  await zip.finalize();
+}
+
+// ---------- Import direct navigateur -> bucket (mode en ligne) ----------
+const DIRECT_TYPES = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/avif': 'avif' };
+const ticketOf = (id, ext, size) =>
+  crypto.createHmac('sha256', config.jwtSecret).update(`upload:${id}:${ext}:${size}`).digest('base64url');
+
+/** Prépare l'envoi d'une photo : adresses signées pour l'original et l'aperçu (15 min). */
+export async function prepareDirectUpload({ filename, type, size }) {
+  const ext = DIRECT_TYPES[type];
+  if (!ext) throw httpError(400, 'Format non pris en charge pour l’envoi direct (JPG, PNG, WEBP ou AVIF).');
+  if (size > config.maxUploadMb * 1024 * 1024) throw httpError(413, `Photo trop lourde (${config.maxUploadMb} Mo maximum).`);
+  const id = crypto.randomUUID();
+  const sign = (cmd) => getSignedUrl(s3, cmd, { expiresIn: 900 });
+  return {
+    id,
+    ext,
+    ticket: ticketOf(id, ext, size),
+    original: {
+      url: await sign(new PutObjectCommand({
+        Bucket, Key: `originals/${id}.${ext}`, ContentType: type, ContentLength: size,
+      })),
+      headers: { 'Content-Type': type },
+    },
+    preview: {
+      url: await sign(new PutObjectCommand({ Bucket, Key: `previews/${id}.webp`, ContentType: 'image/webp' })),
+      headers: { 'Content-Type': 'image/webp' },
+    },
+    previewWidth: config.previewWidth,
+    filename,
+  };
+}
+
+/** Vérifie un envoi direct terminé et renvoie les informations à enregistrer. */
+export async function confirmDirectUpload({ id, ext, size, ticket }) {
+  const expected = ticketOf(id, ext, size);
+  if (!ticket || ticket.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(ticket), Buffer.from(expected))) {
+    throw httpError(400, 'Envoi non reconnu.');
+  }
+  const originalKey = `originals/${id}.${ext}`;
+  const previewKey = `previews/${id}.webp`;
+  const [originalSize, previewSize] = await Promise.all([fileSize(originalKey), fileSize(previewKey)]);
+  if (originalSize !== size || !previewSize) {
+    await removeKeys([originalKey, previewKey]);
+    throw httpError(400, 'La photo n’est pas arrivée complètement. Réessayez.');
+  }
+  // Dimensions réelles de l'aperçu (l'orientation est déjà appliquée par le navigateur).
+  const meta = await sharp(await readFile(previewKey)).metadata().catch(() => null);
+  if (!meta?.width) {
+    await removeKeys([originalKey, previewKey]);
+    throw httpError(400, 'Aperçu invalide. Réessayez.');
+  }
+  return {
+    originalKey, previewKey, mime: TYPES[ext], sizeBytes: size, previewBytes: previewSize, width: meta.width, height: meta.height,
+  };
+}
+
+// ---------- Envois passant par le serveur ----------
+/** Upload multipart vers storage/tmp, avant traitement (supprimé juste après). */
 export const upload = multer({
   storage: multer.diskStorage({
     destination: (req, file, cb) => cb(null, path.join(config.storageDir, 'tmp')),
@@ -62,12 +240,12 @@ async function inspect(tmpPath) {
   return meta;
 }
 
-const makePreview = (input, output) =>
+const makePreview = (input) =>
   sharp(input)
     .rotate() // respecte l'orientation EXIF
     .resize({ width: config.previewWidth, height: config.previewWidth, fit: 'inside', withoutEnlargement: true })
     .webp({ quality: 82 })
-    .toFile(output);
+    .toBuffer({ resolveWithObject: true });
 
 /** Garde l'original intact et génère un aperçu WEBP léger. */
 export async function storePhoto(file) {
@@ -76,16 +254,17 @@ export async function storePhoto(file) {
     const id = crypto.randomUUID();
     const originalKey = `originals/${id}.${FORMATS[meta.format]}`;
     const previewKey = `previews/${id}.webp`;
-    await fs.rename(file.path, resolveKey(originalKey));
-    const preview = await makePreview(resolveKey(originalKey), resolveKey(previewKey));
+    const preview = await makePreview(file.path);
+    await putFile(originalKey, file.path, `image/${meta.format}`);
+    await putFile(previewKey, preview.data, 'image/webp');
     return {
       originalKey,
       previewKey,
       mime: `image/${meta.format}`,
       sizeBytes: file.size,
-      previewBytes: preview.size,
-      width: preview.width,
-      height: preview.height,
+      previewBytes: preview.info.size,
+      width: preview.info.width,
+      height: preview.info.height,
     };
   } finally {
     await fs.rm(file.path, { force: true });
@@ -97,19 +276,20 @@ export async function storeCover(file) {
   try {
     await inspect(file.path);
     const coverKey = `covers/${crypto.randomUUID()}.webp`;
-    await makePreview(file.path, resolveKey(coverKey));
+    await putFile(coverKey, (await makePreview(file.path)).data, 'image/webp');
     return coverKey;
   } finally {
     await fs.rm(file.path, { force: true });
   }
 }
 
-/** Photo de profil : carré 256 px WEBP. */
+/** Photo de profil : carré 400 px WEBP. */
 export async function storeAvatar(file) {
   try {
     await inspect(file.path);
     const key = `avatars/${crypto.randomUUID()}.webp`;
-    await sharp(file.path).rotate().resize(400, 400, { fit: 'cover', position: sharp.strategy.attention }).webp({ quality: 85 }).toFile(resolveKey(key));
+    const data = await sharp(file.path).rotate().resize(400, 400, { fit: 'cover', position: sharp.strategy.attention }).webp({ quality: 85 }).toBuffer();
+    await putFile(key, data, 'image/webp');
     return key;
   } finally {
     await fs.rm(file.path, { force: true });
@@ -123,7 +303,7 @@ export async function storeAvatar(file) {
 export async function watermarkedPreview(previewKey, photoId, number) {
   const key = `watermarks/${photoId}-${number || 'x'}.webp`;
   if (await fileExists(key)) return key;
-  const image = sharp(resolveKey(previewKey));
+  const image = sharp(await readFile(previewKey));
   const { width, height } = await image.metadata();
   const size = Math.round(Math.max(width, height) / 11);
   const tiles = [];
@@ -140,21 +320,19 @@ export async function watermarkedPreview(previewKey, photoId, number) {
     <text x="${badge * 2}" y="${height - badge * 0.78}" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif"
        font-weight="800" font-size="${badge * 0.8}" fill="#ffffff">N° ${number}</text>` : ''}
   </svg>`;
-  await image.composite([{ input: Buffer.from(svg) }]).webp({ quality: 78 }).toFile(resolveKey(key));
+  await putFile(key, await image.composite([{ input: Buffer.from(svg) }]).webp({ quality: 78 }).toBuffer(), 'image/webp');
   return key;
 }
 
 /** Supprime les aperçus filigranés d'une photo (tous numéros). */
 export async function removeWatermarks(photoId) {
-  const dir = path.join(config.storageDir, 'watermarks');
-  const files = await fs.readdir(dir).catch(() => []);
-  await removeKeys(files.filter((f) => f.startsWith(`${photoId}-`)).map((f) => `watermarks/${f}`));
-}
-
-/** Envoie un fichier privé avec un cache navigateur limité à l'utilisateur. */
-export function sendPrivate(res, key) {
-  res.set('Cache-Control', 'private, max-age=3600');
-  res.sendFile(resolveKey(key));
+  const prefix = `watermarks/${photoId}-`;
+  if (isRemote) {
+    const list = await s3.send(new ListObjectsV2Command({ Bucket, Prefix: prefix })).catch(() => null);
+    return removeKeys((list?.Contents || []).map((o) => o.Key));
+  }
+  const files = await fs.readdir(path.join(config.storageDir, 'watermarks')).catch(() => []);
+  await removeKeys(files.filter((f) => `watermarks/${f}`.startsWith(prefix)).map((f) => `watermarks/${f}`));
 }
 
 // ---------- Musique du diaporama ----------
@@ -172,12 +350,13 @@ export const uploadAudio = multer({
 
 /** Range le fichier audio dans music/ et renvoie sa clé. */
 export async function storeMusic(file) {
-  const ext = AUDIO[file.mimetype];
-  if (!ext) {
+  try {
+    const ext = AUDIO[file.mimetype];
+    if (!ext) throw httpError(400, 'Format audio non pris en charge (MP3, M4A, AAC, OGG, WAV).');
+    const key = `music/${crypto.randomUUID()}.${ext}`;
+    await putFile(key, file.path, file.mimetype);
+    return key;
+  } finally {
     await fs.rm(file.path, { force: true });
-    throw httpError(400, 'Format audio non pris en charge (MP3, M4A, AAC, OGG, WAV).');
   }
-  const key = `music/${crypto.randomUUID()}.${ext}`;
-  await fs.rename(file.path, resolveKey(key));
-  return key;
 }

@@ -24,7 +24,7 @@ router.get('/preview/:id', async (req, res) => {
   if (photo.selection_mode && !manages) {
     return sendPrivate(res, await watermarkedPreview(photo.preview_key, photo.id, Number(photo.number)));
   }
-  sendPrivate(res, photo.preview_key);
+  await sendPrivate(res, photo.preview_key);
 });
 
 router.get('/cover/:id', async (req, res) => {
@@ -36,7 +36,7 @@ router.get('/cover/:id', async (req, res) => {
     const name = event.cover_key.split('/').pop().split('.')[0];
     return sendPrivate(res, await watermarkedPreview(event.cover_key, `cover-${name}`, null));
   }
-  sendPrivate(res, event.cover_key);
+  await sendPrivate(res, event.cover_key);
 });
 
 // Vignette d'un visage (filtre « personnes »).
@@ -47,7 +47,7 @@ router.get('/face/:id', async (req, res) => {
     [uuid.parse(req.params.id)],
   );
   if (!face || !canSeeEvent(req.user, face)) throw httpError(404, 'Image introuvable.');
-  sendPrivate(res, await faceThumbnail(face));
+  await sendPrivate(res, await faceThumbnail(face));
 });
 
 // Musique du diaporama d'une galerie.
@@ -56,7 +56,7 @@ router.get('/music/:id', async (req, res) => {
     uuid.parse(req.params.id),
   ]);
   if (!event?.music_key || !canSeeEvent(req.user, event)) throw httpError(404, 'Musique introuvable.');
-  sendPrivate(res, event.music_key);
+  await sendPrivate(res, event.music_key);
 });
 
 // Photo de profil : la sienne, toutes pour le propriétaire, celles de ses clients pour un photographe,
@@ -67,7 +67,7 @@ router.get('/avatar/:id', async (req, res) => {
   const allowed = user && (user.id === req.user.id || req.user.role === 'owner' || staff(user)
     || (req.user.role === 'admin' && user.created_by === req.user.id));
   if (!user?.avatar_key || !allowed) throw httpError(404, 'Image introuvable.');
-  sendPrivate(res, user.avatar_key);
+  await sendPrivate(res, user.avatar_key);
 });
 
 export default router;

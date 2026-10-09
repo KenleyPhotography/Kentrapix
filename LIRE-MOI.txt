@@ -1,14 +1,14 @@
-KENTRAPIX — SITE + BACKEND MYSQL
+KENTRAPIX — SITE + BACKEND (SUPABASE)
 
-Le site fonctionne maintenant avec un vrai serveur (Node.js + MySQL).
-Live Server n'est plus utilise : c'est le serveur qui affiche le site.
+Le site fonctionne avec un vrai serveur : Node.js + base PostgreSQL sur Supabase.
+Les photos sont sur Cloudflare R2. Le site en ligne est heberge sur Render.
 
-DEMARRER (details complets dans server/README.md)
-1. Installez Node.js et MySQL.
+DEMARRER EN LOCAL (details complets dans server/README.md)
+1. Installez Node.js.
 2. Dans un terminal :
      cd server
      npm install
-     copy .env.example .env      (puis remplissez .env : base MySQL + JWT_SECRET)
+     copy .env.example .env      (puis remplissez .env : DATABASE_URL Supabase + JWT_SECRET + R2)
      npm run db:init
      npm run create-admin
      npm run dev
@@ -24,9 +24,10 @@ COMPTES
 FICHIERS
 css/modern.css    : style (bleu Kentra)
 js/               : interface (appelle l'API du serveur)
-server/           : backend, base de donnees, photos privees (server/storage)
+server/           : backend et base de donnees
+render.yaml       : configuration de l'hebergement Render
 _ancien-css/      : sauvegarde de l'ancien design
 
 IMPORTANT
-- Ne partagez jamais server/.env.
-- Sauvegardez chaque jour la base MySQL ET le dossier server/storage.
+- Ne partagez jamais server/.env et n'ecrivez jamais de mot de passe dans un autre fichier.
+- Sauvegardes : Supabase (Database > Backups) pour la base, Cloudflare R2 pour les photos.

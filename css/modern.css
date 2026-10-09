@@ -729,15 +729,74 @@ img.avatar { padding: 0; object-fit: cover; background: var(--blue-soft); }
 .avatar.xl { width: 96px; height: 96px; font-size: 1.75rem; box-shadow: 0 0 0 4px var(--surface), 0 0 0 5px var(--blue-line), var(--shadow-md); }
 
 /* Page profil */
-.profile-card { gap: var(--space-6); max-width: 720px; }
-.profile-top { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-6); padding-bottom: var(--space-6); border-bottom: 1px solid var(--border); }
-.profile-top h2 { font-size: var(--text-2xl); font-weight: 400; }
-.profile-photo-actions { flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-3); }
+.profile-page { display: grid; gap: var(--space-6); max-width: 1040px; }
+
+/* En-tête : bandeau bleu + avatar qui le chevauche */
+.profile-hero { overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius-xl); background: var(--surface); box-shadow: var(--shadow-sm); }
+.profile-cover {
+  height: 132px;
+  background:
+    radial-gradient(circle at 85% 20%, rgba(255, 255, 255, 0.18), transparent 40%),
+    radial-gradient(circle at 10% 110%, rgba(28, 119, 238, 0.9), transparent 55%),
+    var(--gradient-feature);
+}
+.profile-id { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--space-5); padding: 0 var(--space-8) var(--space-6); }
+.profile-avatar { position: relative; flex-shrink: 0; margin-top: -56px; }
+.profile-avatar .avatar.xl { width: 120px; height: 120px; font-size: 2.1rem; box-shadow: 0 0 0 5px var(--surface), var(--shadow-md); }
+.profile-avatar-edit {
+  position: absolute; right: 2px; bottom: 2px; display: grid; place-items: center; width: 36px; height: 36px;
+  border: 3px solid var(--surface); border-radius: 50%; background: var(--gradient-primary); color: #fff;
+  box-shadow: var(--shadow-btn); cursor: pointer; transition: transform var(--fast) var(--ease);
+}
+.profile-avatar-edit:hover { transform: scale(1.08); }
+.profile-avatar-edit svg { width: 16px; height: 16px; }
+.profile-meta { flex: 1; min-width: 220px; padding-bottom: var(--space-1); }
+.profile-meta h1 { margin: 6px 0 2px; font-size: var(--text-2xl); line-height: 1.1; overflow-wrap: anywhere; }
+.profile-meta p { margin: 0; color: var(--muted); font-size: var(--text-md); overflow-wrap: anywhere; }
+.profile-role {
+  display: inline-block; padding: 3px 10px; border-radius: var(--radius-full); background: var(--blue-soft);
+  color: var(--blue); font-size: var(--text-xs); font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
+}
+.profile-photo-actions { flex-wrap: wrap; gap: var(--space-2); }
 .profile-photo-actions label.btn { display: inline-flex; font-weight: 600; color: var(--ink); cursor: pointer; }
+
+/* Panneaux */
+.profile-grid { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); align-items: start; gap: var(--space-6); }
+.profile-side { display: grid; gap: var(--space-6); }
+.profile-panel { gap: var(--space-5); }
+.profile-panel > header { padding-bottom: var(--space-4); border-bottom: 1px solid var(--border); }
+.profile-panel h2 { margin: 0; font-size: var(--text-lg); }
+.profile-panel header p { margin: 4px 0 0; color: var(--muted); }
 .profile-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); }
-.profile-form label:nth-child(3), .profile-form .row { grid-column: 1 / -1; }
-.profile-form input:disabled { background: var(--surface-2); color: var(--muted); }
-.profile-security { flex-wrap: wrap; gap: var(--space-2); padding-top: var(--space-5); border-top: 1px solid var(--border); }
+.profile-form .full, .profile-form .profile-save { grid-column: 1 / -1; }
+.profile-form input:disabled { background: var(--surface-2); color: var(--muted); cursor: not-allowed; }
+.profile-save { justify-content: flex-end; }
+
+.profile-action {
+  display: flex; align-items: center; gap: var(--space-3); width: 100%; padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface-2);
+  color: var(--ink); text-align: left; cursor: pointer;
+  transition: border-color var(--fast), background var(--fast), transform var(--fast) var(--ease);
+}
+.profile-action:hover { border-color: var(--blue-line); background: var(--blue-soft); transform: translateY(-1px); }
+.profile-action > svg { flex-shrink: 0; width: 38px; height: 38px; padding: 9px; border-radius: 10px; background: var(--surface); color: var(--blue); box-shadow: var(--shadow-xs); }
+.profile-action span { display: grid; gap: 2px; }
+.profile-action strong { font-size: var(--text-md); }
+.profile-action small { color: var(--muted); font-size: var(--text-xs); }
+.profile-action.danger > svg { color: var(--danger); }
+.profile-action.danger:hover { border-color: var(--border-strong); background: var(--surface); }
+
+@media (max-width: 900px) {
+  .profile-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 600px) {
+  .profile-cover { height: 96px; }
+  .profile-id { flex-direction: column; align-items: center; padding: 0 var(--space-4) var(--space-5); text-align: center; }
+  .profile-meta { min-width: 0; }
+  .profile-photo-actions { justify-content: center; }
+  .profile-form { grid-template-columns: 1fr; }
+  .profile-save .btn { width: 100%; justify-content: center; }
+}
 
 /* Pastille « commentaires » sur les vignettes */
 .photo-comments {
@@ -816,7 +875,6 @@ img.avatar { padding: 0; object-fit: cover; background: var(--blue-soft); }
 @media (max-width: 800px) {
   .viewer.with-comments .viewer-body { flex-direction: column; }
   .viewer-comments { width: auto; max-height: 55vh; margin: 0 var(--space-2) var(--space-2); }
-  .profile-form { grid-template-columns: 1fr; }
 }
 
 /* Studio : liste des commentaires */
@@ -1484,3 +1542,68 @@ td.actions .btn.icon-btn + .btn.icon-btn { margin-left: 6px; }
 .share-tile:hover img { transform: scale(1.03); }
 .share-main .share-foot { margin-top: 32px; }
 @media (max-width: 560px) { .share-grid { columns: 2 140px; column-gap: 8px; } .share-tile { margin-bottom: 8px; } }
+
+/* ==========================================================================
+   Barre latérale : carte « Mon profil » (sans flèche) + déconnexion discrète
+   ========================================================================== */
+.sidebar-foot { gap: 6px; justify-items: stretch; padding: 10px; }
+.sidebar-foot .switch-space {
+  display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 14px;
+  background: rgba(255, 255, 255, 0.1); color: #fff; font-size: var(--text-sm); font-weight: 600; text-decoration: none;
+  transition: background var(--fast);
+}
+.sidebar-foot .switch-space:hover { background: rgba(255, 255, 255, 0.18); }
+.sidebar-foot .switch-space svg { width: 18px; height: 18px; color: #bcd6fb; }
+.sidebar-profile {
+  display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.14); border-radius: 16px; background: rgba(255, 255, 255, 0.08);
+  color: #fff; text-align: left; cursor: pointer;
+  transition: background var(--fast), border-color var(--fast), transform var(--fast) var(--ease);
+}
+.sidebar-profile:hover { background: rgba(255, 255, 255, 0.16); border-color: rgba(255, 255, 255, 0.28); transform: translateY(-1px); }
+.sidebar-profile.active { background: #fff; border-color: #fff; color: var(--ink); }
+.sidebar-profile .avatar { flex-shrink: 0; width: 40px; height: 40px; box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.85); font-size: 0.8125rem; }
+.sidebar-profile.active .avatar { box-shadow: 0 0 0 2px var(--blue-line); }
+.sidebar-profile span { display: grid; min-width: 0; line-height: 1.25; }
+.sidebar-profile strong { overflow: hidden; font-size: var(--text-sm); font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.sidebar-profile small { color: rgba(217, 231, 255, 0.75); font-size: var(--text-xs); font-weight: 500; }
+.sidebar-profile.active small { color: var(--blue); }
+.sidebar-logout {
+  display: flex; align-items: center; gap: 8px; padding: 8px 12px; border: 0; border-radius: 12px; background: none;
+  color: rgba(217, 231, 255, 0.75); font-size: var(--text-xs); font-weight: 600; cursor: pointer; transition: color var(--fast), background var(--fast);
+}
+.sidebar-logout:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
+.sidebar-logout svg { width: 16px; height: 16px; }
+.sidebar-foot p, .sidebar-foot p:last-child { margin: 4px 12px 2px; }
+
+/* ----- Lien de partage : téléchargement ----- */
+.share-top-actions { display: flex; gap: 8px; }
+.share-cell { position: relative; margin: 0 0 12px; break-inside: avoid; }
+.share-cell .share-tile { margin: 0; }
+.share-dl {
+  position: absolute; right: 10px; bottom: 10px; display: grid; place-items: center; width: 40px; height: 40px;
+  border-radius: 12px; background: rgba(255, 255, 255, 0.92); color: var(--blue); box-shadow: 0 6px 18px rgba(8, 36, 69, 0.25);
+  opacity: 0; transform: translateY(4px); transition: opacity var(--fast), transform var(--fast);
+}
+.share-dl svg { width: 18px; height: 18px; }
+.share-cell:hover .share-dl, .share-dl:focus-visible { opacity: 1; transform: none; }
+@media (hover: none) { .share-dl { opacity: 1; transform: none; width: 36px; height: 36px; } }
+@media (max-width: 560px) {
+  .share-cell { margin-bottom: 8px; }
+  .share-top-actions .btn span { display: none; }
+  .share-top-actions .btn { padding-inline: 12px; }
+}
+
+/* ----- Partage : choix du téléchargement par lien ----- */
+.share-toggle {
+  grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 12px 14px; border: 1px solid var(--blue-line); border-radius: var(--radius); background: #fff; cursor: pointer;
+}
+.share-toggle span { display: grid; gap: 2px; }
+.share-toggle strong { color: var(--ink); font-size: var(--text-sm); }
+.share-toggle small { color: var(--muted); font-size: var(--text-xs); font-weight: 500; }
+.share-toggle .switch { flex-shrink: 0; }
+.share-badge { display: inline-block; padding: 1px 8px; border-radius: var(--radius-full); background: #eef2f8; color: var(--muted); font-size: 0.6875rem; font-weight: 700; }
+.share-badge.is-dl { background: var(--blue-soft); color: var(--blue); }
+.btn.icon-btn.is-on { border-color: transparent; background: var(--gradient-primary); color: #fff; }
+.btn.icon-btn.is-on:hover { background: var(--gradient-primary); color: #fff; filter: brightness(1.06); }

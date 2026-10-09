@@ -25,6 +25,10 @@ router.get('/sw.js', (req, res) => {
   res.type('application/javascript').set('Cache-Control', 'no-cache').sendFile(page('sw.js'));
 });
 
+// Site privé : aucun moteur de recherche ne doit indexer les galeries.
+router.get('/robots.txt', (req, res) => res.type('text').send('User-agent: *\nDisallow: /\n'));
+router.get('/favicon.ico', (req, res) => res.redirect(301, '/logo/kentrapix-icon.png'));
+
 // Lien de partage famille : page publique, le mot de passe est vérifié par l'API.
 router.get('/share.html', (req, res) => {
   res.set('Referrer-Policy', 'no-referrer').sendFile(page('share.html'));

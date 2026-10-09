@@ -54,8 +54,12 @@ export const mapEvent = (e) => ({
 
 /** Galerie expirée : le dernier jour de disponibilité est passé (dates en UTC, format AAAA-MM-JJ). */
 export const isExpired = (e) => !!e.expires_at && String(e.expires_at).slice(0, 10) < new Date().toISOString().slice(0, 10);
+/** Date UTC 'AAAA-MM-JJ' (aujourd'hui par défaut). */
+export const isoDate = (time = Date.now()) => new Date(time).toISOString().slice(0, 10);
+/** Jours restants jusqu'à une date 'AAAA-MM-JJ' (0 = aujourd'hui). */
+export const daysUntil = (date) => Math.round((Date.parse(String(date).slice(0, 10)) - Date.parse(isoDate())) / 86400000);
 /** Condition SQL équivalente. */
-export const NOT_EXPIRED = '(e.expires_at IS NULL OR e.expires_at >= UTC_DATE())';
+export const NOT_EXPIRED = '(e.expires_at IS NULL OR e.expires_at >= CURRENT_DATE)';
 
 export const mapPhoto = (p) => ({
   id: p.id,
@@ -98,7 +102,7 @@ export const mapDownload = (d) => ({
 export const EVENT_COLUMNS = `e.*, (SELECT p.id FROM photos p WHERE p.event_id = e.id ORDER BY p.position, p.created_at LIMIT 1) AS first_photo_id`;
 
 // ---------- Autorisations globales ----------
-export const PERMISSION_KEYS = ['individual', 'selection', 'event', 'favorites', 'comments', 'faces', 'signup', 'sharing'];
+export const PERMISSION_KEYS = ['individual', 'selection', 'event', 'favorites', 'comments', 'faces', 'signup', 'sharing', 'share_download'];
 
 export async function getPermissions() {
   const rows = await query('SELECT perm_key, enabled FROM permissions');

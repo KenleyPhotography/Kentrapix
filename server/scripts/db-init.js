@@ -1,52 +1,54 @@
-// Crée la base (si l'utilisateur MySQL en a le droit), les tables et les vues,
-// puis applique les migrations de sql/migrations/ pas encore appliquées.
+// Crée les tables et les vues (sql/schema.sql), puis applique les migrations de sql/migrations/
+// pas encore appliquées. Base : DATABASE_URL (Supabase).
 // Usage : npm run db:init   — peut être relancé sans risque.
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import mysql from 'mysql2/promise';
-import { config, serverRoot } from '../src/config.js';
+import pg from 'pg';
+import { serverRoot, pgConfig } from '../src/config.js';
 
-const { database, ...access } = config.db;
 const sqlDir = path.join(serverRoot, 'sql');
-const conn = await mysql.createConnection({ ...access, multipleStatements: true, charset: 'utf8mb4' });
+const { label, ...options } = pgConfig();
+const client = new pg.Client(options);
+await client.connect();
 
 try {
-  const [[{ version }]] = await conn.query('SELECT VERSION() AS version');
-  console.log(`Serveur MySQL ${version} sur ${access.host}:${access.port}`);
+  const { rows: [{ version }] } = await client.query("SELECT current_setting('server_version') AS version");
+  console.log(`Serveur PostgreSQL ${version} sur ${label}`);
+  await client.query("SET TIME ZONE 'UTC'");
 
-  await conn
-    .query(`CREATE DATABASE IF NOT EXISTS \`${database.replace(/`/g, '')}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`)
-    .catch((err) => console.warn(`Base non créée automatiquement (${err.code}) — elle doit déjà exister.`));
-  await conn.changeUser({ database });
-  await conn.query("SET time_zone = '+00:00'");
-
-  await conn.query(await fs.readFile(path.join(sqlDir, 'schema.sql'), 'utf8'));
+  await client.query(await fs.readFile(path.join(sqlDir, 'schema.sql'), 'utf8'));
   console.log('Schéma de base appliqué.');
 
   // Migrations : fichiers NNN_description.sql, appliqués une seule fois, dans l'ordre.
   const files = (await fs.readdir(path.join(sqlDir, 'migrations')).catch(() => []))
     .filter((f) => /^\d+_.+\.sql$/.test(f))
     .sort();
-  const [done] = await conn.query('SELECT version FROM schema_migrations');
+  const { rows: done } = await client.query('SELECT version FROM schema_migrations');
   const applied = new Set(done.map((r) => r.version));
   for (const file of files.filter((f) => !applied.has(f))) {
-    await conn.query(await fs.readFile(path.join(sqlDir, 'migrations', file), 'utf8'));
-    await conn.query('INSERT INTO schema_migrations (version) VALUES (?)', [file]);
+    await client.query('BEGIN');
+    try {
+      await client.query(await fs.readFile(path.join(sqlDir, 'migrations', file), 'utf8'));
+      await client.query('INSERT INTO schema_migrations (version) VALUES ($1)', [file]);
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    }
     console.log(`Migration appliquée : ${file}`);
   }
 
-  const [tables] = await conn.query(
-    `SELECT TABLE_NAME AS name, TABLE_TYPE AS type, TABLE_ROWS AS approxRows, TABLE_COMMENT AS comment
-     FROM information_schema.TABLES WHERE TABLE_SCHEMA = ? ORDER BY TABLE_TYPE, TABLE_NAME`,
-    [database],
+  const { rows: tables } = await client.query(
+    `SELECT c.relname AS name, c.relkind AS kind, c.relrowsecurity AS rls
+     FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+     WHERE n.nspname = 'public' AND c.relkind IN ('r', 'v') ORDER BY c.relkind, c.relname`,
   );
   console.table(tables.map((t) => ({
     nom: t.name,
-    type: t.type === 'VIEW' ? 'vue' : 'table',
-    lignes: t.type === 'VIEW' ? '' : t.approxRows,
-    description: t.comment === 'VIEW' ? '' : t.comment,
+    type: t.kind === 'v' ? 'vue' : 'table',
+    'API Supabase bloquée (RLS)': t.kind === 'v' ? '' : t.rls ? 'oui' : 'NON',
   })));
-  console.log(`Base « ${database} » prête.`);
+  console.log('Base prête.');
 } finally {
-  await conn.end();
+  await client.end();
 }

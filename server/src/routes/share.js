@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import archiver from 'archiver';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import rateLimit from 'express-rate-limit';
@@ -7,10 +8,11 @@ import { query } from '../db.js';
 import { config } from '../config.js';
 import { httpError } from '../lib/errors.js';
 import { getPermissions, NOT_EXPIRED } from '../lib/data.js';
-import { sendPrivate, watermarkedPreview } from '../lib/storage.js';
+import { sendPrivate, watermarkedPreview, zipOriginals } from '../lib/storage.js';
 
 // Lien de partage famille : sans compte, protégé par un mot de passe choisi par le client.
-// Lecture seule : aperçus et diaporama, jamais de téléchargement ni d'original.
+// Aperçus et diaporama ; téléchargement des originaux seulement si le studio l'autorise (réglage
+// « share_download ») ET que la galerie autorise les téléchargements (jamais en mode sélection).
 export const SHARE_COOKIE = 'kp_share';
 const SHARE_HOURS = 12;
 
@@ -19,7 +21,7 @@ const token = z.string().regex(/^[A-Za-z0-9_-]{32}$/, 'Lien invalide.');
 /** Lien encore valable : galerie publiée, non archivée, non expirée, toujours au client, partage autorisé. */
 async function findShare(rawToken) {
   const [link] = await query(
-    `SELECT l.*, e.name AS event_name, e.type, e.event_date, e.location, e.selection_mode, e.music_key,
+    `SELECT l.*, e.name AS event_name, e.type, e.event_date, e.location, e.selection_mode, e.music_key, e.allow_download AS event_download,
        COALESCE(s.sender_name, s.name) AS studio
      FROM share_links l
      JOIN events e ON e.id = l.event_id AND e.client_id = l.user_id
@@ -40,6 +42,10 @@ function unlocked(req, link) {
     return false;
   }
 }
+
+/** Téléchargement : autorisé par le client pour ce lien, par la galerie et par le réglage du studio (jamais en mode sélection). */
+const canDownload = async (link) =>
+  !!link.allow_download && !!link.event_download && !link.selection_mode && (await getPermissions()).share_download;
 
 async function openShare(req, rawToken) {
   const link = await findShare(rawToken);
@@ -70,6 +76,7 @@ shareApi.get('/:token', async (req, res) => {
   res.json({
     locked: false,
     studio: link.studio,
+    download: (await canDownload(link)) ? `${base}/download` : null,
     event: {
       name: link.event_name, type: link.type, date: link.event_date, location: link.location || '',
       music: link.music_key ? `${base}/music` : null,
@@ -105,11 +112,42 @@ shareMedia.get('/:token/photo/:id', async (req, res) => {
   if (!photo) throw httpError(404, 'Photo introuvable.');
   // Galerie en mode sélection : la famille voit, comme le client, la version filigranée.
   if (link.selection_mode) return sendPrivate(res, await watermarkedPreview(photo.preview_key, photo.id, Number(photo.number)));
-  sendPrivate(res, photo.preview_key);
+  await sendPrivate(res, photo.preview_key);
 });
 
 shareMedia.get('/:token/music', async (req, res) => {
   const link = await openShare(req, req.params.token);
   if (!link.music_key) throw httpError(404, 'Pas de musique.');
-  sendPrivate(res, link.music_key);
+  await sendPrivate(res, link.music_key);
+});
+
+// ---------- Téléchargement (si autorisé) ----------
+async function downloadableShare(req, rawToken) {
+  const link = await openShare(req, rawToken);
+  if (!(await canDownload(link))) throw httpError(403, 'Le téléchargement n’est pas autorisé pour ce lien.');
+  return link;
+}
+
+// Une photo : l'original, sous son nom de fichier.
+shareMedia.get('/:token/download/:id', async (req, res) => {
+  const link = await downloadableShare(req, req.params.token);
+  const [photo] = await query('SELECT original_key, filename FROM photos WHERE id = ? AND event_id = ?', [
+    z.string().uuid().parse(req.params.id), link.event_id,
+  ]);
+  if (!photo) throw httpError(404, 'Photo introuvable.');
+  await query('UPDATE share_links SET last_used_at = CURRENT_TIMESTAMP WHERE id = ?', [link.id]);
+  await sendPrivate(res, photo.original_key, photo.filename);
+});
+
+// Toute la galerie : un ZIP des originaux (sans compression, les photos le sont déjà).
+shareMedia.get('/:token/download', async (req, res) => {
+  const link = await downloadableShare(req, req.params.token);
+  const photos = await query('SELECT original_key, filename FROM photos WHERE event_id = ? ORDER BY position, created_at', [link.event_id]);
+  if (!photos.length) throw httpError(404, 'Aucune photo.');
+  const name = `${link.event_name}`.replace(/[^\p{L}\p{N} ._-]+/gu, '').trim().slice(0, 80) || 'photos';
+  res.attachment(`${name}.zip`);
+  const zip = archiver('zip', { store: true });
+  zip.on('error', (err) => res.destroy(err));
+  zip.pipe(res);
+  await zipOriginals(zip, photos);
 });

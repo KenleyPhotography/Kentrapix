@@ -41,7 +41,7 @@ export function errorHandler(err, req, res, next) {
     message = err.code === 'LIMIT_FILE_SIZE'
       ? `Fichier trop volumineux (maximum ${config.maxUploadMb} Mo).`
       : 'Envoi de fichier invalide.';
-  } else if (err.code === 'ER_DUP_ENTRY') {
+  } else if (err.code === '23505') { // doublon (contrainte UNIQUE)
     status = 409;
     message = 'Cette adresse e-mail est déjà utilisée.';
   } else if (err.type === 'entity.too.large') {

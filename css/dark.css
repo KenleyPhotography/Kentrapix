@@ -1,0 +1,109 @@
+/* ==========================================================================
+   KentraPix — Mode sombre
+   Chargé APRÈS modern.css. js/theme.js pose data-theme="dark" sur <html>
+   (choix de l'utilisateur, ou réglage du téléphone / de l'ordinateur).
+   Même famille de bleu Kentra, éclaircie pour rester lisible sur fond nuit.
+   ========================================================================== */
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --blue: #3d8af7;
+  --blue-hover: #64a1fa;
+  --blue-light: #5b9dfa;
+  --blue-deep: #0c4088;
+  --blue-soft: rgba(61, 138, 247, 0.14);
+  --blue-line: rgba(61, 138, 247, 0.34);
+  --blue-glow: rgba(61, 138, 247, 0.28);
+  --gradient-primary: linear-gradient(115deg, #2a7ff0, #1259c7);
+  --gradient-sidebar: linear-gradient(165deg, #081a33 0%, #0d3470 100%);
+  --gradient-feature: linear-gradient(130deg, #0b2f63, #1458b8);
+
+  --bg: #07111f;
+  --surface: #0e1b2e;
+  --surface-2: #13233a;
+  --ink: #eaf2ff;
+  --text: #cddaee;
+  --muted: #8ea2bf;
+  --subtle: #687c99;
+  --label: #a8bddb;
+  --border: rgba(150, 185, 235, 0.11);
+  --border-strong: rgba(150, 185, 235, 0.22);
+  --navy: #1d3a63;
+
+  --success: #4cc98a;
+  --success-soft: rgba(76, 201, 138, 0.14);
+  --warning: #f0b44c;
+  --warning-soft: rgba(240, 180, 76, 0.14);
+  --danger: #f26b6e;
+
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px -12px rgba(0, 0, 0, 0.5);
+  --shadow-md: 0 2px 6px rgba(0, 0, 0, 0.3), 0 24px 48px -20px rgba(0, 0, 0, 0.6);
+  --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.35), 0 40px 80px -24px rgba(0, 0, 0, 0.7);
+  --shadow-btn: 0 1px 0 rgba(255, 255, 255, 0.12) inset, 0 8px 20px -8px rgba(18, 101, 216, 0.6);
+}
+
+[data-theme="dark"] body {
+  background:
+    radial-gradient(1200px 600px at 100% -10%, rgba(61, 138, 247, 0.10), transparent 60%),
+    radial-gradient(900px 500px at -10% 110%, rgba(28, 119, 238, 0.07), transparent 60%),
+    var(--bg);
+  background-attachment: fixed;
+}
+
+/* Surfaces qui étaient en blanc translucide */
+[data-theme="dark"] .search input,
+[data-theme="dark"] .chip,
+[data-theme="dark"] .empty,
+[data-theme="dark"] .callout,
+[data-theme="dark"] .person-chip { background: rgba(14, 27, 46, 0.72); }
+[data-theme="dark"] .search input:focus { background: var(--surface); }
+[data-theme="dark"] .viewer-comments,
+[data-theme="dark"] .share-card,
+[data-theme="dark"] .share-toggle { background: var(--surface); }
+[data-theme="dark"] .share-top { background: rgba(7, 17, 31, 0.82); }
+[data-theme="dark"] .share-page { background: radial-gradient(1200px 500px at 50% -10%, rgba(61, 138, 247, 0.18), transparent), var(--bg); }
+[data-theme="dark"] .share-url { background: var(--surface-2); }
+[data-theme="dark"] .share-badge { background: var(--surface-2); }
+[data-theme="dark"] .install-card { background: linear-gradient(120deg, var(--blue-soft), var(--surface)); }
+[data-theme="dark"] .login-panel { border-color: var(--border); }
+[data-theme="dark"] .badge { color: var(--blue-hover); }
+[data-theme="dark"] .btn.icon-btn.danger:hover { border-color: rgba(242, 107, 110, 0.4); background: rgba(242, 107, 110, 0.1); }
+
+/* Pastilles posées sur les photos : verre sombre */
+[data-theme="dark"] .photo-heart,
+[data-theme="dark"] .photo-pick,
+[data-theme="dark"] .event-cover .badge,
+[data-theme="dark"] .hero-pill,
+[data-theme="dark"] .share-dl { background: rgba(7, 17, 31, 0.78); color: var(--ink); }
+[data-theme="dark"] .photo-heart.favorite,
+[data-theme="dark"] .photo-tile.picked .photo-pick,
+[data-theme="dark"] .event-cover .badge.is-proof { background: var(--blue); color: #fff; }
+
+/* Barre latérale : élément actif en verre bleu au lieu du blanc plein */
+[data-theme="dark"] .nav button.active,
+[data-theme="dark"] .sidebar-profile.active { border-color: rgba(255, 255, 255, 0.18); background: rgba(255, 255, 255, 0.14); color: #fff; }
+[data-theme="dark"] .nav button.active svg { color: #fff; }
+[data-theme="dark"] .sidebar-profile.active small { color: rgba(217, 231, 255, 0.75); }
+
+/* Navigation mobile flottante */
+@media (max-width: 800px) {
+  [data-theme="dark"] .bottomnav { border-color: rgba(150, 185, 235, 0.14); background: rgba(14, 27, 46, 0.86); box-shadow: 0 18px 40px -16px rgba(0, 0, 0, 0.7); }
+  [data-theme="dark"] .bottomnav button.active::after { background: var(--blue); }
+}
+
+/* Champs de formulaire (le reste suit déjà les tokens) */
+[data-theme="dark"] input:disabled { background: rgba(19, 35, 58, 0.5); color: var(--muted); }
+
+/* Choix du thème (page profil + bouton de la barre du haut) */
+.theme-switch { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; padding: 5px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface-2); }
+.theme-switch button {
+  display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 42px; padding: 8px 10px;
+  border: 0; border-radius: calc(var(--radius) - 4px); background: none; color: var(--muted);
+  font: inherit; font-size: var(--text-sm); font-weight: 600; cursor: pointer; transition: background var(--fast), color var(--fast);
+}
+.theme-switch button svg { width: 17px; height: 17px; }
+.theme-switch button:hover { color: var(--ink); }
+.theme-switch button.active { background: var(--surface); color: var(--blue); box-shadow: var(--shadow-xs); }
+[data-theme="dark"] .theme-switch button.active { background: var(--blue-soft); }

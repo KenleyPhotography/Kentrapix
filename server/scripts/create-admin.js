@@ -5,7 +5,7 @@ import crypto from 'node:crypto';
 import { parseArgs } from 'node:util';
 import readline from 'node:readline/promises';
 import bcrypt from 'bcryptjs';
-import { pool, query } from '../src/db.js';
+import { closeDb, query } from '../src/db.js';
 import { BCRYPT_COST } from '../src/routes/auth.js';
 
 const { values } = parseArgs({
@@ -36,4 +36,4 @@ if (existing) {
   ]);
   console.log(`Admin créé : ${email}`);
 }
-await pool.end();
+await closeDb();

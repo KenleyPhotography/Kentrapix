@@ -2,17 +2,18 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { createRequire } from 'node:module';
+import { pathToFileURL, fileURLToPath } from 'node:url';
 import sharp from 'sharp';
 import { config, serverRoot } from '../config.js';
 import { query } from '../db.js';
-import { resolveKey, fileExists } from './storage.js';
+import { readFile, fileExists, putFile } from './storage.js';
 
 // Reconnaissance des visages (Human + TensorFlow WASM, sans module natif).
 // Les photos sont analysées une par une en arrière-plan, sans bloquer le site.
 
 const require = createRequire(import.meta.url);
 const modulesDir = path.join(serverRoot, 'node_modules');
-const asFileUrl = (p) => `file:///${p.replace(/\\/g, '/')}/`;
+const asFileUrl = (p) => `${pathToFileURL(p).href}/`; // Windows et Linux
 
 // Ressemblance cosinus au-delà de laquelle deux visages sont la même personne.
 // Mesuré sur une vraie photo de groupe : personnes différentes <= 0,775, même personne ~0,84-0,93.
@@ -37,7 +38,7 @@ function engine() {
     globalThis.fetch = async (url, opts) => {
       const u = String(url?.url ?? url);
       if (!u.startsWith('file://')) return realFetch(url, opts);
-      const file = decodeURIComponent(u.replace(/^file:\/\/\/?/, ''));
+      const file = fileURLToPath(u);
       return new Response(await fs.readFile(file), {
         headers: { 'content-type': file.endsWith('.json') ? 'application/json' : 'application/octet-stream' },
       });
@@ -79,13 +80,13 @@ function engine() {
 }
 
 const toBlob = (arr) => Buffer.from(new Float32Array(arr).buffer);
-// Copie : le Buffer renvoyé par MySQL n'est pas forcément aligné sur 4 octets.
+// Copie : le Buffer renvoyé par la base n'est pas forcément aligné sur 4 octets.
 const fromBlob = (buf) => new Float32Array(Uint8Array.from(buf).buffer);
 
 /** Détecte les visages d'une image (aperçu) : cadres relatifs + empreintes. */
 export async function detect(previewKey) {
   const human = await engine();
-  const { data, info } = await sharp(resolveKey(previewKey)).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+  const { data, info } = await sharp(await readFile(previewKey)).removeAlpha().raw().toBuffer({ resolveWithObject: true });
   const tensor = human.tf.tensor3d(new Uint8Array(data), [info.height, info.width, 3], 'int32');
   try {
     const result = await human.detect(tensor);
@@ -149,7 +150,7 @@ export async function resetInterruptedFaces() {
 
 /** Lance (ou relance) l'analyse des photos en attente. Sans effet si elle tourne déjà. */
 export function kickFaces() {
-  if (running) return;
+  if (running || !config.facesEnabled) return;
   running = true;
   (async () => {
     try {
@@ -198,7 +199,7 @@ export async function mergePeople(fromId, intoId) {
 /** Relance l'analyse complète d'une galerie. */
 export async function rescanEvent(eventId) {
   await query('DELETE FROM people WHERE event_id = ?', [eventId]); // visages : person_id -> NULL
-  await query('DELETE f FROM photo_faces f JOIN photos p ON p.id = f.photo_id WHERE p.event_id = ?', [eventId]);
+  await query('DELETE FROM photo_faces WHERE photo_id IN (SELECT id FROM photos WHERE event_id = ?)', [eventId]);
   await query("UPDATE photos SET faces_status = 'pending' WHERE event_id = ?", [eventId]);
   kickFaces();
 }
@@ -207,8 +208,7 @@ export async function rescanEvent(eventId) {
 export async function faceThumbnail(face) {
   const key = `faces/${face.id}.webp`;
   if (await fileExists(key)) return key;
-  await fs.mkdir(path.join(config.storageDir, 'faces'), { recursive: true });
-  const img = sharp(resolveKey(face.preview_key));
+  const img = sharp(await readFile(face.preview_key));
   const { width, height } = await img.metadata();
   const pad = 0.35;
   const size = Math.max(face.box_w * width, face.box_h * height) * (1 + pad * 2);
@@ -217,6 +217,6 @@ export async function faceThumbnail(face) {
   const left = Math.max(0, Math.round(cx - size / 2));
   const top = Math.max(0, Math.round(cy - size / 2));
   const side = Math.round(Math.min(size, width - left, height - top));
-  await img.extract({ left, top, width: side, height: side }).resize(160, 160).webp({ quality: 82 }).toFile(resolveKey(key));
+  await img.extract({ left, top, width: side, height: side }).resize(160, 160).webp({ quality: 82 }).toBuffer().then((buf) => putFile(key, buf, 'image/webp'));
   return key;
 }

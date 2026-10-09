@@ -26,7 +26,7 @@ export function clearSession(res) {
 }
 
 /**
- * Lit le cookie de session et charge l'utilisateur depuis MySQL à chaque requête :
+ * Lit le cookie de session et charge l'utilisateur depuis la base à chaque requête :
  * un compte désactivé ou un mot de passe changé coupe l'accès immédiatement.
  */
 export async function loadUser(req, res, next) {

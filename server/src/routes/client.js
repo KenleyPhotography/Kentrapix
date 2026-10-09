@@ -3,9 +3,9 @@ import crypto from 'node:crypto';
 import archiver from 'archiver';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
-import { query, placeholders } from '../db.js';
+import { query, placeholders, utcStamp } from '../db.js';
 import { httpError } from '../lib/errors.js';
-import { resolveKey, fileExists } from '../lib/storage.js';
+import { fileExists, sendPrivate, zipOriginals } from '../lib/storage.js';
 import {
   uuid, mapEvent, mapPhoto, mapDownload, mapComment, getPermissions, EVENT_COLUMNS, PHOTO_COLUMNS, COMMENT_SELECT,
   NOT_EXPIRED,
@@ -59,8 +59,8 @@ export async function clientBootstrap(id) {
   // Personnes nommées par le studio (et non masquées) : filtre « photos de Marie ».
   const people = permissions.faces && events.length
     ? await query(
-      `SELECT pe.id, pe.event_id, pe.name, GROUP_CONCAT(DISTINCT f.photo_id) AS photo_ids,
-         SUBSTRING_INDEX(GROUP_CONCAT(f.id ORDER BY f.score DESC), \',\', 1) AS face_id
+      `SELECT pe.id, pe.event_id, pe.name, STRING_AGG(DISTINCT f.photo_id, ',') AS photo_ids,
+         (SELECT f2.id FROM photo_faces f2 WHERE f2.person_id = pe.id ORDER BY f2.score DESC, f2.created_at, f2.id LIMIT 1) AS face_id
        FROM people pe JOIN photo_faces f ON f.person_id = pe.id JOIN events e ON e.id = pe.event_id
        WHERE ${VISIBLE} AND pe.name IS NOT NULL AND pe.hidden = 0
        GROUP BY pe.id ORDER BY pe.name`,
@@ -158,7 +158,7 @@ router.put('/events/:id/selection', async (req, res) => {
     if (Number(n) !== ids.length) throw httpError(400, 'Certaines photos n’appartiennent pas à cette galerie.');
   }
   await query(
-    'DELETE s FROM photo_selections s JOIN photos p ON p.id = s.photo_id WHERE s.user_id = ? AND p.event_id = ?',
+    'DELETE FROM photo_selections WHERE user_id = ? AND photo_id IN (SELECT id FROM photos WHERE event_id = ?)',
     [req.user.id, event.id],
   );
   if (ids.length) {
@@ -182,7 +182,7 @@ router.post('/events/:id/selection/submit', async (req, res) => {
   const numbers = rows.map((r) => Number(r.number));
   await query(
     `INSERT INTO event_selections (event_id, user_id, note, photo_count, submitted_at) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
-     ON DUPLICATE KEY UPDATE note = VALUES(note), photo_count = VALUES(photo_count), submitted_at = CURRENT_TIMESTAMP`,
+     ON CONFLICT (event_id, user_id) DO UPDATE SET note = EXCLUDED.note, photo_count = EXCLUDED.photo_count, submitted_at = EXCLUDED.submitted_at`,
     [event.id, req.user.id, note || null, numbers.length],
   );
   audit(req, 'selection.submit', { entity: 'event', entityId: event.id, details: { count: numbers.length } });
@@ -207,7 +207,7 @@ router.put('/favorites/:photoId', async (req, res) => {
   if (!(await getPermissions()).favorites) throw httpError(403, 'Les favoris sont désactivés.');
   const [photo] = await visiblePhotos(req.user.id, [photoId]);
   if (!photo) throw httpError(404, 'Photo introuvable.');
-  await query('INSERT IGNORE INTO favorites (user_id, photo_id) VALUES (?, ?)', [req.user.id, photoId]);
+  await query('INSERT INTO favorites (user_id, photo_id) VALUES (?, ?) ON CONFLICT DO NOTHING', [req.user.id, photoId]);
   res.status(204).end();
 });
 
@@ -260,8 +260,9 @@ router.post('/downloads', async (req, res) => {
   const id = crypto.randomUUID();
   await query(
     `INSERT INTO downloads (id, user_id, event_id, name, photo_count, photo_ids, expires_at)
-     VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP + INTERVAL ${DOWNLOAD_LINK_MINUTES} MINUTE)`,
-    [id, req.user.id, eventId, name, photos.length, JSON.stringify(photos.map((p) => p.id))],
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [id, req.user.id, eventId, name, photos.length, JSON.stringify(photos.map((p) => p.id)),
+      utcStamp(new Date(Date.now() + DOWNLOAD_LINK_MINUTES * 60000))],
   );
   audit(req, 'download.create', { entity: 'download', entityId: id, details: { name, count: photos.length } });
   const [row] = await query('SELECT * FROM downloads WHERE id = ?', [id]);
@@ -282,7 +283,7 @@ router.get('/downloads/:id/file', async (req, res) => {
   if (!photos.length) throw httpError(404, 'Photos introuvables.');
 
   if (photos.length === 1 && !dl.name.endsWith('.zip')) {
-    return res.download(resolveKey(photos[0].original_key), photos[0].filename);
+    return sendPrivate(res, photos[0].original_key, photos[0].filename);
   }
 
   const available = [];
@@ -297,14 +298,7 @@ router.get('/downloads/:id/file', async (req, res) => {
     res.destroy(err);
   });
   zip.pipe(res);
-  const used = new Set();
-  for (const p of available) {
-    let entry = p.filename;
-    for (let n = 2; used.has(entry.toLowerCase()); n++) entry = p.filename.replace(/(\.[^.]*)?$/, ` (${n})$1`);
-    used.add(entry.toLowerCase());
-    zip.file(resolveKey(p.original_key), { name: entry });
-  }
-  await zip.finalize();
+  await zipOriginals(zip, available);
 });
 
 // ---------- Partage famille ----------
@@ -317,7 +311,7 @@ async function shareableEvent(req, id) {
 }
 
 const mapShare = (l) => ({
-  id: l.id, label: l.label || '', url: `${config.appUrl}/share.html?t=${l.token}`,
+  id: l.id, label: l.label || '', url: `${config.appUrl}/share.html?t=${l.token}`, allowDownload: !!l.allow_download,
   views: Number(l.views), lastUsedAt: toIso(l.last_used_at), createdAt: toIso(l.created_at),
 });
 
@@ -329,19 +323,32 @@ router.get('/events/:id/shares', async (req, res) => {
 
 router.post('/events/:id/shares', async (req, res) => {
   const event = await shareableEvent(req, req.params.id);
-  const { label, password } = z.object({
+  const { label, password, allowDownload } = z.object({
     label: z.string().trim().max(120).optional(),
+    allowDownload: z.boolean().optional().default(false),
     password: z.string().min(6, 'Mot de passe : 6 caractères minimum.').max(100),
   }).parse(req.body);
   const [{ n }] = await query('SELECT COUNT(*) AS n FROM share_links WHERE event_id = ? AND user_id = ?', [event.id, req.user.id]);
   if (Number(n) >= 10) throw httpError(400, '10 liens maximum par galerie : supprimez-en un d’abord.');
   const id = crypto.randomUUID();
-  await query('INSERT INTO share_links (id, event_id, user_id, token, password_hash, label) VALUES (?, ?, ?, ?, ?, ?)', [
+  await query('INSERT INTO share_links (id, event_id, user_id, token, password_hash, label, allow_download) VALUES (?, ?, ?, ?, ?, ?, ?)', [
     id, event.id, req.user.id, crypto.randomBytes(24).toString('base64url'), await bcrypt.hash(password, BCRYPT_COST), label || null,
+    allowDownload ? 1 : 0,
   ]);
   audit(req, 'share.create', { entity: 'event', entityId: event.id });
   const [row] = await query('SELECT * FROM share_links WHERE id = ?', [id]);
   res.status(201).json({ share: mapShare(row) });
+});
+
+// Autoriser / retirer le téléchargement sur un lien existant.
+router.patch('/shares/:id', async (req, res) => {
+  const { allowDownload } = z.object({ allowDownload: z.boolean() }).parse(req.body);
+  const result = await query('UPDATE share_links SET allow_download = ? WHERE id = ? AND user_id = ?', [
+    allowDownload ? 1 : 0, uuid.parse(req.params.id), req.user.id,
+  ]);
+  if (!result.affectedRows) throw httpError(404, 'Lien introuvable.');
+  const [row] = await query('SELECT * FROM share_links WHERE id = ?', [req.params.id]);
+  res.json({ share: mapShare(row) });
 });
 
 router.delete('/shares/:id', async (req, res) => {

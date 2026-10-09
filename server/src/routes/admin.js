@@ -4,7 +4,9 @@ import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { query, transaction, toIso } from '../db.js';
 import { httpError } from '../lib/errors.js';
-import { upload, uploadAudio, storePhoto, storeCover, storeMusic, removeKeys, removeWatermarks } from '../lib/storage.js';
+import {
+  upload, uploadAudio, storePhoto, storeCover, storeMusic, removeKeys, removeWatermarks, isRemote, prepareDirectUpload, confirmDirectUpload,
+} from '../lib/storage.js';
 import {
   uuid, mapClient, mapEvent, mapPhoto, mapDownload, mapComment, getPermissions, PERMISSION_KEYS, EVENT_COLUMNS,
   PHOTO_COLUMNS, COMMENT_SELECT, avatarUrl,
@@ -29,7 +31,7 @@ const text = (max, message) => z.string().trim().min(1, message).max(max);
 const optionalText = (max) => z.string().trim().max(max).optional().transform((v) => v || null);
 const sendFlag = z.boolean().optional().default(true);
 
-/** Modification partielle : valeur envoyée, sinon valeur actuelle en base (jamais undefined pour MySQL). */
+/** Modification partielle : valeur envoyée, sinon valeur actuelle en base (jamais undefined). */
 const keep = (data, row, key, column = key) => (data[key] !== undefined ? data[key] : row[column] ?? null);
 
 /** Seules les couvertures dédiées (covers/) sont supprimées ; un aperçu de photo reste en place. */
@@ -98,6 +100,8 @@ router.get('/bootstrap', async (req, res) => {
     })),
     stats: { storageBytes: Number(storage.originals) + Number(storage.previews) },
     permissions,
+    // Photos en ligne : le navigateur les envoie directement au bucket (sans passer par ce serveur).
+    upload: { direct: isRemote, maxMb: config.maxUploadMb, previewWidth: config.previewWidth },
     mail: { configured: mailConfigured(), from: fromLine(studioName(req)) },
     selections: selections.map((s) => ({
       eventId: s.event_id, userId: s.user_id, name: s.name, count: s.photo_count, submittedAt: toIso(s.submitted_at),
@@ -346,7 +350,7 @@ router.patch('/events/:id', upload.single('coverFile'), async (req, res) => {
   await query(
     `UPDATE events SET client_id = ?, name = ?, type = ?, event_date = ?, location = ?, description = ?,
        cover_key = ?, published = ?, allow_download = ?, archived = ?, selection_mode = ?, selection_limit = ?,
-       expiry_notified_at = IF(expires_at <=> ?, expiry_notified_at, NULL), expires_at = ? WHERE id = ?`,
+       expiry_notified_at = CASE WHEN expires_at IS NOT DISTINCT FROM ? THEN expiry_notified_at END, expires_at = ? WHERE id = ?`,
     [
       keep(data, event, 'clientId', 'client_id'), keep(data, event, 'name'), keep(data, event, 'type'),
       keep(data, event, 'date', 'event_date'), keep(data, event, 'location'), keep(data, event, 'description'),
@@ -444,28 +448,59 @@ router.delete('/events/:id/music', async (req, res) => {
 });
 
 // ---------- Photos ----------
-router.post('/events/:id/photos', upload.single('photo'), async (req, res) => {
-  const event = await findEvent(req, req.params.id);
-  if (!req.file) throw httpError(400, 'Choisissez une image.');
-  const album = z.string().trim().max(80).optional().parse(req.body.album) || 'Nouveaux imports';
-  const stored = await storePhoto(req.file);
+/** Enregistre une photo déjà stockée (originale + aperçu) dans la galerie. */
+async function insertPhoto(event, album, filename, stored) {
   try {
     const id = crypto.randomUUID();
-    const filename = Buffer.from(req.file.originalname, 'latin1').toString('utf8').slice(0, 255);
     await query(
       `INSERT INTO photos (id, event_id, album, filename, original_key, preview_key, mime, size_bytes,
          preview_bytes, width, height, position)
-       SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(MAX(position), 0) + 1 FROM photos WHERE event_id = ?`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, (SELECT COALESCE(MAX(position), 0) + 1 FROM photos WHERE event_id = ?))`,
       [id, event.id, album, filename, stored.originalKey, stored.previewKey, stored.mime, stored.sizeBytes,
         stored.previewBytes, stored.width, stored.height, event.id],
     );
     const [photo] = await query('SELECT * FROM photos WHERE id = ?', [id]);
     kickFaces(); // analyse des visages en arrière-plan
-    res.status(201).json({ photo: mapPhoto(photo) });
+    return mapPhoto(photo);
   } catch (err) {
     await removeKeys([stored.originalKey, stored.previewKey]);
     throw err;
   }
+}
+
+const albumName = (v) => z.string().trim().max(80).optional().parse(v) || 'Nouveaux imports';
+
+// Import par le serveur (mode local, ou formats que le navigateur ne sait pas lire).
+router.post('/events/:id/photos', upload.single('photo'), async (req, res) => {
+  const event = await findEvent(req, req.params.id);
+  if (!req.file) throw httpError(400, 'Choisissez une image.');
+  const album = albumName(req.body.album);
+  const stored = await storePhoto(req.file);
+  const filename = Buffer.from(req.file.originalname, 'latin1').toString('utf8').slice(0, 255);
+  res.status(201).json({ photo: await insertPhoto(event, album, filename, stored) });
+});
+
+// Import direct (photos en ligne) : 1) adresses signées, 2) le navigateur envoie au bucket, 3) confirmation.
+const directSchema = z.object({
+  filename: z.string().trim().min(1).max(255),
+  type: z.string().max(40),
+  size: z.number().int().positive(),
+});
+
+router.post('/events/:id/uploads', async (req, res) => {
+  if (!isRemote) throw httpError(400, 'Envoi direct indisponible : stockage local.');
+  await findEvent(req, req.params.id);
+  res.json(await prepareDirectUpload(directSchema.parse(req.body)));
+});
+
+router.post('/events/:id/uploads/complete', async (req, res) => {
+  if (!isRemote) throw httpError(400, 'Envoi direct indisponible : stockage local.');
+  const event = await findEvent(req, req.params.id);
+  const data = directSchema.extend({
+    id: uuid, ext: z.enum(['jpg', 'png', 'webp', 'avif']), ticket: z.string().max(100), album: z.string().optional(),
+  }).parse(req.body);
+  const stored = await confirmDirectUpload(data);
+  res.status(201).json({ photo: await insertPhoto(event, albumName(data.album), data.filename, stored) });
 });
 
 async function findPhoto(req, id) {
@@ -553,7 +588,7 @@ router.post('/photos/:id/comments', async (req, res) => {
 router.delete('/comments/:id', async (req, res) => {
   const [es, ep] = eventScope(req);
   const result = await query(
-    `DELETE c FROM photo_comments c JOIN photos p ON p.id = c.photo_id JOIN events e ON e.id = p.event_id WHERE c.id = ? AND ${es}`,
+    `DELETE FROM photo_comments WHERE id = ? AND photo_id IN (SELECT p.id FROM photos p JOIN events e ON e.id = p.event_id WHERE ${es})`,
     [uuid.parse(req.params.id), ...ep],
   );
   if (!result.affectedRows) throw httpError(404, 'Commentaire introuvable.');
@@ -567,14 +602,15 @@ router.get('/events/:id/people', async (req, res) => {
   const [people, [status]] = await Promise.all([
     query(
       `SELECT pe.id, pe.name, pe.hidden, COUNT(DISTINCT f.photo_id) AS photo_count,
-         SUBSTRING_INDEX(GROUP_CONCAT(f.id ORDER BY f.score DESC), ',', 1) AS face_id
+         (SELECT f2.id FROM photo_faces f2 WHERE f2.person_id = pe.id ORDER BY f2.score DESC, f2.created_at, f2.id LIMIT 1) AS face_id
        FROM people pe JOIN photo_faces f ON f.person_id = pe.id
        WHERE pe.event_id = ? GROUP BY pe.id ORDER BY pe.name IS NULL, pe.name, photo_count DESC`,
       [event.id],
     ),
     query(
-      `SELECT SUM(faces_status IN ('pending', 'processing')) AS pending, SUM(faces_status = 'done') AS done,
-         SUM(faces_status = 'failed') AS failed, COUNT(*) AS total FROM photos WHERE event_id = ?`,
+      `SELECT SUM(CASE WHEN faces_status IN ('pending', 'processing') THEN 1 ELSE 0 END) AS pending,
+         SUM(CASE WHEN faces_status = 'done' THEN 1 ELSE 0 END) AS done,
+         SUM(CASE WHEN faces_status = 'failed' THEN 1 ELSE 0 END) AS failed, COUNT(*) AS total FROM photos WHERE event_id = ?`,
       [event.id],
     ),
   ]);

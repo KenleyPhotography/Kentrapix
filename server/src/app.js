@@ -1,8 +1,9 @@
 import express from 'express';
+import path from 'node:path';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import cookieParser from 'cookie-parser';
-import { config } from './config.js';
+import { config, frontendRoot } from './config.js';
 import { query } from './db.js';
 import { loadUser } from './middleware/auth.js';
 import { apiNotFound, errorHandler } from './lib/errors.js';
@@ -15,6 +16,8 @@ import { shareApi, shareMedia } from './routes/share.js';
 
 export function createApp() {
   const app = express();
+  // Photos en ligne : liens signés vers le bucket (affichage, musique, envoi direct).
+  const bucket = config.s3 ? [config.s3.origin] : [];
   app.disable('x-powered-by');
   if (config.trustProxy) app.set('trust proxy', 1);
 
@@ -26,8 +29,9 @@ export function createApp() {
           scriptSrc: ["'self'"],
           styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
           fontSrc: ["'self'", 'https://fonts.gstatic.com'],
-          imgSrc: ["'self'", 'data:', 'blob:', 'https://images.unsplash.com'],
-          connectSrc: ["'self'"],
+          imgSrc: ["'self'", 'data:', 'blob:', 'https://images.unsplash.com', ...bucket],
+          mediaSrc: ["'self'", 'blob:', ...bucket],
+          connectSrc: ["'self'", ...bucket],
           formAction: ["'self'"],
           frameAncestors: ["'none'"],
           objectSrc: ["'none'"],
@@ -37,6 +41,8 @@ export function createApp() {
       hsts: config.isProd,
     }),
   );
+  // Galeries privées : jamais dans Google, même si un lien fuit.
+  app.use((req, res, next) => { res.set('X-Robots-Tag', 'noindex, nofollow'); next(); });
   app.use(morgan(config.isProd ? 'combined' : 'dev'));
   app.use(express.json({ limit: '200kb' }));
   app.use(cookieParser());
@@ -55,7 +61,7 @@ export function createApp() {
   app.use('/media/share', shareMedia);
   app.use('/media', mediaRoutes);
   app.use(pageRoutes);
-  app.use((req, res) => res.status(404).type('text').send('Page introuvable.'));
+  app.use((req, res) => res.status(404).sendFile(path.join(frontendRoot, '404.html')));
   app.use(errorHandler);
   return app;
 }
