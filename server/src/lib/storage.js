@@ -149,12 +149,20 @@ export async function sendPrivate(res, key, filename = null) {
   res.sendFile(resolveKey(key));
 }
 
+/**
+ * Nom de fichier à télécharger. Photo envoyée compressée (galerie en mode sélection, RAW…) :
+ * seul l'aperçu WEBP existe, le nom d'origine (IMG_1234.CR2) reçoit l'extension .webp.
+ */
+export const downloadName = (p) =>
+  (p.original_key.startsWith('previews/') ? `${p.filename.replace(/\.[^.]*$/, '')}.webp` : p.filename);
+
 /** Ajoute les originaux à un ZIP, l'un après l'autre (noms en double numérotés). */
 export async function zipOriginals(zip, photos) {
   const used = new Set();
   for (const p of photos) {
-    let entry = p.filename;
-    for (let n = 2; used.has(entry.toLowerCase()); n++) entry = p.filename.replace(/(\.[^.]*)?$/, ` (${n})$1`);
+    const name = downloadName(p);
+    let entry = name;
+    for (let n = 2; used.has(entry.toLowerCase()); n++) entry = name.replace(/(\.[^.]*)?$/, ` (${n})$1`);
     used.add(entry.toLowerCase());
     const done = new Promise((resolve) => zip.once('entry', resolve));
     zip.append(await readStream(p.original_key), { name: entry });
@@ -168,8 +176,29 @@ const DIRECT_TYPES = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'w
 const ticketOf = (id, ext, size) =>
   crypto.createHmac('sha256', config.jwtSecret).update(`upload:${id}:${ext}:${size}`).digest('base64url');
 
-/** Prépare l'envoi d'une photo : adresses signées pour l'original et l'aperçu (15 min). */
-export async function prepareDirectUpload({ filename, type, size }) {
+const previewTicketOf = (id) => crypto.createHmac('sha256', config.jwtSecret).update(`upload:${id}:preview`).digest('base64url');
+const sameTicket = (a, b) => !!a && a.length === b.length && crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
+
+/**
+ * Prépare l'envoi d'une photo : adresses signées pour l'original et l'aperçu (15 min).
+ * previewOnly (galerie en mode sélection) : seul l'aperçu compressé est envoyé, l'original (souvent un RAW)
+ * reste sur l'ordinateur du photographe — le client ne peut de toute façon rien télécharger.
+ */
+export async function prepareDirectUpload({ filename, type, size }, { previewOnly = false } = {}) {
+  if (previewOnly) {
+    const id = crypto.randomUUID();
+    return {
+      id,
+      previewOnly: true,
+      ticket: previewTicketOf(id),
+      preview: {
+        url: await getSignedUrl(s3, new PutObjectCommand({ Bucket, Key: `previews/${id}.webp`, ContentType: 'image/webp' }), { expiresIn: 900 }),
+        headers: { 'Content-Type': 'image/webp' },
+      },
+      previewWidth: config.previewWidth,
+      filename,
+    };
+  }
   const ext = DIRECT_TYPES[type];
   if (!ext) throw httpError(400, 'Format non pris en charge pour l’envoi direct (JPG, PNG, WEBP ou AVIF).');
   if (size > config.maxUploadMb * 1024 * 1024) throw httpError(413, `Photo trop lourde (${config.maxUploadMb} Mo maximum).`);
@@ -195,15 +224,13 @@ export async function prepareDirectUpload({ filename, type, size }) {
 }
 
 /** Vérifie un envoi direct terminé et renvoie les informations à enregistrer. */
-export async function confirmDirectUpload({ id, ext, size, ticket }) {
-  const expected = ticketOf(id, ext, size);
-  if (!ticket || ticket.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(ticket), Buffer.from(expected))) {
-    throw httpError(400, 'Envoi non reconnu.');
-  }
-  const originalKey = `originals/${id}.${ext}`;
+export async function confirmDirectUpload({ id, ext, size, ticket, previewOnly = false }) {
+  if (!sameTicket(ticket, previewOnly ? previewTicketOf(id) : ticketOf(id, ext, size))) throw httpError(400, 'Envoi non reconnu.');
   const previewKey = `previews/${id}.webp`;
-  const [originalSize, previewSize] = await Promise.all([fileSize(originalKey), fileSize(previewKey)]);
-  if (originalSize !== size || !previewSize) {
+  // Aperçu seul : il sert aussi d'« original » (aucun téléchargement en mode sélection).
+  const originalKey = previewOnly ? previewKey : `originals/${id}.${ext}`;
+  const [originalSize, previewSize] = await Promise.all([previewOnly ? null : fileSize(originalKey), fileSize(previewKey)]);
+  if ((!previewOnly && originalSize !== size) || !previewSize) {
     await removeKeys([originalKey, previewKey]);
     throw httpError(400, 'La photo n’est pas arrivée complètement. Réessayez.');
   }
@@ -212,6 +239,9 @@ export async function confirmDirectUpload({ id, ext, size, ticket }) {
   if (!meta?.width) {
     await removeKeys([originalKey, previewKey]);
     throw httpError(400, 'Aperçu invalide. Réessayez.');
+  }
+  if (previewOnly) {
+    return { originalKey, previewKey, mime: 'image/webp', sizeBytes: previewSize, previewBytes: 0, width: meta.width, height: meta.height };
   }
   return {
     originalKey, previewKey, mime: TYPES[ext], sizeBytes: size, previewBytes: previewSize, width: meta.width, height: meta.height,
@@ -247,16 +277,22 @@ const makePreview = (input) =>
     .webp({ quality: 82 })
     .toBuffer({ resolveWithObject: true });
 
-/** Garde l'original intact et génère un aperçu WEBP léger. */
-export async function storePhoto(file) {
+/** Garde l'original intact et génère un aperçu WEBP léger. previewOnly : aperçu seul (mode sélection). */
+export async function storePhoto(file, { previewOnly = false } = {}) {
   try {
     const meta = await inspect(file.path);
     const id = crypto.randomUUID();
-    const originalKey = `originals/${id}.${FORMATS[meta.format]}`;
     const previewKey = `previews/${id}.webp`;
     const preview = await makePreview(file.path);
-    await putFile(originalKey, file.path, `image/${meta.format}`);
     await putFile(previewKey, preview.data, 'image/webp');
+    if (previewOnly) {
+      return {
+        originalKey: previewKey, previewKey, mime: 'image/webp', sizeBytes: preview.info.size, previewBytes: 0,
+        width: preview.info.width, height: preview.info.height,
+      };
+    }
+    const originalKey = `originals/${id}.${FORMATS[meta.format]}`;
+    await putFile(originalKey, file.path, `image/${meta.format}`);
     return {
       originalKey,
       previewKey,

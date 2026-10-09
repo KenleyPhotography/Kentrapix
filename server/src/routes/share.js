@@ -8,7 +8,7 @@ import { query } from '../db.js';
 import { config } from '../config.js';
 import { httpError } from '../lib/errors.js';
 import { getPermissions, NOT_EXPIRED } from '../lib/data.js';
-import { sendPrivate, watermarkedPreview, zipOriginals } from '../lib/storage.js';
+import { sendPrivate, watermarkedPreview, zipOriginals, downloadName } from '../lib/storage.js';
 
 // Lien de partage famille : sans compte, protégé par un mot de passe choisi par le client.
 // Aperçus et diaporama ; téléchargement des originaux seulement si le studio l'autorise (réglage
@@ -136,7 +136,7 @@ shareMedia.get('/:token/download/:id', async (req, res) => {
   ]);
   if (!photo) throw httpError(404, 'Photo introuvable.');
   await query('UPDATE share_links SET last_used_at = CURRENT_TIMESTAMP WHERE id = ?', [link.id]);
-  await sendPrivate(res, photo.original_key, photo.filename);
+  await sendPrivate(res, photo.original_key, downloadName(photo));
 });
 
 // Toute la galerie : un ZIP des originaux (sans compression, les photos le sont déjà).

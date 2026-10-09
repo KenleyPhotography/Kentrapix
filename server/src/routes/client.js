@@ -5,7 +5,7 @@ import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { query, placeholders, utcStamp } from '../db.js';
 import { httpError } from '../lib/errors.js';
-import { fileExists, sendPrivate, zipOriginals } from '../lib/storage.js';
+import { fileExists, sendPrivate, zipOriginals, downloadName } from '../lib/storage.js';
 import {
   uuid, mapEvent, mapPhoto, mapDownload, mapComment, getPermissions, EVENT_COLUMNS, PHOTO_COLUMNS, COMMENT_SELECT,
   NOT_EXPIRED,
@@ -253,7 +253,7 @@ router.post('/downloads', async (req, res) => {
     if (photos.length === 1 && !perms.individual) throw httpError(403, 'Le téléchargement des photos est désactivé.');
     if (photos.length > 1 && !perms.selection) throw httpError(403, 'Le téléchargement de sélections est désactivé.');
     eventId = new Set(photos.map((p) => p.event_id)).size === 1 ? photos[0].event_id : null;
-    name = photos.length === 1 ? photos[0].filename : `KentraPix-selection-${photos.length}-photos.zip`;
+    name = photos.length === 1 ? downloadName(photos[0]) : `KentraPix-selection-${photos.length}-photos.zip`;
   }
   if (!photos.length) throw httpError(400, 'Aucune photo à télécharger.');
 
@@ -283,7 +283,7 @@ router.get('/downloads/:id/file', async (req, res) => {
   if (!photos.length) throw httpError(404, 'Photos introuvables.');
 
   if (photos.length === 1 && !dl.name.endsWith('.zip')) {
-    return sendPrivate(res, photos[0].original_key, photos[0].filename);
+    return sendPrivate(res, photos[0].original_key, downloadName(photos[0]));
   }
 
   const available = [];

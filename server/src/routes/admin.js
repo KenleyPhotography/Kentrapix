@@ -475,7 +475,7 @@ router.post('/events/:id/photos', upload.single('photo'), async (req, res) => {
   const event = await findEvent(req, req.params.id);
   if (!req.file) throw httpError(400, 'Choisissez une image.');
   const album = albumName(req.body.album);
-  const stored = await storePhoto(req.file);
+  const stored = await storePhoto(req.file, { previewOnly: !!event.selection_mode });
   const filename = Buffer.from(req.file.originalname, 'latin1').toString('utf8').slice(0, 255);
   res.status(201).json({ photo: await insertPhoto(event, album, filename, stored) });
 });
@@ -489,15 +489,17 @@ const directSchema = z.object({
 
 router.post('/events/:id/uploads', async (req, res) => {
   if (!isRemote) throw httpError(400, 'Envoi direct indisponible : stockage local.');
-  await findEvent(req, req.params.id);
-  res.json(await prepareDirectUpload(directSchema.parse(req.body)));
+  const event = await findEvent(req, req.params.id);
+  // Mode sélection : photos compressées dans le navigateur, l'original (souvent un RAW) n'est pas envoyé.
+  res.json(await prepareDirectUpload(directSchema.parse(req.body), { previewOnly: !!event.selection_mode }));
 });
 
 router.post('/events/:id/uploads/complete', async (req, res) => {
   if (!isRemote) throw httpError(400, 'Envoi direct indisponible : stockage local.');
   const event = await findEvent(req, req.params.id);
   const data = directSchema.extend({
-    id: uuid, ext: z.enum(['jpg', 'png', 'webp', 'avif']), ticket: z.string().max(100), album: z.string().optional(),
+    id: uuid, ext: z.enum(['jpg', 'png', 'webp', 'avif']).optional(), ticket: z.string().max(100), album: z.string().optional(),
+    previewOnly: z.boolean().optional(),
   }).parse(req.body);
   const stored = await confirmDirectUpload(data);
   res.status(201).json({ photo: await insertPhoto(event, albumName(data.album), data.filename, stored) });
