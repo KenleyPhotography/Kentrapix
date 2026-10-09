@@ -29,15 +29,12 @@ router.get('/sw.js', (req, res) => {
 // API, photos et liens de partage restent privés (voir aussi X-Robots-Tag dans app.js).
 router.get('/robots.txt', (req, res) => res.type('text').send([
   'User-agent: *',
-  'Allow: /$',
-  'Allow: /conditions.html',
   'Disallow: /api/',
   'Disallow: /media/',
   'Disallow: /admin',
   'Disallow: /client.html',
   'Disallow: /gallery.html',
   'Disallow: /share.html',
-  'Disallow: /*?',
   '',
   `Sitemap: ${config.appUrl}/sitemap.xml`,
   '',
