@@ -41,8 +41,22 @@ export function createApp() {
       hsts: config.isProd,
     }),
   );
-  // Galeries privées : jamais dans Google, même si un lien fuit.
-  app.use((req, res, next) => { res.set('X-Robots-Tag', 'noindex, nofollow'); next(); });
+  // Une seule adresse publique (APP_URL) : l'adresse Render (…onrender.com) y renvoie,
+  // sinon Google voit deux copies du site. localhost (PC du studio) n'est jamais redirigé ;
+  // /api/health reste joignable pour la surveillance de Render.
+  const site = new URL(config.appUrl);
+  app.use((req, res, next) => {
+    const duplicate = req.hostname.endsWith('.onrender.com') && req.hostname !== site.hostname;
+    if (!duplicate || req.path === '/api/health' || !['GET', 'HEAD'].includes(req.method)) return next();
+    res.redirect(301, `${site.origin}${req.originalUrl}`);
+  });
+  // Seule la page d'accueil / connexion est indexée. Galeries, studio, API, photos et liens
+  // de partage : jamais dans Google, même si un lien fuit.
+  const indexable = (p) => p === '/' || p === '/login.html' || p === '/conditions.html' || /^\/(css|js|img|logo)\//.test(p);
+  app.use((req, res, next) => {
+    if (!indexable(req.path)) res.set('X-Robots-Tag', 'noindex, nofollow');
+    next();
+  });
   app.use(morgan(config.isProd ? 'combined' : 'dev'));
   app.use(express.json({ limit: '200kb' }));
   app.use(cookieParser());

@@ -78,7 +78,9 @@ export const mapPhoto = (p) => ({
 
 /** Colonnes photo + nombre de commentaires. */
 // number : numéro de la photo dans sa galerie (1, 2, 3…), utilisé par le mode sélection.
-export const PHOTO_COLUMNS = `p.*, (SELECT COUNT(*) FROM photo_comments c WHERE c.photo_id = p.id) AS comment_count,
+// Commentaires = ceux des comptes + ceux de la famille (liens de partage).
+export const PHOTO_COLUMNS = `p.*, (SELECT COUNT(*) FROM photo_comments c WHERE c.photo_id = p.id)
+    + (SELECT COUNT(*) FROM share_comments sc WHERE sc.photo_id = p.id) AS comment_count,
   ROW_NUMBER() OVER (PARTITION BY p.event_id ORDER BY p.position, p.created_at) AS number`;
 
 export const mapComment = (c, viewer) => ({

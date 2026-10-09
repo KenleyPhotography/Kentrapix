@@ -1,7 +1,6 @@
 import { Router } from 'express';
 import crypto from 'node:crypto';
 import archiver from 'archiver';
-import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { query, placeholders, utcStamp } from '../db.js';
 import { httpError } from '../lib/errors.js';
@@ -18,6 +17,9 @@ import { toIso } from '../db.js';
 import { requireRole } from '../middleware/auth.js';
 import { BCRYPT_COST } from './auth.js';
 import { clientNotifications } from '../lib/notifications.js';
+import {
+  SHARE_SELECT, mapShare, shareCreateSchema, shareUpdateSchema, createShare, updateShare, FAMILY_COMMENT_SELECT, mapFamilyComment, byDate,
+} from '../lib/shares.js';
 
 const router = Router();
 router.use(requireRole());
@@ -112,8 +114,13 @@ router.get('/photos/:photoId/comments', async (req, res) => {
   const photoId = uuid.parse(req.params.photoId);
   const [photo] = await visiblePhotos(req.user.id, [photoId]);
   if (!photo) throw httpError(404, 'Photo introuvable.');
-  const rows = await query(`${COMMENT_SELECT} WHERE c.photo_id = ? ORDER BY c.created_at`, [photoId]);
-  res.json({ comments: rows.map((c) => mapComment(c, req.user)) });
+  const [rows, family] = await Promise.all([
+    query(`${COMMENT_SELECT} WHERE c.photo_id = ? ORDER BY c.created_at`, [photoId]),
+    query(`${FAMILY_COMMENT_SELECT} WHERE sc.photo_id = ? AND l.user_id = ?`, [photoId, req.user.id]),
+  ]);
+  res.json({
+    comments: [...rows.map((c) => mapComment(c, req.user)), ...family.map((c) => mapFamilyComment(c, { canDelete: true }))].sort(byDate),
+  });
 });
 
 router.post('/photos/:photoId/comments', async (req, res) => {
@@ -129,9 +136,40 @@ router.post('/photos/:photoId/comments', async (req, res) => {
   res.status(201).json({ comment: mapComment(row, req.user) });
 });
 
-// Chacun peut supprimer ses propres commentaires.
+// Espace « Commentaires » du client : les mots laissés par sa famille (liens de partage), toutes galeries confondues.
+router.get('/comments', async (req, res) => {
+  const [rows, [{ links }]] = await Promise.all([
+    query(
+      `SELECT sc.*, l.label AS share_label, p.filename, p.event_id, e.name AS event_name,
+         (SELECT COUNT(*) FROM photos q WHERE q.event_id = p.event_id
+            AND (q.position < p.position OR (q.position = p.position AND q.created_at <= p.created_at))) AS number
+       FROM share_comments sc
+       JOIN share_links l ON l.id = sc.share_id
+       JOIN photos p ON p.id = sc.photo_id
+       JOIN events e ON e.id = p.event_id
+       WHERE l.user_id = ? AND ${VISIBLE}
+       ORDER BY sc.created_at DESC LIMIT 300`,
+      [req.user.id, req.user.id],
+    ),
+    query('SELECT COUNT(*) AS links FROM share_links WHERE user_id = ?', [req.user.id]),
+  ]);
+  res.json({
+    links: Number(links),
+    comments: rows.map((c) => ({
+      ...mapFamilyComment(c, { canDelete: true }),
+      photo: { id: c.photo_id, filename: c.filename, number: Number(c.number), thumb: `/media/thumb/${c.photo_id}` },
+      event: { id: c.event_id, name: c.event_name },
+    })),
+  });
+});
+
+// Chacun peut supprimer ses propres commentaires, et le client ceux de sa famille (liens de partage).
 router.delete('/comments/:id', async (req, res) => {
-  const result = await query('DELETE FROM photo_comments WHERE id = ? AND user_id = ?', [uuid.parse(req.params.id), req.user.id]);
+  const id = uuid.parse(req.params.id);
+  let result = await query('DELETE FROM photo_comments WHERE id = ? AND user_id = ?', [id, req.user.id]);
+  if (!result.affectedRows) {
+    result = await query('DELETE FROM share_comments WHERE id = ? AND share_id IN (SELECT id FROM share_links WHERE user_id = ?)', [id, req.user.id]);
+  }
   if (!result.affectedRows) throw httpError(404, 'Commentaire introuvable.');
   res.status(204).end();
 });
@@ -304,7 +342,8 @@ router.get('/downloads/:id/file', async (req, res) => {
 });
 
 // ---------- Partage famille ----------
-// Le client crée un lien + mot de passe pour une de ses galeries ; la famille voit sans télécharger.
+// Le client crée un lien + mot de passe pour une de ses galeries (le studio peut aussi en créer pour lui) ;
+// la famille regarde, télécharge si c'est permis, et commente si le lien l'autorise.
 async function shareableEvent(req, id) {
   if (!(await getPermissions()).sharing) throw httpError(403, 'Le partage est désactivé.');
   const [event] = await query(`SELECT e.id FROM events e WHERE e.id = ? AND ${VISIBLE}`, [uuid.parse(id), req.user.id]);
@@ -312,45 +351,25 @@ async function shareableEvent(req, id) {
   return event;
 }
 
-const mapShare = (l) => ({
-  id: l.id, label: l.label || '', url: `${config.appUrl}/share.html?t=${l.token}`, allowDownload: !!l.allow_download,
-  views: Number(l.views), lastUsedAt: toIso(l.last_used_at), createdAt: toIso(l.created_at),
-});
-
 router.get('/events/:id/shares', async (req, res) => {
   const event = await shareableEvent(req, req.params.id);
-  const rows = await query('SELECT * FROM share_links WHERE event_id = ? AND user_id = ? ORDER BY created_at DESC', [event.id, req.user.id]);
+  const rows = await query(`${SHARE_SELECT} WHERE l.event_id = ? AND l.user_id = ? ORDER BY l.created_at DESC`, [event.id, req.user.id]);
   res.json({ shares: rows.map(mapShare) });
 });
 
 router.post('/events/:id/shares', async (req, res) => {
   const event = await shareableEvent(req, req.params.id);
-  const { label, password, allowDownload } = z.object({
-    label: z.string().trim().max(120).optional(),
-    allowDownload: z.boolean().optional().default(false),
-    password: z.string().min(6, 'Mot de passe : 6 caractères minimum.').max(100),
-  }).parse(req.body);
-  const [{ n }] = await query('SELECT COUNT(*) AS n FROM share_links WHERE event_id = ? AND user_id = ?', [event.id, req.user.id]);
-  if (Number(n) >= 10) throw httpError(400, '10 liens maximum par galerie : supprimez-en un d’abord.');
-  const id = crypto.randomUUID();
-  await query('INSERT INTO share_links (id, event_id, user_id, token, password_hash, label, allow_download) VALUES (?, ?, ?, ?, ?, ?, ?)', [
-    id, event.id, req.user.id, crypto.randomBytes(24).toString('base64url'), await bcrypt.hash(password, BCRYPT_COST), label || null,
-    allowDownload ? 1 : 0,
-  ]);
+  const share = await createShare({ eventId: event.id, ownerId: req.user.id, data: shareCreateSchema.parse(req.body), bcryptCost: BCRYPT_COST });
   audit(req, 'share.create', { entity: 'event', entityId: event.id });
-  const [row] = await query('SELECT * FROM share_links WHERE id = ?', [id]);
-  res.status(201).json({ share: mapShare(row) });
+  res.status(201).json({ share });
 });
 
-// Autoriser / retirer le téléchargement sur un lien existant.
+// Autoriser / retirer le téléchargement ou les commentaires sur un lien existant.
 router.patch('/shares/:id', async (req, res) => {
-  const { allowDownload } = z.object({ allowDownload: z.boolean() }).parse(req.body);
-  const result = await query('UPDATE share_links SET allow_download = ? WHERE id = ? AND user_id = ?', [
-    allowDownload ? 1 : 0, uuid.parse(req.params.id), req.user.id,
-  ]);
-  if (!result.affectedRows) throw httpError(404, 'Lien introuvable.');
-  const [row] = await query('SELECT * FROM share_links WHERE id = ?', [req.params.id]);
-  res.json({ share: mapShare(row) });
+  const data = shareUpdateSchema.parse(req.body);
+  const [link] = await query('SELECT id FROM share_links WHERE id = ? AND user_id = ?', [uuid.parse(req.params.id), req.user.id]);
+  if (!link) throw httpError(404, 'Lien introuvable.');
+  res.json({ share: await updateShare(link.id, data) });
 });
 
 router.delete('/shares/:id', async (req, res) => {

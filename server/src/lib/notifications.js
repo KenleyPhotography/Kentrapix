@@ -10,11 +10,25 @@ const excerpt = (s, n = 110) => (s.length > n ? `${s.slice(0, n - 1).trimEnd()}�
 const plural = (n, one, many) => `${n} ${n > 1 ? many : one}`;
 const sortRecent = (items) => items.sort((a, b) => (a.date < b.date ? 1 : -1)).slice(0, LIMIT);
 
-/** Notifications d'un client : nouvelle galerie, nouvelles photos, réponse du studio, galerie qui ferme bientôt. */
+/**
+ * Notifications d'un client : nouvelle galerie, nouvelles photos, réponse du studio, galerie qui ferme bientôt,
+ * et messages écrits par le studio (page « Notifications », visibles même sans galerie).
+ */
 export async function clientNotifications(userId, events) {
-  if (!events.length) return [];
+  const notices = await query(
+    `SELECT a.id, a.title, a.body, a.event_id, a.send_at FROM announcement_recipients r JOIN announcements a ON a.id = r.announcement_id
+     WHERE r.user_id = ? AND a.send_at <= CURRENT_TIMESTAMP AND a.send_at > ${WINDOW}
+     ORDER BY a.send_at DESC LIMIT ${LIMIT}`,
+    [userId],
+  );
+  const studioItems = notices.map((a) => ({
+    id: `announcement-${a.id}`, kind: 'announcement', date: toIso(a.send_at), title: a.title, text: excerpt(a.body), body: a.body,
+    // Galerie liée : seulement si le client la voit encore.
+    eventId: events.some((e) => e.id === a.event_id) ? a.event_id : null,
+  }));
+  if (!events.length) return sortRecent(studioItems);
   const visible = `e.client_id = ? AND e.published = 1 AND e.archived = 0 AND ${NOT_EXPIRED}`;
-  const [added, replies] = await Promise.all([
+  const [added, replies, family] = await Promise.all([
     // Photos ajoutées après la publication (un envoi = une notification par galerie).
     query(
       `SELECT p.event_id, COUNT(*) AS n, MAX(p.created_at) AS last FROM photos p JOIN events e ON e.id = p.event_id
@@ -30,10 +44,18 @@ export async function clientNotifications(userId, events) {
        ORDER BY c.created_at DESC LIMIT ${LIMIT}`,
       [userId, userId],
     ),
+    // La famille a commenté une photo d'un lien de partage de ce client.
+    query(
+      `SELECT sc.id, sc.body, sc.created_at, sc.photo_id, sc.author_name, p.event_id FROM share_comments sc
+       JOIN share_links l ON l.id = sc.share_id JOIN photos p ON p.id = sc.photo_id JOIN events e ON e.id = p.event_id
+       WHERE ${visible} AND l.user_id = ? AND sc.created_at > ${WINDOW}
+       ORDER BY sc.created_at DESC LIMIT ${LIMIT}`,
+      [userId, userId],
+    ),
   ]);
   const nameOf = Object.fromEntries(events.map((e) => [e.id, e.name]));
   const since = Date.now() - 60 * 86400000;
-  const items = [];
+  const items = studioItems;
   for (const e of events) {
     if (e.published_at && Date.parse(toIso(e.published_at)) > since) {
       items.push({
@@ -60,6 +82,12 @@ export async function clientNotifications(userId, events) {
       title: plural(Number(a.n), 'nouvelle photo', 'nouvelles photos'), text: nameOf[a.event_id] || '',
     });
   }
+  for (const f of family) {
+    items.push({
+      id: `family-${f.id}`, kind: 'comment', eventId: f.event_id, photoId: f.photo_id, date: toIso(f.created_at),
+      title: `${f.author_name} (famille) a commenté`, text: excerpt(f.body),
+    });
+  }
   for (const r of replies) {
     items.push({
       id: `comment-${r.id}`, kind: 'comment', eventId: r.event_id, photoId: r.photo_id, date: toIso(r.created_at),
@@ -74,12 +102,19 @@ export async function clientNotifications(userId, events) {
  * scope : condition SQL sur les galeries visibles par ce membre (alias e) et ses paramètres.
  */
 export async function staffNotifications({ scope: [es, ep], owner, events, selections }) {
-  const [comments, signups] = await Promise.all([
+  const [comments, family, signups] = await Promise.all([
     query(
       `SELECT c.id, c.body, c.created_at, c.photo_id, p.event_id, u.name AS author FROM photo_comments c
        JOIN users u ON u.id = c.user_id JOIN photos p ON p.id = c.photo_id JOIN events e ON e.id = p.event_id
        WHERE ${es} AND u.role = 'client' AND c.created_at > ${WINDOW}
        ORDER BY c.created_at DESC LIMIT ${LIMIT}`,
+      ep,
+    ),
+    query(
+      `SELECT sc.id, sc.body, sc.created_at, sc.photo_id, sc.author_name, p.event_id FROM share_comments sc
+       JOIN photos p ON p.id = sc.photo_id JOIN events e ON e.id = p.event_id
+       WHERE ${es} AND sc.created_at > ${WINDOW}
+       ORDER BY sc.created_at DESC LIMIT ${LIMIT}`,
       ep,
     ),
     owner
@@ -101,6 +136,12 @@ export async function staffNotifications({ scope: [es, ep], owner, events, selec
     items.push({
       id: `comment-${c.id}`, kind: 'comment', eventId: c.event_id, photoId: c.photo_id, date: toIso(c.created_at),
       title: `${c.author} a commenté`, text: `${excerpt(c.body)} — ${nameOf[c.event_id] || ''}`,
+    });
+  }
+  for (const f of family) {
+    items.push({
+      id: `family-${f.id}`, kind: 'comment', eventId: f.event_id, photoId: f.photo_id, date: toIso(f.created_at),
+      title: `${f.author_name} (famille) a commenté`, text: `${excerpt(f.body)} — ${nameOf[f.event_id] || ''}`,
     });
   }
   for (const u of signups) {

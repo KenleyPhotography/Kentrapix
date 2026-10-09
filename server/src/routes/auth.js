@@ -49,7 +49,7 @@ router.post('/login', loginLimiter, async (req, res) => {
   }
   if (!user.active) {
     audit(req, 'auth.login_blocked', { userId: user.id });
-    throw httpError(403, 'Ce compte est désactivé. Contactez Kenley Photography.');
+    throw httpError(403, 'Ce compte est en pause. Contactez votre photographe.');
   }
 
   await query('UPDATE users SET last_login_at = CURRENT_TIMESTAMP WHERE id = ?', [user.id]);
@@ -74,7 +74,7 @@ const signupLimiter = rateLimit({
 });
 
 router.post('/signup', signupLimiter, async (req, res) => {
-  if (!(await getPermissions()).signup) throw httpError(403, 'La création de compte est fermée. Contactez Kenley Photography.');
+  if (!(await getPermissions()).signup) throw httpError(403, 'La création de compte est fermée. Contactez votre photographe.');
   const data = z
     .object({
       name: z.string().trim().min(2, 'Entrez votre nom complet.').max(120),
@@ -145,7 +145,7 @@ router.post('/reset', resetLimiter, async (req, res) => {
   );
   audit(req, 'auth.reset_done', { userId: reset.user_id });
   const [user] = await query('SELECT * FROM users WHERE id = ? AND active = 1', [reset.user_id]);
-  if (!user) throw httpError(403, 'Ce compte est désactivé. Contactez Kenley Photography.');
+  if (!user) throw httpError(403, 'Ce compte est en pause. Contactez votre photographe.');
   issueSession(res, user);
   res.json({ user: publicUser(user) });
 });

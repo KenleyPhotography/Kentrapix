@@ -5,6 +5,7 @@ import { ensureStorage } from './lib/storage.js';
 import { createApp } from './app.js';
 import { kickFaces, resetInterruptedFaces } from './lib/faces.js';
 import { startExpiryReminders } from './lib/expiry.js';
+import { startAnnouncements } from './lib/announcements.js';
 
 assertServerConfig();
 await ensureStorage();
@@ -21,6 +22,8 @@ const server = createApp().listen(config.port, config.host, () => {
   resetInterruptedFaces().then(kickFaces).catch((err) => console.error('Visages :', err.message));
   // Rappels « votre galerie ferme dans 7 jours ».
   startExpiryReminders();
+  // Notifications du studio : e-mails envoyés tout de suite ou à l'heure programmée.
+  startAnnouncements();
 });
 
 // Arrêt propre : termine les requêtes en cours puis ferme la base.

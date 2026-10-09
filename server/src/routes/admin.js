@@ -14,14 +14,18 @@ import {
 import { audit } from '../lib/audit.js';
 import { sendMail, mailConfigured, fromLine, LOGO_CID } from '../lib/mailer.js';
 import {
-  welcomeEmail, galleryReadyEmail, passwordResetEmail, adminInviteEmail, messageEmail, expiryEmail,
+  welcomeEmail, galleryReadyEmail, passwordResetEmail, adminInviteEmail, messageEmail, expiryEmail, announcementEmail,
 } from '../lib/emails.js';
+import { kickAnnouncements } from '../lib/announcements.js';
 import { requireStaff, requireOwner, STAFF_ROLES } from '../middleware/auth.js';
 import { kickFaces, mergePeople, rescanEvent, removeEmptyPeople } from '../lib/faces.js';
 import { config } from '../config.js';
 import { BCRYPT_COST, passwordRule } from './auth.js';
 import { clientBootstrap } from './client.js';
 import { staffNotifications } from '../lib/notifications.js';
+import {
+  SHARE_SELECT, mapShare, shareCreateSchema, shareUpdateSchema, createShare, updateShare, FAMILY_COMMENT_SELECT, mapFamilyComment, byDate,
+} from '../lib/shares.js';
 
 // Studio : propriétaire + admins. La gestion de l'équipe (/team) est réservée au propriétaire.
 const router = Router();
@@ -169,6 +173,28 @@ router.patch('/clients/:id', async (req, res) => {
   res.json({ client: mapClient(await findClient(req, client.id)) });
 });
 
+// Supprimer un client. Ses galeries : supprimées avec leurs photos (galleries = 'delete'),
+// ou gardées par le studio en brouillon (galleries = 'keep' : le client n'y a plus accès).
+// Favoris, sélections, commentaires, liens de partage et notifications du client : supprimés avec le compte.
+router.delete('/clients/:id', async (req, res) => {
+  const client = await findClient(req, req.params.id);
+  const { galleries } = z.object({ galleries: z.enum(['delete', 'keep']) }).parse(req.body ?? {});
+  const events = await query('SELECT id, cover_key, music_key FROM events WHERE client_id = ?', [client.id]);
+  if (galleries === 'delete') {
+    for (const e of events) {
+      await deletePhotos(await query('SELECT * FROM photos WHERE event_id = ?', [e.id]), { background: true });
+      await query('DELETE FROM events WHERE id = ?', [e.id]);
+      await removeKeys([ownCover(e.cover_key), e.music_key]);
+    }
+  } else if (events.length) {
+    await query('UPDATE events SET client_id = ?, published = 0 WHERE client_id = ?', [req.user.id, client.id]);
+  }
+  await query('DELETE FROM users WHERE id = ?', [client.id]);
+  await removeKeys([client.avatar_key]);
+  audit(req, 'client.delete', { entity: 'user', entityId: client.id, details: { email: client.email, galleries, count: events.length } });
+  res.json({ deleted: true, galleries, count: events.length });
+});
+
 router.post('/clients/:id/password', async (req, res) => {
   const client = await findClient(req, req.params.id);
   const { password, sendEmail } = z.object({ password: passwordRule, sendEmail: sendFlag }).parse(req.body);
@@ -265,6 +291,7 @@ const SAMPLES = {
   expiry: (name, studio) => expiryEmail({ name, studio, eventName: 'Mariage de Marie & Jean', expiresAt: new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10), daysLeft: 7 }),
   password_reset: (name, studio) => passwordResetEmail({ name, studio, email: 'client@exemple.com', password: 'Exemple-2026' }),
   admin_invite: (name, studio) => adminInviteEmail({ name, studio, email: 'admin@exemple.com', password: 'Exemple-2026' }),
+  announcement: (name, studio) => announcementEmail({ name, studio, title: 'Séances photo de Noël', body: 'Les réservations pour les séances de Noël sont ouvertes !\nRépondez à cet e-mail pour choisir votre date.', eventName: 'Mariage de Marie & Jean' }),
   message: (name, studio) => messageEmail({ name, studio, subject: `Un message de ${studio}`, message: 'Merci pour votre confiance !\nVos photos arrivent très bientôt.' }),
 };
 const sampleKind = z.enum(Object.keys(SAMPLES), { message: 'Modèle inconnu.' });
@@ -377,6 +404,91 @@ router.patch('/events/:id', upload.single('coverFile'), async (req, res) => {
   const becameVisible = published && !archived && !(event.published && !event.archived);
   const email = becameVisible && notify !== false ? await notifyGallery(req, updated) : null;
   res.json({ event: mapEvent(updated), email });
+});
+
+// ---------- Partage famille (liens + mot de passe) ----------
+// Le studio voit et gère tous les liens d'une galerie, y compris ceux créés par le client.
+// Un lien appartient toujours au propriétaire de la galerie (c'est sa famille qui le reçoit).
+router.get('/events/:id/shares', async (req, res) => {
+  const event = await findEvent(req, req.params.id);
+  const rows = await query(`${SHARE_SELECT} WHERE l.event_id = ? AND l.user_id = ? ORDER BY l.created_at DESC`, [event.id, event.client_id]);
+  res.json({ shares: rows.map(mapShare), enabled: (await getPermissions()).sharing });
+});
+
+router.post('/events/:id/shares', async (req, res) => {
+  const event = await findEvent(req, req.params.id);
+  const share = await createShare({
+    eventId: event.id, ownerId: event.client_id, createdBy: req.user.id, data: shareCreateSchema.parse(req.body), bcryptCost: BCRYPT_COST,
+  });
+  audit(req, 'share.create', { entity: 'event', entityId: event.id, details: { byStudio: true } });
+  res.status(201).json({ share });
+});
+
+/** Lien d'une galerie de ce photographe. */
+async function findShareLink(req, id) {
+  const [es, ep] = eventScope(req);
+  const [link] = await query(`SELECT l.id FROM share_links l JOIN events e ON e.id = l.event_id WHERE l.id = ? AND ${es}`, [uuid.parse(id), ...ep]);
+  if (!link) throw httpError(404, 'Lien introuvable.');
+  return link;
+}
+
+router.patch('/shares/:id', async (req, res) => {
+  const link = await findShareLink(req, req.params.id);
+  res.json({ share: await updateShare(link.id, shareUpdateSchema.parse(req.body)) });
+});
+
+router.delete('/shares/:id', async (req, res) => {
+  const link = await findShareLink(req, req.params.id);
+  await query('DELETE FROM share_links WHERE id = ?', [link.id]);
+  audit(req, 'share.delete', { entity: 'share', entityId: link.id });
+  res.status(204).end();
+});
+
+// Page « Sélections » : toutes les sélections des galeries de ce photographe, envoyées ou en cours.
+router.get('/selections', async (req, res) => {
+  const [es, ep] = eventScope(req);
+  const [picks, sent] = await Promise.all([
+    query(
+      `SELECT s.user_id, s.created_at, n.id, n.event_id, n.number, n.filename FROM photo_selections s JOIN (
+         SELECT p.id, p.event_id, p.filename, ROW_NUMBER() OVER (PARTITION BY p.event_id ORDER BY p.position, p.created_at) AS number
+         FROM photos p JOIN events e ON e.id = p.event_id WHERE ${es}
+       ) n ON n.id = s.photo_id ORDER BY n.number`,
+      ep,
+    ),
+    query(`SELECT s.* FROM event_selections s JOIN events e ON e.id = s.event_id WHERE ${es}`, ep),
+  ]);
+  // Une sélection = un client dans une galerie (photos cochées et/ou envoi au studio).
+  const groups = new Map();
+  const group = (eventId, userId) => {
+    const key = `${eventId}:${userId}`;
+    if (!groups.has(key)) groups.set(key, { eventId, userId, photos: [], lastPickAt: null, sent: null });
+    return groups.get(key);
+  };
+  for (const p of picks) {
+    const g = group(p.event_id, p.user_id);
+    g.photos.push({ id: p.id, number: Number(p.number), filename: p.filename, thumb: `/media/thumb/${p.id}` });
+    if (!g.lastPickAt || p.created_at > g.lastPickAt) g.lastPickAt = p.created_at;
+  }
+  for (const s of sent) group(s.event_id, s.user_id).sent = s;
+  const userIds = [...new Set([...groups.values()].map((g) => g.userId))];
+  const users = userIds.length ? await query(`SELECT * FROM users WHERE id IN (${inList(userIds)})`, userIds) : [];
+  const userOf = Object.fromEntries(users.map((u) => [u.id, u]));
+  const list = [...groups.values()]
+    .filter((g) => g.photos.length || g.sent?.submitted_at)
+    .map((g) => {
+      const u = userOf[g.userId];
+      const submittedAt = toIso(g.sent?.submitted_at);
+      const lastPickAt = toIso(g.lastPickAt);
+      return {
+        eventId: g.eventId, userId: g.userId, name: u?.name || '—', email: u?.email || '', avatar: u ? avatarUrl(u) : null,
+        note: g.sent?.note || '', submittedAt, lastPickAt, photos: g.photos,
+        // Photos cochées après l'envoi : le client a changé d'avis depuis.
+        changedSince: Boolean(submittedAt && lastPickAt && lastPickAt > submittedAt),
+        date: [submittedAt, lastPickAt].filter(Boolean).sort().pop() || null,
+      };
+    })
+    .sort((a, b) => (Boolean(b.submittedAt) - Boolean(a.submittedAt)) || String(b.date).localeCompare(String(a.date)));
+  res.json({ selections: list });
 });
 
 // Sélection reçue pour une galerie : numéros + aperçus + message.
@@ -539,15 +651,179 @@ router.post('/photos/:id/move-up', async (req, res) => {
   res.status(204).end();
 });
 
+const inList = (ids) => ids.map(() => '?').join(', ');
+
+/**
+ * Supprime des photos (lignes déjà vérifiées par le filtre du photographe) : la base d'abord,
+ * puis les fichiers (original, aperçu, miniature, visages, filigranes) par petits paquets.
+ * background : les fichiers sont effacés après la réponse (suppression de centaines de photos).
+ */
+async function deletePhotos(photos, { background = false } = {}) {
+  if (!photos.length) return;
+  const ids = photos.map((p) => p.id);
+  const keys = [];
+  for (let i = 0; i < ids.length; i += 500) {
+    const chunk = ids.slice(i, i + 500);
+    const chunkPhotos = photos.slice(i, i + 500);
+    const faces = await query(`SELECT id FROM photo_faces WHERE photo_id IN (${inList(chunk)})`, chunk);
+    // Couverture tirée d'une de ces photos : la galerie revient à « sans couverture ».
+    await query(`UPDATE events SET cover_key = NULL WHERE cover_key IN (${inList(chunkPhotos)})`, chunkPhotos.map((p) => p.preview_key));
+    await query(`DELETE FROM photos WHERE id IN (${inList(chunk)})`, chunk); // favoris, commentaires, visages : ON DELETE CASCADE
+    keys.push(...chunkPhotos.flatMap((p) => [p.original_key, p.preview_key, p.thumb_key]), ...faces.map((f) => `faces/${f.id}.webp`));
+  }
+  await removeEmptyPeople();
+  const files = async () => {
+    for (let i = 0; i < keys.length; i += 50) await removeKeys(keys.slice(i, i + 50));
+    for (let i = 0; i < ids.length; i += 20) await Promise.all(ids.slice(i, i + 20).map((id) => removeWatermarks(id)));
+  };
+  if (background) files().catch((err) => console.error('Suppression des fichiers :', err.message));
+  else await files();
+}
+
 router.delete('/photos/:id', async (req, res) => {
   const photo = await findPhoto(req, req.params.id);
-  await query('UPDATE events SET cover_key = NULL WHERE id = ? AND cover_key = ?', [photo.event_id, photo.preview_key]);
-  const faces = await query('SELECT id FROM photo_faces WHERE photo_id = ?', [photo.id]);
-  await query('DELETE FROM photos WHERE id = ?', [photo.id]);
-  await removeKeys([photo.original_key, photo.preview_key, photo.thumb_key, ...faces.map((f) => `faces/${f.id}.webp`)]);
-  await removeEmptyPeople();
-  await removeWatermarks(photo.id);
+  await deletePhotos([photo]);
   audit(req, 'photo.delete', { entity: 'photo', entityId: photo.id, details: { filename: photo.filename, eventId: photo.event_id } });
+  res.status(204).end();
+});
+
+// Album de plusieurs photos à la fois (sélection dans la page « Photos » du studio).
+router.post('/photos/album', async (req, res) => {
+  const { photoIds, album } = z
+    .object({ photoIds: z.array(uuid).min(1).max(5000), album: text(80, 'Le nom de l’album est obligatoire.') })
+    .parse(req.body);
+  const ids = [...new Set(photoIds)];
+  const [es, ep] = eventScope(req);
+  const result = await query(
+    `UPDATE photos p SET album = ? FROM events e WHERE e.id = p.event_id AND p.id IN (${inList(ids)}) AND ${es}`,
+    [album, ...ids, ...ep],
+  );
+  res.json({ updated: result.affectedRows, album });
+});
+
+// Suppression groupée : les photos cochées (photoIds), ou toutes celles d'une galerie (eventId).
+router.post('/photos/delete', async (req, res) => {
+  const data = z
+    .object({ photoIds: z.array(uuid).min(1).max(5000).optional(), eventId: uuid.optional() })
+    .refine((d) => Boolean(d.photoIds) !== Boolean(d.eventId), 'Choisissez des photos ou une galerie.')
+    .parse(req.body);
+  const [es, ep] = eventScope(req);
+  let photos;
+  if (data.eventId) {
+    const event = await findEvent(req, data.eventId);
+    photos = await query('SELECT * FROM photos WHERE event_id = ?', [event.id]);
+  } else {
+    const ids = [...new Set(data.photoIds)];
+    photos = await query(`SELECT p.* FROM photos p JOIN events e ON e.id = p.event_id WHERE p.id IN (${inList(ids)}) AND ${es}`, [...ids, ...ep]);
+    if (photos.length !== ids.length) throw httpError(404, 'Certaines photos sont introuvables (déjà supprimées ?). Actualisez la page.');
+  }
+  await deletePhotos(photos, { background: photos.length > 20 });
+  audit(req, 'photo.delete_many', {
+    entity: data.eventId ? 'event' : 'photo', entityId: data.eventId ?? null,
+    details: { count: photos.length, events: [...new Set(photos.map((p) => p.event_id))] },
+  });
+  res.json({ deleted: photos.length });
+});
+
+// ---------- Notifications : cloche des clients + e-mail automatique ----------
+// Les e-mails partent en arrière-plan (lib/announcements.js) : tout de suite, ou à l'heure programmée.
+// Offre gratuite Resend : 100 e-mails par jour (MAIL_DAILY_LIMIT pour une autre offre).
+const MAIL_DAILY_LIMIT = Number(process.env.MAIL_DAILY_LIMIT || 100);
+const announcementScope = (req) => (isOwner(req) ? ['1=1', []] : ['a.created_by = ?', [req.user.id]]);
+
+router.get('/announcements', async (req, res) => {
+  const [sc, sp] = announcementScope(req);
+  const [rows, [{ n }]] = await Promise.all([
+    query(
+      `SELECT a.id, a.title, a.body, a.event_id, a.audience, a.send_email, a.send_at, e.name AS event_name, u.name AS author,
+         COUNT(r.user_id) AS recipients,
+         COUNT(*) FILTER (WHERE r.email_status = 'sent') AS sent,
+         COUNT(*) FILTER (WHERE r.email_status IN ('failed', 'skipped')) AS failed,
+         STRING_AGG(c.name, ', ' ORDER BY c.name) FILTER (WHERE a.audience = 'some') AS names
+       FROM announcements a
+       LEFT JOIN announcement_recipients r ON r.announcement_id = a.id
+       LEFT JOIN users c ON c.id = r.user_id
+       LEFT JOIN events e ON e.id = a.event_id
+       LEFT JOIN users u ON u.id = a.created_by
+       WHERE ${sc} GROUP BY a.id, e.name, u.name ORDER BY a.send_at DESC LIMIT 100`,
+      sp,
+    ),
+    query("SELECT COUNT(*) AS n FROM email_log WHERE status = 'sent' AND created_at >= CURRENT_DATE"),
+  ]);
+  res.json({
+    announcements: rows.map((a) => ({
+      id: a.id, title: a.title, body: a.body, eventId: a.event_id, eventName: a.event_name || null, audience: a.audience,
+      names: a.names || null, recipients: Number(a.recipients), sendEmail: !!a.send_email,
+      emailsSent: Number(a.sent), emailsFailed: Number(a.failed), author: a.author || null, sendAt: toIso(a.send_at),
+    })),
+    mail: { configured: mailConfigured(), sentToday: Number(n), dailyLimit: MAIL_DAILY_LIMIT },
+  });
+});
+
+const announcementSchema = z.object({
+  title: text(150, 'Le titre est obligatoire.'),
+  body: text(5000, 'Le message est vide.'),
+  audience: z.enum(['all', 'some']),
+  clientIds: z.array(uuid).max(1000).optional().default([]),
+  eventId: uuid.nullable().optional(),
+  sendEmail: sendFlag,
+  // Absent : tout de suite. Sinon date ISO (UTC) dans l'année qui vient.
+  sendAt: z.string().datetime({ offset: true, message: 'Date d’envoi invalide.' }).nullable().optional(),
+});
+
+router.post('/announcements', async (req, res) => {
+  const data = announcementSchema.parse(req.body);
+  const event = data.eventId ? await findEvent(req, data.eventId) : null;
+  let sendAt = null;
+  if (data.sendAt) {
+    const t = Date.parse(data.sendAt);
+    if (t < Date.now() - 60000) throw httpError(400, 'La date d’envoi est déjà passée.');
+    if (t > Date.now() + 366 * 86400000) throw httpError(400, 'Programmez l’envoi dans l’année qui vient.');
+    sendAt = new Date(t).toISOString().slice(0, 19).replace('T', ' ');
+  }
+  // Tous : les clients actifs de ce photographe. Choix : les clients cochés (parmi les siens).
+  const [as, ap] = accountScope(req);
+  let recipients;
+  if (data.audience === 'all') {
+    recipients = await query(`SELECT u.id FROM users u WHERE u.role = 'client' AND u.active = 1 AND ${as}`, ap);
+  } else {
+    const ids = [...new Set(data.clientIds)];
+    recipients = ids.length
+      ? await query(`SELECT u.id FROM users u WHERE u.id IN (${ids.map(() => '?').join(', ')}) AND u.role = 'client' AND u.active = 1 AND ${as}`, [...ids, ...ap])
+      : [];
+    if (recipients.length !== ids.length) throw httpError(400, 'Certains clients sont introuvables ou désactivés.');
+  }
+  if (!recipients.length) throw httpError(400, data.audience === 'all' ? 'Aucun client actif à prévenir.' : 'Choisissez au moins un client.');
+
+  const id = crypto.randomUUID();
+  await transaction(async (conn) => {
+    await conn.execute(
+      `INSERT INTO announcements (id, created_by, title, body, event_id, audience, send_email, send_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, COALESCE(?::timestamp, CURRENT_TIMESTAMP))`,
+      [id, req.user.id, data.title, data.body, event?.id ?? null, data.audience, data.sendEmail ? 1 : 0, sendAt],
+    );
+    for (let i = 0; i < recipients.length; i += 200) {
+      const chunk = recipients.slice(i, i + 200);
+      await conn.execute(
+        `INSERT INTO announcement_recipients (announcement_id, user_id) VALUES ${chunk.map(() => '(?, ?)').join(', ')}`,
+        chunk.flatMap((u) => [id, u.id]),
+      );
+    }
+  });
+  audit(req, 'announcement.create', {
+    entity: 'announcement', entityId: id, details: { title: data.title, recipients: recipients.length, email: data.sendEmail, sendAt },
+  });
+  if (data.sendEmail && !sendAt) kickAnnouncements();
+  res.status(201).json({ id, recipients: recipients.length, scheduled: Boolean(sendAt), mail: mailConfigured() });
+});
+
+// Supprimer : la notification disparaît des cloches ; programmée, elle n'est jamais envoyée.
+// Les e-mails déjà partis ne peuvent pas être repris.
+router.delete('/announcements/:id', async (req, res) => {
+  const [sc, sp] = announcementScope(req);
+  const result = await query(`DELETE FROM announcements a WHERE a.id = ? AND ${sc}`, [uuid.parse(req.params.id), ...sp]);
+  if (!result.affectedRows) throw httpError(404, 'Notification introuvable.');
+  audit(req, 'announcement.delete', { entity: 'announcement', entityId: req.params.id });
   res.status(204).end();
 });
 
@@ -564,19 +840,38 @@ router.get('/comments', async (req, res) => {
      WHERE ${eventScope(req)[0]} ORDER BY c.created_at DESC LIMIT 200`,
     eventScope(req)[1],
   );
+  // Commentaires de la famille (liens de partage), sur les mêmes galeries.
+  const family = await query(
+    `SELECT sc.*, l.label AS share_label, p.filename, p.event_id, e.name AS event_name, o.name AS owner_name
+     FROM share_comments sc
+     JOIN share_links l ON l.id = sc.share_id
+     JOIN photos p ON p.id = sc.photo_id
+     JOIN events e ON e.id = p.event_id
+     JOIN users o ON o.id = e.client_id
+     WHERE ${eventScope(req)[0]} ORDER BY sc.created_at DESC LIMIT 200`,
+    eventScope(req)[1],
+  );
+  const context = (c) => ({
+    photo: { id: c.photo_id, filename: c.filename, preview: `/media/preview/${c.photo_id}` },
+    event: { id: c.event_id, name: c.event_name, owner: c.owner_name },
+  });
   res.json({
-    comments: rows.map((c) => ({
-      ...mapComment(c, req.user),
-      photo: { id: c.photo_id, filename: c.filename, preview: `/media/preview/${c.photo_id}` },
-      event: { id: c.event_id, name: c.event_name, owner: c.owner_name },
-    })),
+    comments: [
+      ...rows.map((c) => ({ ...mapComment(c, req.user), ...context(c) })),
+      ...family.map((c) => ({ ...mapFamilyComment(c, { canDelete: true }), ...context(c) })),
+    ].sort(byDate).reverse().slice(0, 200),
   });
 });
 
 router.get('/photos/:id/comments', async (req, res) => {
   const photo = await findPhoto(req, req.params.id);
-  const rows = await query(`${COMMENT_SELECT} WHERE c.photo_id = ? ORDER BY c.created_at`, [photo.id]);
-  res.json({ comments: rows.map((c) => mapComment(c, req.user)) });
+  const [rows, family] = await Promise.all([
+    query(`${COMMENT_SELECT} WHERE c.photo_id = ? ORDER BY c.created_at`, [photo.id]),
+    query(`${FAMILY_COMMENT_SELECT} WHERE sc.photo_id = ?`, [photo.id]),
+  ]);
+  res.json({
+    comments: [...rows.map((c) => mapComment(c, req.user)), ...family.map((c) => mapFamilyComment(c, { canDelete: true }))].sort(byDate),
+  });
 });
 
 // Réponse du studio sous une photo.
@@ -593,10 +888,11 @@ router.post('/photos/:id/comments', async (req, res) => {
 // L'équipe peut supprimer n'importe quel commentaire (modération).
 router.delete('/comments/:id', async (req, res) => {
   const [es, ep] = eventScope(req);
-  const result = await query(
-    `DELETE FROM photo_comments WHERE id = ? AND photo_id IN (SELECT p.id FROM photos p JOIN events e ON e.id = p.event_id WHERE ${es})`,
-    [uuid.parse(req.params.id), ...ep],
-  );
+  const inScope = `photo_id IN (SELECT p.id FROM photos p JOIN events e ON e.id = p.event_id WHERE ${es})`;
+  const id = uuid.parse(req.params.id);
+  let result = await query(`DELETE FROM photo_comments WHERE id = ? AND ${inScope}`, [id, ...ep]);
+  // Sinon : un commentaire de la famille (lien de partage).
+  if (!result.affectedRows) result = await query(`DELETE FROM share_comments WHERE id = ? AND ${inScope}`, [id, ...ep]);
   if (!result.affectedRows) throw httpError(404, 'Commentaire introuvable.');
   audit(req, 'comment.delete', { entity: 'comment', entityId: req.params.id });
   res.status(204).end();

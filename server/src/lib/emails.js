@@ -161,6 +161,22 @@ export function selectionEmail({ clientName, eventName, numbers, note }) {
   };
 }
 
+/** Notification écrite dans le studio (page « Notifications »), avec la galerie liée s'il y en a une. */
+export function announcementEmail({ name, title, body, eventName = null, studio = defaultStudio() }) {
+  const url = `${config.appUrl}/client.html`;
+  return {
+    subject: title,
+    html: layout({
+      studio,
+      preheader: body.slice(0, 90),
+      title,
+      body: `Bonjour ${esc(firstName(name))},<br><br>${esc(body).replace(/\r?\n/g, '<br>')}${eventName ? `<br><br>Galerie : <strong style="color:#082445">${esc(eventName)}</strong>` : ''}`,
+      cta: { label: eventName ? 'Voir la galerie' : 'Ouvrir mon espace', url },
+    }),
+    text: `Bonjour ${firstName(name)},\n\n${body}${eventName ? `\n\nGalerie : ${eventName}` : ''}\n\n${url}`,
+  };
+}
+
 export function messageEmail({ name, subject, message, studio = defaultStudio() }) {
   return {
     subject,

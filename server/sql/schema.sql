@@ -129,7 +129,7 @@ CREATE TABLE IF NOT EXISTS permissions (
   updated_at TIMESTAMP(0) NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 INSERT INTO permissions (perm_key, enabled) VALUES
-  ('individual', 1), ('selection', 1), ('event', 1), ('favorites', 1), ('sharing', 0),
+  ('individual', 1), ('selection', 1), ('event', 1), ('favorites', 1), ('sharing', 1),
   ('comments', 1), ('signup', 1), ('faces', 1), ('share_download', 0)
 ON CONFLICT DO NOTHING;
 
@@ -253,12 +253,51 @@ CREATE TABLE IF NOT EXISTS share_links (
   password_hash  VARCHAR(255) NOT NULL,
   label          VARCHAR(120) NULL,
   allow_download SMALLINT     NOT NULL DEFAULT 0,
+  allow_comments SMALLINT     NOT NULL DEFAULT 1,  -- la famille peut commenter
+  created_by     VARCHAR(36)  NULL REFERENCES users (id) ON DELETE SET NULL, -- lien créé par le studio
   views          INTEGER      NOT NULL DEFAULT 0,
   last_used_at   TIMESTAMP(0) NULL,
   created_at     TIMESTAMP(0) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT uq_share_token UNIQUE (token)
 );
 CREATE INDEX IF NOT EXISTS idx_share_event ON share_links (event_id);
+
+-- 16 bis. share_comments — commentaires de la famille (sans compte) sur un lien de partage
+CREATE TABLE IF NOT EXISTS share_comments (
+  id          VARCHAR(36)   PRIMARY KEY,
+  share_id    VARCHAR(36)   NOT NULL REFERENCES share_links (id) ON DELETE CASCADE,
+  photo_id    VARCHAR(36)   NOT NULL REFERENCES photos (id) ON DELETE CASCADE,
+  visitor_id  VARCHAR(36)   NOT NULL, -- visiteur du lien (cookie) : peut supprimer ses messages
+  author_name VARCHAR(80)   NOT NULL,
+  body        VARCHAR(1000) NOT NULL,
+  created_at  TIMESTAMP(0)  NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_share_comments_photo ON share_comments (photo_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_share_comments_share ON share_comments (share_id, created_at);
+
+-- 17. announcements — notifications écrites par le studio (cloche des clients + e-mail automatique)
+CREATE TABLE IF NOT EXISTS announcements (
+  id         VARCHAR(36)   PRIMARY KEY,
+  created_by VARCHAR(36)   NULL REFERENCES users (id) ON DELETE SET NULL,
+  title      VARCHAR(150)  NOT NULL,
+  body       VARCHAR(5000) NOT NULL,
+  event_id   VARCHAR(36)   NULL REFERENCES events (id) ON DELETE SET NULL, -- galerie ouverte au clic
+  audience   VARCHAR(10)   NOT NULL DEFAULT 'all' CHECK (audience IN ('all', 'some')),
+  send_email SMALLINT      NOT NULL DEFAULT 1,
+  send_at    TIMESTAMP(0)  NOT NULL DEFAULT CURRENT_TIMESTAMP, -- visible et envoyée à partir de cette date
+  created_at TIMESTAMP(0)  NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_announcements_author ON announcements (created_by, send_at);
+
+-- 18. announcement_recipients — destinataires figés à la création
+-- email_status : NULL = à envoyer, puis sending / sent / failed / skipped.
+CREATE TABLE IF NOT EXISTS announcement_recipients (
+  announcement_id VARCHAR(36) NOT NULL REFERENCES announcements (id) ON DELETE CASCADE,
+  user_id         VARCHAR(36) NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+  email_status    VARCHAR(10) NULL,
+  PRIMARY KEY (announcement_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_announcement_recipients_user ON announcement_recipients (user_id);
 
 -- Déclencheurs updated_at
 DO $$

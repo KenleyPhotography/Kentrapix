@@ -15,6 +15,7 @@
   letter-spacing: -0.035em;
 }
 
+.gallery-actions[hidden], .filterbar[hidden] { display: none; } /* galerie encore vide */
 .gallery-actions {
   display: flex;
   flex-wrap: wrap;
@@ -243,15 +244,7 @@
   .photo-tile:not(.selected) .photo-check { opacity: 0; }
   .selecting .photo-tile .photo-check { opacity: 1; }
 
-  .gallery-actions {
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    margin-inline: calc(var(--gutter) * -1);
-    padding-inline: var(--gutter);
-    scrollbar-width: none;
-  }
-  .gallery-actions::-webkit-scrollbar { display: none; }
-  .gallery-actions .btn { flex-shrink: 0; min-height: 40px; padding: 8px 14px; }
+  /* Barre d'actions de la galerie sur mobile : voir « Galerie : barre d'actions » dans modern.css. */
 
   .selectionbar { padding: var(--space-2); }
   .selectionbar strong { width: 100%; padding-left: var(--space-2); }

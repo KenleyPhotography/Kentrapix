@@ -85,6 +85,7 @@
 }
 
 .login-panel h1 + p { margin-top: var(--space-2); }
+.login-intro { color: var(--muted); font-size: var(--text-sm); line-height: 1.6; }
 
 .login-panel form {
   display: grid;

@@ -5,7 +5,7 @@ const initials=n=>String(n||'').split(/\s+/).filter(Boolean).map(w=>w[0]).join('
 const avatar=a=>a.avatar?`<img class="avatar" src="${escape(a.avatar)}" alt="">`:`<span class="avatar">${escape(initials(a.name))}</span>`;
 const when=iso=>new Date(iso).toLocaleString('fr-FR',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
 const commentsUrl=id=>service.readOnly?`/api/admin/photos/${id}/comments`:`/api/client/photos/${id}/comments`;
-const commentItem=c=>`<li class="vc-item${c.author.staff?' is-staff':''}">${avatar(c.author)}<div><p class="vc-meta"><strong>${escape(c.author.name)}</strong>${c.author.staff?'<span class="badge is-live">Studio</span>':''}<time>${when(c.date)}</time></p><p class="vc-body">${escape(c.body).replace(/\n/g,'<br>')}</p>${c.mine&&!service.readOnly?`<button class="text-link" data-del-comment="${c.id}">Supprimer</button>`:''}</div></li>`;
+const commentItem=c=>`<li class="vc-item${c.author.staff?' is-staff':''}">${avatar(c.author)}<div><p class="vc-meta"><strong>${escape(c.author.name)}</strong>${c.author.staff?'<span class="badge is-live">Studio</span>':''}${c.author.family?`<span class="badge is-draft">Famille${c.author.via?` · ${escape(c.author.via)}`:''}</span>`:''}<time>${when(c.date)}</time></p><p class="vc-body">${escape(c.body).replace(/\n/g,'<br>')}</p>${(c.mine||c.canDelete)&&!service.readOnly?`<button class="text-link" data-del-comment="${c.id}">Supprimer</button>`:''}</div></li>`;
 // Partage d'UNE photo (WhatsApp, Instagram…) : le fichier lui-même, converti en JPEG
 // (WhatsApp traite les WEBP comme des autocollants). Préparé une seule fois par photo.
 const shareFiles=new Map();

@@ -1,6 +1,6 @@
-# KentraPix — by Kenley Photography
+# KentraPix
 
-Espace photo privé pour les clients de Kenley Photography.
+Espace photo privé pour les clients des photographes (studio + galeries clients).
 
 - **Frontend** : HTML/CSS/JavaScript sans build (`*.html`, `css/`, `js/`).
 - **Backend** : Node.js + Express + PostgreSQL/Supabase (`server/`). Il sert aussi le frontend. Photos sur Cloudflare R2, hébergement Render.

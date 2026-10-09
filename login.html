@@ -3,19 +3,47 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="description" content="KentraPix, votre espace photo privé par Kenley Photography.">
+  <meta name="description" content="KentraPix, votre espace photo privé : retrouvez, téléchargez et partagez les photos de vos séances, mariages et événements.">
   <meta name="theme-color" content="#f4f7fc">
-  <title>KentraPix</title>
+  <title>KentraPix · Vos galeries photo privées</title>
   <script src="/js/theme.js"></script>
-  <meta name="robots" content="noindex, nofollow">
+  <meta name="robots" content="index, follow, max-image-preview:large">
+  <link rel="canonical" href="https://kentrapix.kenleyelysee.com/">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="KentraPix">
-  <meta property="og:title" content="KentraPix · Kenley Photography">
-  <meta property="og:description" content="Votre galerie photo privée par Kenley Photography.">
+  <meta property="og:url" content="https://kentrapix.kenleyelysee.com/">
+  <meta property="og:locale" content="fr_FR">
+  <meta property="og:title" content="KentraPix">
+  <meta property="og:description" content="KentraPix, votre espace photo privé : retrouvez, téléchargez et partagez les photos de vos séances, mariages et événements.">
   <meta property="og:image" content="https://kentrapix.kenleyelysee.com/logo/og-image.png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
   <meta name="twitter:card" content="summary_large_image">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "WebSite",
+        "@id": "https://kentrapix.kenleyelysee.com/#site",
+        "url": "https://kentrapix.kenleyelysee.com/",
+        "name": "KentraPix",
+        "description": "KentraPix, votre espace photo privé : retrouvez, téléchargez et partagez les photos de vos séances, mariages et événements.",
+        "inLanguage": "fr",
+        "publisher": {
+          "@id": "https://kentrapix.kenleyelysee.com/#studio"
+        }
+      },
+      {
+        "@type": "Organization",
+        "@id": "https://kentrapix.kenleyelysee.com/#studio",
+        "name": "KentraPix",
+        "url": "https://kentrapix.kenleyelysee.com/",
+        "logo": "https://kentrapix.kenleyelysee.com/logo/icon-512.png"
+      }
+    ]
+  }
+  </script>
   <link rel="icon" type="image/svg+xml" href="/logo/kentrapix-icon.svg">
   <link rel="apple-touch-icon" href="/logo/apple-touch-icon.png">
   <link rel="manifest" href="/manifest.webmanifest">
@@ -42,13 +70,13 @@
   <link rel="stylesheet" href="css/modern.css">
   <link rel="stylesheet" href="css/dark.css">
 </head>
-<body>
-  <div id="app"></div>
+<body data-page="login">
+  <div id="app"><div class="login"><div class="login-visual"><img src="/img/login.webp?v=2" srcset="/img/login-900.webp?v=2 900w, /img/login.webp?v=2 1596w" sizes="(max-width: 900px) 100vw, 55vw" alt="Portrait d’une petite fille coiffée d’un foulard aux couleurs d’Haïti" fetchpriority="high"><div class="login-caption"><p class="login-kicker login-logo"><img src="/logo/kentrapix-icon.svg" alt="" width="30" height="30"><span>Kentra<b>Pix</b></span></p></div></div><main class="login-panel" id="login-panel"><div class="brand"><img class="brandmark" src="/logo/kentrapix-icon.svg" alt="" width="40" height="40"><div><strong>Kentra<span>Pix</span></strong></div></div><h1>Connexion</h1><p class="login-intro">Votre espace photo privé : retrouvez, téléchargez et partagez les photos de vos séances, mariages et événements.</p></main></div></div>
   <div id="overlays"></div>
   <div id="toast" role="status" aria-live="polite"></div>
 
   <noscript>
-    <p style="padding:40px;text-align:center">KentraPix a besoin de JavaScript. Ouvrez ce dossier avec Live Server.</p>
+    <p style="padding:40px;text-align:center">KentraPix a besoin de JavaScript pour se connecter à votre espace photo.</p>
   </noscript>
 
   <script type="module" src="js/app.js"></script>
