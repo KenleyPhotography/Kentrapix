@@ -52,7 +52,7 @@ export function createApp() {
   });
   // Seule la page d'accueil / connexion est indexée. Galeries, studio, API, photos et liens
   // de partage : jamais dans Google, même si un lien fuit.
-  const indexable = (p) => p === '/' || p === '/conditions.html' || p === '/sitemap.xml' || p === '/robots.txt' || /^\/(css|js|img|logo)\//.test(p);
+  const indexable = (p) => p === '/' || p === '/conditions.html' || p === '/sitemap.xml' || p === '/robots.txt' || p === '/favicon.ico' || /^\/(css|js|img|logo)\//.test(p);
   app.use((req, res, next) => {
     if (!indexable(req.path)) res.set('X-Robots-Tag', 'noindex, nofollow');
     next();
