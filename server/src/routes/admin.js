@@ -21,6 +21,7 @@ import { kickFaces, mergePeople, rescanEvent, removeEmptyPeople } from '../lib/f
 import { config } from '../config.js';
 import { BCRYPT_COST, passwordRule } from './auth.js';
 import { clientBootstrap } from './client.js';
+import { staffNotifications } from '../lib/notifications.js';
 
 // Studio : propriétaire + admins. La gestion de l'équipe (/team) est réservée au propriétaire.
 const router = Router();
@@ -106,6 +107,7 @@ router.get('/bootstrap', async (req, res) => {
     selections: selections.map((s) => ({
       eventId: s.event_id, userId: s.user_id, name: s.name, count: s.photo_count, submittedAt: toIso(s.submitted_at),
     })),
+    notifications: await staffNotifications({ scope: [es, ep], owner: isOwner(req), events, selections }),
   });
 });
 
@@ -350,6 +352,7 @@ router.patch('/events/:id', upload.single('coverFile'), async (req, res) => {
   await query(
     `UPDATE events SET client_id = ?, name = ?, type = ?, event_date = ?, location = ?, description = ?,
        cover_key = ?, published = ?, allow_download = ?, archived = ?, selection_mode = ?, selection_limit = ?,
+       published_at = CASE WHEN ? = 1 AND published_at IS NULL THEN CURRENT_TIMESTAMP ELSE published_at END,
        expiry_notified_at = CASE WHEN expires_at IS NOT DISTINCT FROM ? THEN expiry_notified_at END, expires_at = ? WHERE id = ?`,
     [
       keep(data, event, 'clientId', 'client_id'), keep(data, event, 'name'), keep(data, event, 'type'),
@@ -360,6 +363,7 @@ router.patch('/events/:id', upload.single('coverFile'), async (req, res) => {
       archived ? 1 : 0,
       keep(data, event, 'selectionMode', 'selection_mode') ? 1 : 0,
       data.selectionLimit !== undefined ? data.selectionLimit || null : event.selection_limit,
+      published ? 1 : 0, // première publication : notification « nouvelle galerie »
       // Nouvelle date d'expiration : le rappel « 7 jours » pourra repartir.
       keep(data, event, 'expiresAt', 'expires_at'), keep(data, event, 'expiresAt', 'expires_at'),
       event.id,
@@ -411,9 +415,9 @@ router.post('/events/:id/notify', async (req, res) => {
 
 router.delete('/events/:id', async (req, res) => {
   const event = await findEvent(req, req.params.id);
-  const photos = await query('SELECT id, original_key, preview_key FROM photos WHERE event_id = ?', [event.id]);
+  const photos = await query('SELECT id, original_key, preview_key, thumb_key FROM photos WHERE event_id = ?', [event.id]);
   await query('DELETE FROM events WHERE id = ?', [event.id]); // photos et favoris : ON DELETE CASCADE
-  await removeKeys([ownCover(event.cover_key), event.music_key, ...photos.flatMap((p) => [p.original_key, p.preview_key])]);
+  await removeKeys([ownCover(event.cover_key), event.music_key, ...photos.flatMap((p) => [p.original_key, p.preview_key, p.thumb_key])]);
   await Promise.all(photos.map((p) => removeWatermarks(p.id)));
   audit(req, 'event.delete', { entity: 'event', entityId: event.id, details: { name: event.name, photos: photos.length } });
   res.status(204).end();
@@ -540,7 +544,7 @@ router.delete('/photos/:id', async (req, res) => {
   await query('UPDATE events SET cover_key = NULL WHERE id = ? AND cover_key = ?', [photo.event_id, photo.preview_key]);
   const faces = await query('SELECT id FROM photo_faces WHERE photo_id = ?', [photo.id]);
   await query('DELETE FROM photos WHERE id = ?', [photo.id]);
-  await removeKeys([photo.original_key, photo.preview_key, ...faces.map((f) => `faces/${f.id}.webp`)]);
+  await removeKeys([photo.original_key, photo.preview_key, photo.thumb_key, ...faces.map((f) => `faces/${f.id}.webp`)]);
   await removeEmptyPeople();
   await removeWatermarks(photo.id);
   audit(req, 'photo.delete', { entity: 'photo', entityId: photo.id, details: { filename: photo.filename, eventId: photo.event_id } });

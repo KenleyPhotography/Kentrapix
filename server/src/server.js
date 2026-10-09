@@ -1,5 +1,6 @@
 import { config, assertServerConfig } from './config.js';
-import { ping, closeDb, dbLabel } from './db.js';
+import { ping, closeDb, dbLabel, withClient } from './db.js';
+import { applyMigrations } from './lib/migrate.js';
 import { ensureStorage } from './lib/storage.js';
 import { createApp } from './app.js';
 import { kickFaces, resetInterruptedFaces } from './lib/faces.js';
@@ -11,6 +12,8 @@ await ping().catch((err) => {
   console.error(`Connexion à la base impossible (${dbLabel}) : ${err.message}`);
   process.exit(1);
 });
+// Migrations en attente (sql/migrations/) : appliquées automatiquement au démarrage.
+await withClient((client) => applyMigrations(client));
 
 const server = createApp().listen(config.port, config.host, () => {
   console.log(`KentraPix prêt sur http://localhost:${config.port} (${config.env}, ${dbLabel})`);

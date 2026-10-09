@@ -3,7 +3,7 @@ import crypto from 'node:crypto';
 import bcrypt from 'bcryptjs';
 import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
-import { query, utcStamp } from '../db.js';
+import { query, utcStamp, toIso } from '../db.js';
 import { httpError } from '../lib/errors.js';
 import { publicUser, getPermissions } from '../lib/data.js';
 import { config } from '../config.js';
@@ -148,6 +148,12 @@ router.post('/reset', resetLimiter, async (req, res) => {
   if (!user) throw httpError(403, 'Ce compte est désactivé. Contactez Kenley Photography.');
   issueSession(res, user);
   res.json({ user: publicUser(user) });
+});
+
+// Cloche ouverte : tout ce qui précède est marqué comme vu.
+router.post('/notifications/seen', requireAuth, async (req, res) => {
+  const [row] = await query('UPDATE users SET notifications_seen_at = CURRENT_TIMESTAMP WHERE id = ? RETURNING notifications_seen_at', [req.user.id]);
+  res.json({ seenAt: toIso(row.notifications_seen_at) });
 });
 
 router.post('/logout', (req, res) => {

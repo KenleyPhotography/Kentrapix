@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { query } from '../db.js';
 import { httpError } from '../lib/errors.js';
-import { sendPrivate, watermarkedPreview } from '../lib/storage.js';
+import { sendPrivate, watermarkedPreview, makeThumb } from '../lib/storage.js';
 import { faceThumbnail } from '../lib/faces.js';
 import { uuid, canSeeEvent } from '../lib/data.js';
 import { requireAuth } from '../middleware/auth.js';
@@ -10,21 +10,48 @@ import { requireAuth } from '../middleware/auth.js';
 const router = Router();
 router.use(requireAuth);
 
-router.get('/preview/:id', async (req, res) => {
+/** Photo visible par l'utilisateur (droits vérifiés), avec son numéro dans la galerie. */
+async function visiblePhoto(req) {
   const [photo] = await query(
-    `SELECT p.id, p.preview_key, p.event_id, e.client_id, e.created_by, e.expires_at, e.published, e.archived, e.selection_mode,
+    `SELECT p.id, p.preview_key, p.thumb_key, p.event_id, e.client_id, e.created_by, e.expires_at, e.published, e.archived, e.selection_mode,
        (SELECT COUNT(*) FROM photos q WHERE q.event_id = p.event_id
           AND (q.position < p.position OR (q.position = p.position AND q.created_at <= p.created_at))) AS number
      FROM photos p JOIN events e ON e.id = p.event_id WHERE p.id = ?`,
     [uuid.parse(req.params.id)],
   );
   if (!photo || !canSeeEvent(req.user, photo)) throw httpError(404, 'Photo introuvable.');
-  // Mode sélection : le client ne reçoit qu'une version filigranée et numérotée (l'équipe voit l'original).
-  const manages = req.user.role === 'owner' || (req.user.role === 'admin' && photo.created_by === req.user.id);
-  if (photo.selection_mode && !manages) {
+  return photo;
+}
+
+// Mode sélection : le client ne reçoit qu'une version filigranée et numérotée (l'équipe voit l'original).
+const mustWatermark = (user, photo) =>
+  photo.selection_mode && !(user.role === 'owner' || (user.role === 'admin' && photo.created_by === user.id));
+
+router.get('/preview/:id', async (req, res) => {
+  const photo = await visiblePhoto(req);
+  if (mustWatermark(req.user, photo)) {
     return sendPrivate(res, await watermarkedPreview(photo.preview_key, photo.id, Number(photo.number)));
   }
   await sendPrivate(res, photo.preview_key);
+});
+
+// Miniature de la grille. Mode sélection : la version filigranée (jamais de miniature sans filigrane).
+router.get('/thumb/:id', async (req, res) => {
+  const photo = await visiblePhoto(req);
+  if (mustWatermark(req.user, photo)) {
+    return sendPrivate(res, await watermarkedPreview(photo.preview_key, photo.id, Number(photo.number)));
+  }
+  let key = photo.thumb_key;
+  if (!key) {
+    try {
+      key = await makeThumb(photo.preview_key, photo.id);
+      await query('UPDATE photos SET thumb_key = ? WHERE id = ?', [key, photo.id]);
+    } catch (err) {
+      console.error(`Miniature ${photo.id} : ${err.message}`);
+      key = photo.preview_key; // la grille s'affiche quand même
+    }
+  }
+  await sendPrivate(res, key);
 });
 
 router.get('/cover/:id', async (req, res) => {

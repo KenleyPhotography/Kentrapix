@@ -67,6 +67,16 @@ export async function transaction(fn) {
   }
 }
 
+/** Exécute fn(client) avec une connexion dédiée (scripts SQL à plusieurs instructions, migrations). */
+export async function withClient(fn) {
+  const client = await connect();
+  try {
+    return await fn(client);
+  } finally {
+    client.release();
+  }
+}
+
 /** Vérifie la connexion. */
 export const ping = () => query('SELECT 1');
 

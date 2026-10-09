@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS users (
   must_change_password SMALLINT     NOT NULL DEFAULT 0,
   token_version        INTEGER      NOT NULL DEFAULT 0,
   last_login_at        TIMESTAMP(0) NULL,
+  notifications_seen_at TIMESTAMP(0) NULL, -- dernière ouverture de la cloche
   created_at           TIMESTAMP(0) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at           TIMESTAMP(0) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT uq_users_email UNIQUE (email),
@@ -66,6 +67,7 @@ CREATE TABLE IF NOT EXISTS events (
   expires_at         DATE         NULL,
   expiry_notified_at TIMESTAMP(0) NULL,
   notified_at        TIMESTAMP(0) NULL,
+  published_at       TIMESTAMP(0) NULL, -- première publication (notification « nouvelle galerie »)
   created_at         TIMESTAMP(0) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at         TIMESTAMP(0) NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -89,6 +91,7 @@ CREATE TABLE IF NOT EXISTS photos (
   height        INTEGER      NOT NULL DEFAULT 0,
   position      INTEGER      NOT NULL DEFAULT 0,
   faces_status  VARCHAR(10)  NOT NULL DEFAULT 'pending' CHECK (faces_status IN ('pending', 'processing', 'done', 'failed')),
+  thumb_key     VARCHAR(255) NULL, -- miniature 800 px de la grille (créée au premier affichage)
   created_at    TIMESTAMP(0) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT uq_photos_original UNIQUE (original_key)
 );

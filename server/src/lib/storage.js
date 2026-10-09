@@ -20,7 +20,7 @@ import { httpError } from './errors.js';
 //    elles ne sont jamais enregistrées sur ce serveur ;
 //  - local : photos dans STORAGE_DIR.
 // Les clés sont identiques dans les deux modes : 'originals/…', 'previews/…', 'covers/…', etc.
-const FOLDERS = ['originals', 'previews', 'covers', 'avatars', 'watermarks', 'faces', 'music', 'tmp'];
+const FOLDERS = ['originals', 'previews', 'thumbs', 'covers', 'avatars', 'watermarks', 'faces', 'music', 'tmp'];
 // Sans cache libvips : sinon Windows garde les images ouvertes et refuse de les supprimer (EBUSY).
 sharp.cache(false);
 
@@ -305,6 +305,29 @@ export async function storePhoto(file, { previewOnly = false } = {}) {
   } finally {
     await fs.rm(file.path, { force: true });
   }
+}
+
+/**
+ * Miniature de la grille (WEBP 800 px, ~3 fois plus légère que l'aperçu) : économise les données mobiles.
+ * Créée à partir de l'aperçu au premier affichage, puis réutilisée. Deux demandes simultanées
+ * pour la même photo ne la créent qu'une fois.
+ */
+const thumbJobs = new Map();
+export const THUMB_WIDTH = 800;
+export function makeThumb(previewKey, photoId) {
+  const key = `thumbs/${photoId}.webp`;
+  if (!thumbJobs.has(key)) {
+    const job = (async () => {
+      const data = await sharp(await readFile(previewKey))
+        .resize({ width: THUMB_WIDTH, height: THUMB_WIDTH * 2, fit: 'inside', withoutEnlargement: true })
+        .webp({ quality: 72 })
+        .toBuffer();
+      await putFile(key, data, 'image/webp');
+      return key;
+    })().finally(() => thumbJobs.delete(key));
+    thumbJobs.set(key, job);
+  }
+  return thumbJobs.get(key);
 }
 
 /** Photo de couverture d'un événement : seul l'aperçu est conservé. */

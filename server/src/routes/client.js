@@ -17,6 +17,7 @@ import { config } from '../config.js';
 import { toIso } from '../db.js';
 import { requireRole } from '../middleware/auth.js';
 import { BCRYPT_COST } from './auth.js';
+import { clientNotifications } from '../lib/notifications.js';
 
 const router = Router();
 router.use(requireRole());
@@ -80,6 +81,7 @@ export async function clientBootstrap(id) {
   return {
     events: events.map(mapEvent),
     photos: photos.map(mapPhoto),
+    notifications: await clientNotifications(id, events),
     favorites: favorites.map((f) => f.photo_id),
     downloads: downloads.map(mapDownload),
     permissions,

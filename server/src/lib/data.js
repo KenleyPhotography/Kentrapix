@@ -16,6 +16,7 @@ export const publicUser = (u) => ({
   avatar: avatarUrl(u),
   senderName: u.sender_name || '',
   mustChangePassword: !!u.must_change_password,
+  notificationsSeenAt: toIso(u.notifications_seen_at),
 });
 
 export const mapClient = (u) => ({
@@ -67,6 +68,7 @@ export const mapPhoto = (p) => ({
   album: p.album,
   filename: p.filename,
   preview: `/media/preview/${p.id}`,
+  thumb: `/media/thumb/${p.id}`,
   width: p.width,
   height: p.height,
   size: Number(p.size_bytes),
