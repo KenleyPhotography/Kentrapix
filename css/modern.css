@@ -2257,3 +2257,10 @@ td.actions .btn.icon-btn + .btn.icon-btn { margin-left: 6px; }
   .bottomnav button, .bottomnav .nav-switch { flex: 1 1 0; min-width: 0; padding-left: 2px; padding-right: 2px; font-size: 0.625rem; }
   .bottomnav button span, .bottomnav .nav-switch span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 }
+
+/* Nom du photographe sur les galeries du client */
+.ev-by { display: flex; align-items: center; gap: 6px; margin-top: 2px; font-size: 0.8125rem; opacity: 0.92; }
+.ev-by svg { width: 14px; height: 14px; flex: none; }
+.gallery-by { display: flex; align-items: center; gap: 8px; margin: 4px 0 8px; color: var(--muted); font-size: var(--text-sm, 14px); }
+.gallery-by svg { width: 16px; height: 16px; color: var(--blue); flex: none; }
+.gallery-by strong { color: var(--ink); }

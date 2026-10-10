@@ -107,9 +107,14 @@ export async function clientBootstrap(id, onlyBy = null) {
      WHERE cp.client_id = ? AND s.role IN ('owner', 'admin') AND s.active = 1 ORDER BY cp.created_at`,
     [id],
   );
+  // Nom du photographe qui a créé chaque galerie (affiché « Par … » chez le client).
+  const creators = [...new Set(events.map((e) => e.created_by).filter(Boolean))];
+  const names = creators.length
+    ? Object.fromEntries((await query(`SELECT id, name FROM users WHERE id IN (${placeholders(creators.length)})`, creators)).map((u) => [u.id, u.name]))
+    : {};
   return {
     photographers: photographers.map(mapPhotographer),
-    events: events.map(mapEvent),
+    events: events.map((e) => ({ ...mapEvent(e), photographer: names[e.created_by] || '' })),
     photos: photos.map(mapPhoto),
     notifications: await clientNotifications(id, events),
     favorites: favorites.map((f) => f.photo_id),
