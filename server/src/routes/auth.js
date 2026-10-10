@@ -7,8 +7,8 @@ import { query, utcStamp, toIso } from '../db.js';
 import { httpError } from '../lib/errors.js';
 import { publicUser, getPermissions } from '../lib/data.js';
 import { config } from '../config.js';
-import { sendMail } from '../lib/mailer.js';
-import { resetLinkEmail, signupEmail } from '../lib/emails.js';
+import { sendMail, mailConfigured } from '../lib/mailer.js';
+import { resetLinkEmail, signupEmail, studioResetEmail } from '../lib/emails.js';
 import { audit } from '../lib/audit.js';
 import { upload, storeAvatar, removeKeys } from '../lib/storage.js';
 import { issueSession, clearSession, requireAuth, requireRole, requireStaff, issueStudioUnlock, studioUnlocked } from '../middleware/auth.js';
@@ -204,7 +204,7 @@ router.post('/forgot', resetLimiter, async (req, res) => {
   const [user] = await query('SELECT * FROM users WHERE email = ? AND active = 1', [email]);
   if (user) {
     const token = crypto.randomBytes(32).toString('base64url');
-    await query('UPDATE password_resets SET used_at = CURRENT_TIMESTAMP WHERE user_id = ? AND used_at IS NULL', [user.id]);
+    await query("UPDATE password_resets SET used_at = CURRENT_TIMESTAMP WHERE user_id = ? AND used_at IS NULL AND kind = 'login'", [user.id]);
     await query(
       `INSERT INTO password_resets (id, user_id, token_hash, expires_at)
        VALUES (?, ?, ?, ?)`,
@@ -222,7 +222,7 @@ router.post('/forgot', resetLimiter, async (req, res) => {
 router.post('/reset', resetLimiter, async (req, res) => {
   const { token, password } = z.object({ token: z.string().min(20).max(200), password: passwordRule }).parse(req.body);
   const [reset] = await query(
-    'SELECT * FROM password_resets WHERE token_hash = ? AND used_at IS NULL AND expires_at > CURRENT_TIMESTAMP',
+    "SELECT * FROM password_resets WHERE token_hash = ? AND kind = 'login' AND used_at IS NULL AND expires_at > CURRENT_TIMESTAMP",
     [sha256(token)],
   );
   if (!reset) throw httpError(400, 'Ce lien n’est plus valable. Refaites une demande « Mot de passe oublié ».');
@@ -237,6 +237,40 @@ router.post('/reset', resetLimiter, async (req, res) => {
   if (!user) throw httpError(403, 'Ce compte est en pause. Contactez votre photographe.');
   issueSession(res, user);
   res.json({ user: publicUser(user) });
+});
+
+// Mot de passe du studio oublié : un lien valable 1 heure part vers l'e-mail du compte (jamais vers une autre adresse).
+// Il faut être connecté ET avoir ce lien : l'un sans l'autre ne suffit pas.
+const maskEmail = (e) => e.replace(/^(.).*(@.*)$/, (m, a, b) => `${a}***${b}`);
+
+router.post('/studio/forgot', requireStaff, resetLimiter, async (req, res) => {
+  const token = crypto.randomBytes(32).toString('base64url');
+  await query("UPDATE password_resets SET used_at = CURRENT_TIMESTAMP WHERE user_id = ? AND used_at IS NULL AND kind = 'studio'", [req.user.id]);
+  await query(
+    "INSERT INTO password_resets (id, user_id, token_hash, expires_at, kind) VALUES (?, ?, ?, ?, 'studio')",
+    [crypto.randomUUID(), req.user.id, sha256(token), utcStamp(new Date(Date.now() + RESET_MINUTES * 60000))],
+  );
+  audit(req, 'studio.reset_request');
+  const url = `${config.appUrl}/admin.html?studio-reset=${token}`;
+  const mail = await sendMail({ to: req.user.email, userId: req.user.id, kind: 'studio_reset', ...studioResetEmail({ name: req.user.name, url }) });
+  if (!mailConfigured() && !config.isProd) console.log(`[dev] Lien mot de passe studio pour ${req.user.email} : ${url}`);
+  res.json({ ok: true, sent: mail.status === 'sent', email: maskEmail(req.user.email) });
+});
+
+router.post('/studio/reset', requireStaff, studioLimiter, async (req, res) => {
+  const { token, password } = z.object({ token: z.string().min(20).max(200), password: studioRule }).parse(req.body);
+  const [reset] = await query(
+    "SELECT * FROM password_resets WHERE token_hash = ? AND kind = 'studio' AND used_at IS NULL AND expires_at > CURRENT_TIMESTAMP",
+    [sha256(token)],
+  );
+  if (!reset || reset.user_id !== req.user.id) throw httpError(400, 'Ce lien n’est plus valable. Demandez-en un nouveau depuis l’écran du studio.');
+  const [row] = await query('SELECT password_hash FROM users WHERE id = ?', [req.user.id]);
+  if (await bcrypt.compare(password, row.password_hash)) throw httpError(400, 'Choisissez un mot de passe du studio différent de votre mot de passe de connexion.');
+  await query('UPDATE password_resets SET used_at = CURRENT_TIMESTAMP WHERE id = ?', [reset.id]);
+  await query('UPDATE users SET studio_password_hash = ? WHERE id = ?', [await bcrypt.hash(password, BCRYPT_COST), req.user.id]);
+  audit(req, 'studio.reset_done');
+  issueStudioUnlock(res, req.user);
+  res.json({ ok: true });
 });
 
 // Cloche ouverte : tout ce qui précède est marqué comme vu.

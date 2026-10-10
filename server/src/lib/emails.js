@@ -132,6 +132,24 @@ export function resetLinkEmail({ name, url }) {
   };
 }
 
+export function studioResetEmail({ name, url }) {
+  return {
+    subject: 'Réinitialiser le mot de passe de votre studio KentraPix',
+    html: layout({
+      preheader: 'Ce lien est valable 1 heure.',
+      title: 'Mot de passe du studio oublié ?',
+      body: `Bonjour ${esc(firstName(name))},<br><br>Cliquez sur le bouton ci-dessous pour choisir un nouveau mot de passe pour votre studio. Ce lien est valable <strong style="color:#082445">1 heure</strong> et ne fonctionne qu’une fois.<br><br>Si vous n’êtes pas à l’origine de cette demande, ignorez cet e-mail : le mot de passe de votre studio reste inchangé.`,
+      cta: { label: 'Choisir un nouveau mot de passe du studio', url },
+    }),
+    text: `Bonjour ${firstName(name)},
+
+Nouveau mot de passe du studio (lien valable 1 heure) :
+${url}
+
+Si vous n'êtes pas à l'origine de cette demande, ignorez cet e-mail.`,
+  };
+}
+
 export function signupEmail({ name }) {
   return {
     subject: 'Bienvenue sur KentraPix',
