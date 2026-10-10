@@ -120,6 +120,7 @@ router.post('/access-code', requireAuth, codeLimiter, async (req, res) => {
     throw httpError(400, 'Code incorrect. Vérifiez-le auprès de votre photographe.');
   }
   await query('UPDATE users SET created_by = ?, access_granted = 1 WHERE id = ? AND access_granted = 0', [staff.id, req.user.id]);
+  await query('INSERT INTO client_photographers (client_id, staff_id) VALUES (?, ?) ON CONFLICT DO NOTHING', [req.user.id, staff.id]);
   audit(req, 'auth.code_ok', { details: { photographer: staff.id } });
   const [user] = await query('SELECT * FROM users WHERE id = ?', [req.user.id]);
   res.json({ user: publicUser(user) });

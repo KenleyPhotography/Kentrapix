@@ -2,6 +2,8 @@ import { Router } from 'express';
 import crypto from 'node:crypto';
 import archiver from 'archiver';
 import { z } from 'zod';
+import rateLimit from 'express-rate-limit';
+import { codeRule } from '../lib/accessCode.js';
 import { query, placeholders, utcStamp } from '../db.js';
 import { httpError } from '../lib/errors.js';
 import { fileExists, sendPrivate, zipOriginals, downloadName } from '../lib/storage.js';
@@ -37,8 +39,8 @@ router.get('/bootstrap', async (req, res) => {
  * Données de l'espace d'un client, exactement filtrées comme il les voit.
  * Réutilisé par l'aperçu admin (GET /api/admin/clients/:id/preview).
  */
-export async function clientBootstrap(id) {
-  const [events, photos, favorites, downloads, permissions, picks, sent] = await Promise.all([
+export async function clientBootstrap(id, onlyBy = null) {
+  let [events, photos, favorites, downloads, permissions, picks, sent] = await Promise.all([
     query(`SELECT ${EVENT_COLUMNS} FROM events e WHERE ${VISIBLE} ORDER BY e.event_date DESC, e.created_at DESC`, [id]),
     query(
       `SELECT ${PHOTO_COLUMNS} FROM photos p JOIN events e ON e.id = p.event_id
@@ -59,6 +61,16 @@ export async function clientBootstrap(id) {
     ),
     query('SELECT * FROM event_selections WHERE user_id = ?', [id]),
   ]);
+  // Aperçu par un photographe : seulement les galeries qu'il a créées pour ce client.
+  if (onlyBy) {
+    events = events.filter((e) => e.created_by === onlyBy);
+    const ok = new Set(events.map((e) => e.id));
+    photos = photos.filter((p) => ok.has(p.event_id));
+    const okPhotos = new Set(photos.map((p) => p.id));
+    favorites = favorites.filter((f) => okPhotos.has(f.photo_id));
+    picks = picks.filter((p) => ok.has(p.event_id));
+    sent = sent.filter((x) => ok.has(x.event_id));
+  }
   // Personnes détectées (non masquées) : filtre « photos de Marie ». Sont proposées les personnes nommées et celles
   // vues sur au moins 2 photos ; si une galerie en compte peu, on complète avec les visages les plus fréquents.
   const everyone = permissions.faces && events.length
@@ -89,13 +101,14 @@ export async function clientBootstrap(id) {
       submittedAt: toIso(s?.submitted_at),
     };
   }
-  // Son photographe : celui dont il a saisi le code (ou qui l'a créé), avec ses coordonnées.
-  const [photographer] = await query(
-    "SELECT s.* FROM users s JOIN users c ON c.created_by = s.id WHERE c.id = ? AND s.role IN ('owner', 'admin') AND s.active = 1",
+  // Ses photographes : ceux dont il a saisi le code (ou qui l'ont créé), avec leurs coordonnées.
+  const photographers = await query(
+    `SELECT s.* FROM client_photographers cp JOIN users s ON s.id = cp.staff_id
+     WHERE cp.client_id = ? AND s.role IN ('owner', 'admin') AND s.active = 1 ORDER BY cp.created_at`,
     [id],
   );
   return {
-    photographer: photographer ? mapPhotographer(photographer) : null,
+    photographers: photographers.map(mapPhotographer),
     events: events.map(mapEvent),
     photos: photos.map(mapPhoto),
     notifications: await clientNotifications(id, events),
@@ -118,6 +131,36 @@ async function visiblePhotos(userId, ids) {
     [userId, ...ids],
   );
 }
+
+// ---------- Mes photographes ----------
+// Un client peut recevoir ses photos de plusieurs photographes : il ajoute le code de chacun.
+// Le code ne donne accès à aucune photo : le photographe doit encore lui publier une galerie.
+const codeLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 8,
+  keyGenerator: (req) => `${req.user?.id || 'anon'}`,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: { error: 'Trop d’essais. Réessayez dans une heure ou demandez le bon code à votre photographe.' },
+});
+
+router.post('/photographers', codeLimiter, async (req, res) => {
+  const { code } = z.object({ code: codeRule }).parse(req.body);
+  const [staff] = await query("SELECT * FROM users WHERE access_code = ? AND role IN ('owner', 'admin') AND active = 1", [code]);
+  if (!staff) {
+    audit(req, 'client.photographer_code_failed');
+    throw httpError(400, 'Code incorrect. Vérifiez-le auprès de votre photographe.');
+  }
+  const added = await query('INSERT INTO client_photographers (client_id, staff_id) VALUES (?, ?) ON CONFLICT DO NOTHING', [req.user.id, staff.id]);
+  if (!added.affectedRows) throw httpError(409, 'Ce photographe est déjà dans votre liste.');
+  audit(req, 'client.photographer_add', { details: { photographer: staff.id } });
+  const rows = await query(
+    `SELECT s.* FROM client_photographers cp JOIN users s ON s.id = cp.staff_id
+     WHERE cp.client_id = ? AND s.role IN ('owner', 'admin') AND s.active = 1 ORDER BY cp.created_at`,
+    [req.user.id],
+  );
+  res.status(201).json({ photographers: rows.map(mapPhotographer), added: staff.name });
+});
 
 // ---------- Commentaires ----------
 // Le propriétaire de la galerie commente ses photos ; l'équipe les voit et répond depuis le studio.

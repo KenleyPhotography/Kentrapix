@@ -2247,3 +2247,6 @@ td.actions .btn.icon-btn + .btn.icon-btn { margin-left: 6px; }
 .pc-link:hover { background: var(--blue); color: #fff; transform: translateY(-1px); }
 [data-theme="dark"] .photographer-card { background: rgba(14, 27, 46, 0.72); }
 [data-theme="dark"] .pc-link { background: rgba(28, 119, 238, 0.18); color: #9cc6ff; }
+.pc-add h2 { margin: 0 0 6px; font-size: 1.1rem; color: var(--ink); }
+.pc-add-form { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+.pc-add-form input { flex: 1; min-width: 120px; max-width: 220px; text-transform: uppercase; letter-spacing: 0.3em; text-align: center; font-weight: 700; }

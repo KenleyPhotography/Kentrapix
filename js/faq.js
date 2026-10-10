@@ -30,7 +30,7 @@ function search(text, list = FAQ) {
   }).filter((r) => r.score > 0).sort((a, b) => b.score - a.score).filter((r, _, all) => r.score === all[0].score).slice(0, 2).map((r) => r.f);
 }
 
-export function initFaq(getPhotographer) {
+export function initFaq(getPhotographers) {
   if (document.getElementById('faq-root')) return;
   const ICON = '/logo/faq-icon.webp';
   const root = document.createElement('div');
@@ -75,10 +75,13 @@ export function initFaq(getPhotographer) {
   };
   // Question « Contacter mon photographe » : réponse construite avec ses vraies coordonnées.
   const contact = () => {
-    const p = getPhotographer?.();
-    if (!p) return null;
-    const bits = [p.phone && `📞 ${p.phone}`, p.whatsapp && `💬 WhatsApp : ${p.whatsapp}`, p.email && `✉️ ${p.email}`, p.instagram && `📷 @${p.instagram}`].filter(Boolean);
-    return { t: '📞 Mon photographe', q: 'Comment contacter mon photographe ?', k: 'contacter photographe telephone appeler whatsapp mail email joindre numero coordonnees', a: `<b>${p.name}</b>${bits.length ? '<br>' + bits.join('<br>') : ''}<br>Tous ses contacts sont aussi sur votre page d’accueil.` };
+    const list = getPhotographers?.() || [];
+    if (!list.length) return null;
+    const one = (p) => {
+      const bits = [p.phone && `📞 ${p.phone}`, p.whatsapp && `💬 WhatsApp : ${p.whatsapp}`, p.email && `✉️ ${p.email}`, p.instagram && `📷 @${p.instagram}`].filter(Boolean);
+      return `<b>${p.name}</b>${bits.length ? '<br>' + bits.join('<br>') : ''}`;
+    };
+    return { t: '📞 Mon photographe', q: 'Comment contacter mon photographe ?', k: 'contacter photographe telephone appeler whatsapp mail email joindre numero coordonnees', a: `${list.map(one).join('<br><br>')}<br><br>Retrouvez-les dans <b>Mes photographes</b>.` };
   };
   const items = () => [contact(), ...FAQ].filter(Boolean);
   const answer = (f) => f.a;

@@ -49,9 +49,12 @@ const ownCover = (key) => (key?.startsWith('covers/') ? key : null);
 // et les comptes encore sans photographe (inscrits qui n'ont pas validé de code).
 const isOwner = (req) => req.user.role === 'owner';
 /** Filtre SQL des comptes visibles : [condition, paramètres]. */
+// Un client suivi par plusieurs photographes (table client_photographers) apparaît chez chacun d'eux ;
+// ses galeries restent séparées (eventScope : chaque photographe ne voit que celles qu'il a créées).
+const linked = (a) => `EXISTS (SELECT 1 FROM client_photographers cp WHERE cp.client_id = ${a}.id AND cp.staff_id = ?)`;
 const accountScope = (req, a = 'u') => (isOwner(req)
-  ? [`(${a}.role <> 'client' OR ${a}.created_by IS NULL OR ${a}.created_by = ?)`, [req.user.id]]
-  : [`(${a}.created_by = ? OR ${a}.id = ?)`, [req.user.id, req.user.id]]);
+  ? [`(${a}.role <> 'client' OR ${a}.created_by IS NULL OR ${a}.created_by = ? OR ${linked(a)})`, [req.user.id, req.user.id]]
+  : [`(${a}.created_by = ? OR ${a}.id = ? OR ${linked(a)})`, [req.user.id, req.user.id, req.user.id]]);
 /** Filtre SQL des galeries visibles. */
 const eventScope = (req, e = 'e') => (isOwner(req) ? [`(${e}.created_by = ? OR ${e}.created_by IS NULL)`, [req.user.id]] : [`${e}.created_by = ?`, [req.user.id]]);
 
@@ -133,6 +136,14 @@ async function findAccount(req, id, roles) {
   return user;
 }
 const findClient = (req, id) => findAccount(req, id, ['client']);
+/** Modifier, mettre en pause, supprimer ou réinitialiser le mot de passe : réservé au photographe principal du client. */
+async function findOwnClient(req, id) {
+  const client = await findClient(req, id);
+  if (client.created_by && client.created_by !== req.user.id) {
+    throw httpError(403, 'Ce client est aussi suivi par un autre photographe : seul son photographe principal peut modifier son compte.');
+  }
+  return client;
+}
 
 async function createAccount(req, role, data) {
   const id = crypto.randomUUID();
@@ -164,7 +175,7 @@ router.post('/clients', async (req, res) => {
 });
 
 router.patch('/clients/:id', async (req, res) => {
-  const client = await findClient(req, req.params.id);
+  const client = await findOwnClient(req, req.params.id);
   const data = accountSchema.extend({ active: z.boolean() }).partial().parse(req.body);
   const active = keep(data, client, 'active');
   // Désactiver un compte ferme immédiatement ses sessions.
@@ -181,9 +192,13 @@ router.patch('/clients/:id', async (req, res) => {
 // ou gardées par le studio en brouillon (galleries = 'keep' : le client n'y a plus accès).
 // Favoris, sélections, commentaires, liens de partage et notifications du client : supprimés avec le compte.
 router.delete('/clients/:id', async (req, res) => {
-  const client = await findClient(req, req.params.id);
+  const client = await findOwnClient(req, req.params.id);
   const { galleries } = z.object({ galleries: z.enum(['delete', 'keep']) }).parse(req.body ?? {});
-  const events = await query('SELECT id, cover_key, music_key FROM events WHERE client_id = ?', [client.id]);
+  // Client suivi par d'autres photographes : on ne retire que SES galeries et son lien, le compte reste.
+  const others = await query('SELECT staff_id FROM client_photographers WHERE client_id = ? AND staff_id <> ?', [client.id, req.user.id]);
+  const events = others.length
+    ? await query('SELECT id, cover_key, music_key FROM events WHERE client_id = ? AND created_by = ?', [client.id, req.user.id])
+    : await query('SELECT id, cover_key, music_key FROM events WHERE client_id = ?', [client.id]);
   if (galleries === 'delete') {
     for (const e of events) {
       await deletePhotos(await query('SELECT * FROM photos WHERE event_id = ?', [e.id]), { background: true });
@@ -191,16 +206,22 @@ router.delete('/clients/:id', async (req, res) => {
       await removeKeys([ownCover(e.cover_key), e.music_key]);
     }
   } else if (events.length) {
-    await query('UPDATE events SET client_id = ?, published = 0 WHERE client_id = ?', [req.user.id, client.id]);
+    const ids = events.map((e) => e.id);
+    await query(`UPDATE events SET client_id = ?, published = 0 WHERE id IN (${inList(ids)})`, [req.user.id, ...ids]);
   }
-  await query('DELETE FROM users WHERE id = ?', [client.id]);
-  await removeKeys([client.avatar_key]);
+  if (others.length) {
+    await query('DELETE FROM client_photographers WHERE client_id = ? AND staff_id = ?', [client.id, req.user.id]);
+    await query('UPDATE users SET created_by = ? WHERE id = ?', [others[0].staff_id, client.id]);
+  } else {
+    await query('DELETE FROM users WHERE id = ?', [client.id]);
+    await removeKeys([client.avatar_key]);
+  }
   audit(req, 'client.delete', { entity: 'user', entityId: client.id, details: { email: client.email, galleries, count: events.length } });
   res.json({ deleted: true, galleries, count: events.length });
 });
 
 router.post('/clients/:id/password', async (req, res) => {
-  const client = await findClient(req, req.params.id);
+  const client = await findOwnClient(req, req.params.id);
   const { password, sendEmail } = z.object({ password: passwordRule, sendEmail: sendFlag }).parse(req.body);
   await setTemporaryPassword(client, password);
   audit(req, 'client.password_reset', { entity: 'user', entityId: client.id });
@@ -226,7 +247,8 @@ router.get('/clients/:id/preview', async (req, res) => {
     'SELECT COUNT(*) AS hidden FROM events WHERE client_id = ? AND (published = 0 OR archived = 1)',
     [account.id],
   );
-  res.json({ client: mapClient(account), hiddenEvents: Number(hidden), ...(await clientBootstrap(account.id)) });
+  // Client suivi par plusieurs photographes : l'aperçu ne montre que les galeries de ce photographe.
+  res.json({ client: mapClient(account), hiddenEvents: Number(hidden), ...(await clientBootstrap(account.id, req.user.id)) });
 });
 
 // ---------- Équipe (propriétaire uniquement) ----------
