@@ -2207,3 +2207,24 @@ td.actions .btn.icon-btn + .btn.icon-btn { margin-left: 6px; }
 .empty { padding: var(--space-12) var(--space-6); }
 .empty > svg { width: 72px; height: 72px; padding: 20px; box-shadow: 0 0 0 10px var(--blue-soft); }
 .empty h2 { color: var(--ink); }
+
+/* ==========================================================================
+   Barres de défilement fines, visibles seulement là où l'on doit défiler
+   (rangée des visages, fenêtres, tableaux, listes). Le reste de la page reste sans barre.
+   ========================================================================== */
+.people-row, .modal, .table-wrap, .vc-list, .notif-list, .ann-clients, .sc-list {
+  scrollbar-width: thin;
+  scrollbar-color: var(--blue-line) transparent;
+}
+.people-row::-webkit-scrollbar, .modal::-webkit-scrollbar, .table-wrap::-webkit-scrollbar,
+.vc-list::-webkit-scrollbar, .notif-list::-webkit-scrollbar, .ann-clients::-webkit-scrollbar, .sc-list::-webkit-scrollbar {
+  display: block; width: 8px; height: 8px;
+}
+.people-row::-webkit-scrollbar-thumb, .modal::-webkit-scrollbar-thumb, .table-wrap::-webkit-scrollbar-thumb,
+.vc-list::-webkit-scrollbar-thumb, .notif-list::-webkit-scrollbar-thumb, .ann-clients::-webkit-scrollbar-thumb, .sc-list::-webkit-scrollbar-thumb {
+  background: var(--blue-line); border-radius: 99px;
+}
+.people-row::-webkit-scrollbar-thumb:hover, .modal::-webkit-scrollbar-thumb:hover, .table-wrap::-webkit-scrollbar-thumb:hover,
+.vc-list::-webkit-scrollbar-thumb:hover, .notif-list::-webkit-scrollbar-thumb:hover { background: var(--blue); }
+.people-row::-webkit-scrollbar-track, .modal::-webkit-scrollbar-track, .table-wrap::-webkit-scrollbar-track { background: transparent; }
+.people-row { padding-bottom: 8px; }

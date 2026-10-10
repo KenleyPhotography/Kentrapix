@@ -57,3 +57,11 @@
   .faq-nudge{right:76px;bottom:calc(96px + env(safe-area-inset-bottom))}
   .faq-panel{right:12px;bottom:calc(150px + env(safe-area-inset-bottom));max-height:calc(100vh - 190px)}}
 @media (prefers-reduced-motion:reduce){.faq-panel,.faq-msg,.faq-nudge{animation:none}.faq-fab,.faq-fab:before,.faq-typing i{animation:none}.faq-fab{transition:none}}
+
+/* Barres de défilement fines et visibles dans l'assistant */
+.faq-log,.faq-chips{scrollbar-width:thin;scrollbar-color:#c4d9f7 transparent}
+.faq-log::-webkit-scrollbar,.faq-chips::-webkit-scrollbar{display:block;width:6px;height:6px}
+.faq-log::-webkit-scrollbar-thumb,.faq-chips::-webkit-scrollbar-thumb{background:#c4d9f7;border-radius:99px}
+.faq-log::-webkit-scrollbar-thumb:hover,.faq-chips::-webkit-scrollbar-thumb:hover{background:#1265d8}
+[data-theme="dark"] .faq-log,[data-theme="dark"] .faq-chips{scrollbar-color:#2a4a78 transparent}
+[data-theme="dark"] .faq-log::-webkit-scrollbar-thumb,[data-theme="dark"] .faq-chips::-webkit-scrollbar-thumb{background:#2a4a78}
