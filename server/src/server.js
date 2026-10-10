@@ -19,7 +19,10 @@ await withClient((client) => applyMigrations(client));
 const server = createApp().listen(config.port, config.host, () => {
   console.log(`KentraPix prêt sur http://localhost:${config.port} (${config.env}, ${dbLabel})`);
   // Photos importées pas encore analysées (ou interrompues par un arrêt du serveur).
-  resetInterruptedFaces().then(kickFaces).catch((err) => console.error('Visages :', err.message));
+  // En production on attend 60 s : le serveur sert d'abord ses premières requêtes (mémoire limitée, 512 Mo sur Render).
+  resetInterruptedFaces()
+    .then(() => setTimeout(kickFaces, config.isProd ? 60000 : 0))
+    .catch((err) => console.error('Visages :', err.message));
   // Rappels « votre galerie ferme dans 7 jours ».
   startExpiryReminders();
   // Notifications du studio : e-mails envoyés tout de suite ou à l'heure programmée.

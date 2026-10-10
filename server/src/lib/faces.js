@@ -140,6 +140,11 @@ async function analyse(photo) {
 // ---------- File d'attente ----------
 let running = false;
 
+// Mémoire (Mo) au-delà de laquelle l'analyse attend : sur 512 Mo, mieux vaut ralentir que faire redémarrer le serveur.
+const MEMORY_PAUSE_MB = Number(process.env.FACES_PAUSE_MB || 380);
+const rssMb = () => process.memoryUsage().rss / 1048576;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
 /**
  * Au démarrage : les analyses interrompues (arrêt du serveur) et les échecs repassent
  * en attente — chaque redémarrage donne une nouvelle chance aux photos en échec.
@@ -155,6 +160,8 @@ export function kickFaces() {
   (async () => {
     try {
       for (;;) {
+        // Mémoire presque pleine (import de photos en cours…) : on laisse le serveur respirer avant de continuer.
+        for (let waited = 0; rssMb() > MEMORY_PAUSE_MB && waited < 40; waited++) await sleep(15000);
         const [photo] = await query(
           "SELECT id, event_id, preview_key FROM photos WHERE faces_status = 'pending' ORDER BY created_at LIMIT 1",
         );

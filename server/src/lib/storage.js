@@ -23,6 +23,8 @@ import { httpError } from './errors.js';
 const FOLDERS = ['originals', 'previews', 'thumbs', 'covers', 'avatars', 'watermarks', 'faces', 'music', 'tmp'];
 // Sans cache libvips : sinon Windows garde les images ouvertes et refuse de les supprimer (EBUSY).
 sharp.cache(false);
+// Un seul fil de traitement d'image en production : moins de mémoire utilisée en même temps (petit hébergement).
+if (process.env.NODE_ENV === 'production') sharp.concurrency(Number(process.env.SHARP_CONCURRENCY || 1));
 
 const FORMATS = { jpeg: 'jpg', png: 'png', webp: 'webp', tiff: 'tif', avif: 'avif' };
 const TYPES = { jpg: 'image/jpeg', png: 'image/png', webp: 'image/webp', tif: 'image/tiff', avif: 'image/avif' };
