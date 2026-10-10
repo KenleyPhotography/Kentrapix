@@ -239,14 +239,17 @@ router.post('/team', requireOwner, async (req, res) => {
   res.status(201).json({ account: mapClient(admin), email });
 });
 
-// Nommer admin un compte existant, le repasser client, ou (dés)activer un admin.
+// Nommer admin ou propriétaire un compte existant, le repasser client / admin, ou (dés)activer un admin.
+// Plusieurs propriétaires possibles ; chacun ne voit que ses propres clients.
 router.patch('/team/:id', requireOwner, async (req, res) => {
   const account = await findAccount(req, req.params.id);
-  if (account.role === 'owner') throw httpError(403, 'Le compte propriétaire ne peut pas être modifié ici.');
   const data = z
-    .object({ role: z.enum(['admin', 'client']).optional(), active: z.boolean().optional(), sendEmail: sendFlag })
+    .object({ role: z.enum(['owner', 'admin', 'client']).optional(), active: z.boolean().optional(), sendEmail: sendFlag })
     .parse(req.body);
   const role = data.role ?? account.role;
+  if (account.id === req.user.id) throw httpError(403, 'Vous ne pouvez pas modifier votre propre compte ici.');
+  if (account.role === 'owner' && role !== 'admin') throw httpError(400, 'Un propriétaire ne peut redevenir qu’admin.');
+  if (role === 'owner' && account.role !== 'admin' && account.role !== 'owner') throw httpError(400, 'Nommez d’abord cette personne admin, puis propriétaire.');
   const active = data.active ?? !!account.active;
   // Changer de rôle ou désactiver ferme les sessions ouvertes.
   const revoke = role !== account.role || (!active && account.active) ? 1 : 0;
@@ -254,9 +257,9 @@ router.patch('/team/:id', requireOwner, async (req, res) => {
   await query('UPDATE users SET role = ?, active = ?, token_version = token_version + ? WHERE id = ?', [
     role, active ? 1 : 0, revoke, account.id,
   ]);
-  const promoted = account.role !== 'admin' && role === 'admin';
+  const promoted = account.role === 'client' && role === 'admin';
   if (promoted && !account.access_code) await query('UPDATE users SET access_code = ? WHERE id = ?', [await freshCode(), account.id]);
-  audit(req, promoted ? 'team.promote' : role !== account.role ? 'team.demote' : active ? 'team.activate' : 'team.deactivate', {
+  audit(req, role === 'owner' && account.role !== 'owner' ? 'team.make_owner' : account.role === 'owner' && role !== 'owner' ? 'team.remove_owner' : promoted ? 'team.promote' : role !== account.role ? 'team.demote' : active ? 'team.activate' : 'team.deactivate', {
     entity: 'user', entityId: account.id,
   });
   const email = promoted && data.sendEmail ? await mailTo(req, account, adminInviteEmail({ ...account }), { kind: 'admin_invite' }) : null;
