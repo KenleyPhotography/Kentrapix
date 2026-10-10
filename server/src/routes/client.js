@@ -59,14 +59,16 @@ export async function clientBootstrap(id) {
     ),
     query('SELECT * FROM event_selections WHERE user_id = ?', [id]),
   ]);
-  // Personnes nommées par le studio (et non masquées) : filtre « photos de Marie ».
+  // Personnes détectées (non masquées) : filtre « photos de Marie ». Les visages sans nom sont proposés
+  // seulement s'ils apparaissent sur au moins 2 photos (évite les passants isolés).
   const people = permissions.faces && events.length
     ? await query(
       `SELECT pe.id, pe.event_id, pe.name, STRING_AGG(DISTINCT f.photo_id, ',') AS photo_ids,
          (SELECT f2.id FROM photo_faces f2 WHERE f2.person_id = pe.id ORDER BY f2.score DESC, f2.created_at, f2.id LIMIT 1) AS face_id
        FROM people pe JOIN photo_faces f ON f.person_id = pe.id JOIN events e ON e.id = pe.event_id
-       WHERE ${VISIBLE} AND pe.name IS NOT NULL AND pe.hidden = 0
-       GROUP BY pe.id ORDER BY pe.name`,
+       WHERE ${VISIBLE} AND pe.hidden = 0
+       GROUP BY pe.id HAVING pe.name IS NOT NULL OR COUNT(DISTINCT f.photo_id) >= 2
+       ORDER BY pe.name IS NULL, pe.name, COUNT(DISTINCT f.photo_id) DESC`,
       [id],
     )
     : [];

@@ -112,8 +112,16 @@ function wantsHtml(request) {
   return request.method === 'GET' && (request.headers.get('Accept') || '').includes('text/html');
 }
 
-function isWaking(res) {
-  return [502, 503, 504].includes(res.status) || res.headers.has('x-render-routing') && /hibernate|suspend/i.test(res.headers.get('x-render-routing'));
+// Render répond parfois avec sa propre page « SERVICE WAKING UP » (statut 200 ou autre) : on la reconnaît à son contenu.
+const RENDER_MARKERS = /SERVICE WAKING UP|INCOMING HTTP REQUEST DETECTED|ALLOCATING COMPUTE RESOURCES/i;
+
+async function isWaking(request, res) {
+  if ([502, 503, 504].includes(res.status)) return true;
+  if (/hibernate|suspend|wake/i.test(res.headers.get('x-render-routing') || '')) return true;
+  if (wantsHtml(request) && (res.headers.get('content-type') || '').includes('text/html')) {
+    try { return RENDER_MARKERS.test(await res.clone().text()); } catch (e) { return false; }
+  }
+  return false;
 }
 
 export default {
@@ -123,7 +131,7 @@ export default {
       res = await fetch(request, { signal: AbortSignal.timeout(ORIGIN_TIMEOUT_MS) });
     } catch (e) { /* timeout ou erreur réseau : Render dort encore */ }
 
-    if (res && !isWaking(res)) return res;
+    if (res && !(await isWaking(request, res))) return res;
 
     if (wantsHtml(request)) {
       return new Response(WELCOME, {

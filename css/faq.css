@@ -1,0 +1,32 @@
+/* Assistant d'aide (bulle en bas à droite) — ble Kentra. */
+.faq-fab{position:fixed;right:18px;bottom:calc(18px + env(safe-area-inset-bottom));z-index:40;width:56px;height:56px;border:0;border-radius:50%;cursor:pointer;color:#fff;
+  background:linear-gradient(115deg,#1c77ee,#1056bf);box-shadow:0 12px 28px -8px rgba(18,101,216,.65);display:grid;place-items:center;transition:transform .2s,box-shadow .2s}
+.faq-fab:hover{transform:translateY(-3px) scale(1.04)}.faq-fab:active{transform:scale(.94)}
+.faq-fab svg{width:26px;height:26px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.faq-panel{position:fixed;right:18px;bottom:calc(86px + env(safe-area-inset-bottom));z-index:41;width:min(380px,calc(100vw - 24px));max-height:min(560px,calc(100vh - 120px));display:flex;flex-direction:column;
+  background:#fff;color:#172b46;border:1px solid #dbe7f8;border-radius:22px;box-shadow:0 30px 70px -20px rgba(8,36,69,.5);overflow:hidden;animation:faq-in .25s cubic-bezier(.2,.9,.3,1.1)}
+.faq-panel[hidden]{display:none}
+@keyframes faq-in{from{opacity:0;transform:translateY(14px) scale(.97)}}
+.faq-panel header{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;color:#fff;background:linear-gradient(115deg,#1c77ee,#1056bf)}
+.faq-panel header strong{display:block;font-size:16px}.faq-panel header small{opacity:.8;font-size:12px}
+.faq-x{width:32px;height:32px;border:0;border-radius:50%;background:rgba(255,255,255,.2);color:#fff;font-size:20px;line-height:1;cursor:pointer}
+.faq-log{flex:1;overflow:auto;padding:14px;display:flex;flex-direction:column;gap:10px;background:#f5f8fd}
+.faq-msg{max-width:92%;padding:10px 13px;border-radius:16px 16px 16px 4px;background:#fff;border:1px solid #e0eaf8;font-size:14px;line-height:1.5;animation:faq-in .2s}
+.faq-msg.me{align-self:flex-end;border-radius:16px 16px 4px 16px;background:#1265d8;border-color:#1265d8;color:#fff}
+.faq-chips{display:flex;gap:6px;overflow-x:auto;padding:8px 12px;border-top:1px solid #e0eaf8;scrollbar-width:none}
+.faq-chips::-webkit-scrollbar{display:none}
+.faq-chips button{flex:none;font:inherit;font-size:13px;color:#1265d8;background:#e8f1ff;border:0;border-radius:99px;padding:7px 12px;cursor:pointer;transition:background .15s}
+.faq-chips button:hover{background:#d4e6ff}
+.faq-form{display:flex;gap:8px;padding:10px 12px 12px;border-top:1px solid #e0eaf8}
+.faq-form input{flex:1;min-width:0;font:inherit;font-size:15px;padding:10px 14px;border:1.5px solid #dbe7f8;border-radius:99px;background:#f9fbff;color:#172b46}
+.faq-form input:focus{outline:0;border-color:#1265d8;box-shadow:0 0 0 3px rgba(18,101,216,.15)}
+.faq-form button{width:42px;height:42px;border:0;border-radius:50%;background:#1265d8;color:#fff;cursor:pointer;display:grid;place-items:center}
+.faq-form svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
+[data-theme="dark"] .faq-panel{background:#0e1b2e;color:#e6eefb;border-color:#1d3253}
+[data-theme="dark"] .faq-log{background:#0a1626}
+[data-theme="dark"] .faq-msg{background:#13243b;border-color:#1d3253;color:#e6eefb}
+[data-theme="dark"] .faq-msg.me{background:#1265d8;border-color:#1265d8}
+[data-theme="dark"] .faq-chips,[data-theme="dark"] .faq-form{border-color:#1d3253}
+[data-theme="dark"] .faq-form input{background:#0a1626;border-color:#1d3253;color:#e6eefb}
+@media (max-width:600px){.faq-fab{width:52px;height:52px;right:14px}.faq-panel{right:12px;bottom:calc(78px + env(safe-area-inset-bottom))}}
+@media (prefers-reduced-motion:reduce){.faq-panel,.faq-msg{animation:none}.faq-fab{transition:none}}
