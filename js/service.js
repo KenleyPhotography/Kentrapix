@@ -3,7 +3,7 @@ export const image=(id,w=1100)=>`https://images.unsplash.com/${id}?auto=format&f
 export async function api(path,{method='GET',body,form}={}){const opts={method,credentials:'same-origin',headers:{Accept:'application/json'}};if(form)opts.body=form;else if(body!==undefined){opts.headers['Content-Type']='application/json';opts.body=JSON.stringify(body)}let res;try{res=await fetch(path,opts)}catch{throw Error('Connexion au serveur impossible. Vérifiez votre connexion.')}if(res.status===401&&!path.startsWith('/api/auth/')){location.href='/login.html';throw Error('Session expirée.')}if(res.status===204)return null;
 // Page ouverte sans le serveur KentraPix (ex. Live Server sur le port 5500) : pas d'API JSON.
 if(!(res.headers.get('content-type')||'').includes('application/json'))throw Error('Serveur KentraPix introuvable. Lancez « npm run dev » dans server/ puis ouvrez http://localhost:3000');
-const data=await res.json().catch(()=>({}));if(!res.ok)throw Error(data.error||'Une erreur est survenue.');return data}
+const data=await res.json().catch(()=>({}));if(!res.ok){if(data.locked&&location.pathname.includes('admin')){location.reload();throw Error(data.error)}throw Error(data.error||'Une erreur est survenue.')}return data}
 const data={clients:[],events:[],photos:[],favorites:[],downloads:[],permissions:{},activity:[],stats:{storageBytes:0},selections:{}};
 export const service={data,readOnly:false,async load(role){Object.assign(data,await api(role==='admin'?'/api/admin/bootstrap':'/api/client/bootstrap'))},
 // Aperçu admin : l'espace d'un client, sans rien enregistrer en son nom.

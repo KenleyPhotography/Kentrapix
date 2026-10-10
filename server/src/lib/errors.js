@@ -54,5 +54,5 @@ export function errorHandler(err, req, res, next) {
     message = 'Erreur interne du serveur.';
   }
   if (res.headersSent) return res.destroy(err);
-  res.status(status).json({ error: message });
+  res.status(status).json({ error: message, ...(err.locked ? { locked: true } : {}) });
 }

@@ -17,7 +17,7 @@ import {
   welcomeEmail, galleryReadyEmail, passwordResetEmail, adminInviteEmail, messageEmail, expiryEmail, announcementEmail,
 } from '../lib/emails.js';
 import { kickAnnouncements } from '../lib/announcements.js';
-import { requireStaff, requireOwner, STAFF_ROLES } from '../middleware/auth.js';
+import { requireStaff, requireOwner, STAFF_ROLES, requireStudio } from '../middleware/auth.js';
 import { freshCode } from '../lib/accessCode.js';
 import { kickFaces, mergePeople, rescanEvent, removeEmptyPeople } from '../lib/faces.js';
 import { config } from '../config.js';
@@ -30,7 +30,7 @@ import {
 
 // Studio : propriétaire + admins. La gestion de l'équipe (/team) est réservée au propriétaire.
 const router = Router();
-router.use(requireStaff);
+router.use(requireStudio);
 
 const flag = z.enum(['0', '1']).transform((v) => v === '1');
 const text = (max, message) => z.string().trim().min(1, message).max(max);
@@ -261,6 +261,14 @@ router.patch('/team/:id', requireOwner, async (req, res) => {
   });
   const email = promoted && data.sendEmail ? await mailTo(req, account, adminInviteEmail({ ...account }), { kind: 'admin_invite' }) : null;
   res.json({ account: mapClient(await findAccount(req, account.id)), email });
+});
+
+// Mot de passe du studio oublié : le propriétaire l'efface, le membre en recrée un à sa prochaine ouverture.
+router.post('/team/:id/studio-reset', requireOwner, async (req, res) => {
+  const account = await findAccount(req, req.params.id, ['admin']);
+  await query('UPDATE users SET studio_password_hash = NULL WHERE id = ?', [account.id]);
+  audit(req, 'team.studio_reset', { entity: 'user', entityId: account.id });
+  res.status(204).end();
 });
 
 router.post('/team/:id/password', requireOwner, async (req, res) => {

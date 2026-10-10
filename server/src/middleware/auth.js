@@ -23,6 +23,27 @@ export function issueSession(res, user, remember = false) {
 
 export function clearSession(res) {
   res.clearCookie(SESSION_COOKIE, cookieOptions());
+  res.clearCookie(STUDIO_COOKIE, cookieOptions());
+}
+
+// ---------- Mot de passe du studio ----------
+// Après la connexion, un membre de l'équipe doit encore saisir le mot de passe de son studio.
+// La preuve est un cookie signé de 12 h, lié au compte et à la version de son mot de passe.
+export const STUDIO_COOKIE = 'kp_studio';
+const STUDIO_HOURS = 12;
+
+export function issueStudioUnlock(res, user) {
+  const token = jwt.sign({ sub: user.id, v: user.token_version, studio: 1 }, config.jwtSecret, { algorithm: 'HS256', expiresIn: `${STUDIO_HOURS}h` });
+  res.cookie(STUDIO_COOKIE, token, { ...cookieOptions(), maxAge: STUDIO_HOURS * 60 * 60 * 1000 });
+}
+
+export function studioUnlocked(req) {
+  try {
+    const p = jwt.verify(req.cookies?.[STUDIO_COOKIE], config.jwtSecret, { algorithms: ['HS256'] });
+    return p.studio === 1 && p.sub === req.user?.id && p.v === req.user?.token_version;
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -77,5 +98,16 @@ export const blockPending = (req, res, next) => {
 
 /** Studio : propriétaire et admins. */
 export const requireStaff = requireRole(...STAFF_ROLES);
+/** Studio : équipe connectée ET studio déverrouillé avec son mot de passe. */
+export const requireStudio = (req, res, next) => {
+  requireStaff(req, res, () => {
+    if (!studioUnlocked(req)) {
+      const err = httpError(403, 'Entrez le mot de passe du studio pour continuer.');
+      err.locked = true;
+      throw err;
+    }
+    next();
+  });
+};
 /** Gestion de l'équipe : propriétaire uniquement. */
 export const requireOwner = requireRole('owner');

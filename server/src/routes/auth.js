@@ -11,7 +11,7 @@ import { sendMail } from '../lib/mailer.js';
 import { resetLinkEmail, signupEmail } from '../lib/emails.js';
 import { audit } from '../lib/audit.js';
 import { upload, storeAvatar, removeKeys } from '../lib/storage.js';
-import { issueSession, clearSession, requireAuth, requireRole } from '../middleware/auth.js';
+import { issueSession, clearSession, requireAuth, requireRole, requireStaff, issueStudioUnlock, studioUnlocked } from '../middleware/auth.js';
 import { codeRule } from '../lib/accessCode.js';
 
 export const BCRYPT_COST = 12;
@@ -136,6 +136,56 @@ router.patch('/my-code', requireRole('owner', 'admin'), async (req, res) => {
   res.json({ user: publicUser(user) });
 });
 
+// ---------- Mot de passe du studio (équipe) ----------
+const studioLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 8,
+  keyGenerator: (req) => `${req.user?.id || 'anon'}`,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: { error: 'Trop d’essais. Réessayez dans 15 minutes.' },
+});
+const studioRule = z.string().min(6, 'Le mot de passe du studio doit contenir au moins 6 caractères.').max(200, 'Mot de passe trop long.');
+
+router.get('/studio', requireStaff, async (req, res) => {
+  const [row] = await query('SELECT studio_password_hash FROM users WHERE id = ?', [req.user.id]);
+  res.json({ hasPassword: !!row.studio_password_hash, unlocked: studioUnlocked(req) });
+});
+
+router.post('/studio/unlock', requireStaff, studioLimiter, async (req, res) => {
+  const { password } = z.object({ password: z.string().min(1, 'Entrez le mot de passe du studio.').max(200) }).parse(req.body);
+  const [row] = await query('SELECT studio_password_hash FROM users WHERE id = ?', [req.user.id]);
+  if (!row.studio_password_hash) throw httpError(400, 'Créez d’abord le mot de passe de votre studio.');
+  if (!(await bcrypt.compare(password, row.studio_password_hash))) {
+    audit(req, 'studio.unlock_failed');
+    throw httpError(401, 'Mot de passe du studio incorrect.');
+  }
+  audit(req, 'studio.unlock');
+  issueStudioUnlock(res, req.user);
+  res.json({ ok: true });
+});
+
+// Création (avec le mot de passe de connexion, pour prouver que c'est bien la personne) ou changement
+// (avec l'actuel mot de passe du studio). Déverrouille le studio dans les deux cas.
+router.post('/studio/password', requireStaff, studioLimiter, async (req, res) => {
+  const { current, login, password } = z.object({
+    current: z.string().max(200).optional(),
+    login: z.string().max(200).optional(),
+    password: studioRule,
+  }).parse(req.body);
+  const [row] = await query('SELECT password_hash, studio_password_hash FROM users WHERE id = ?', [req.user.id]);
+  if (row.studio_password_hash) {
+    if (!current || !(await bcrypt.compare(current, row.studio_password_hash))) throw httpError(400, 'Mot de passe actuel du studio incorrect.');
+  } else if (!login || !(await bcrypt.compare(login, row.password_hash))) {
+    throw httpError(400, 'Mot de passe de connexion incorrect.');
+  }
+  if (await bcrypt.compare(password, row.password_hash)) throw httpError(400, 'Choisissez un mot de passe du studio différent de votre mot de passe de connexion.');
+  await query('UPDATE users SET studio_password_hash = ? WHERE id = ?', [await bcrypt.hash(password, BCRYPT_COST), req.user.id]);
+  audit(req, row.studio_password_hash ? 'studio.password_change' : 'studio.password_create');
+  issueStudioUnlock(res, req.user);
+  res.json({ ok: true });
+});
+
 // ---------- Mot de passe oublié ----------
 const RESET_MINUTES = 60;
 const sha256 = (s) => crypto.createHash('sha256').update(s).digest('hex');
@@ -178,7 +228,7 @@ router.post('/reset', resetLimiter, async (req, res) => {
   const hash = await bcrypt.hash(password, BCRYPT_COST);
   await query('UPDATE password_resets SET used_at = CURRENT_TIMESTAMP WHERE id = ?', [reset.id]);
   await query(
-    'UPDATE users SET password_hash = ?, must_change_password = 0, token_version = token_version + 1 WHERE id = ?',
+    'UPDATE users SET password_hash = ?, must_change_password = 0, token_version = token_version + 1, studio_password_hash = NULL WHERE id = ?',
     [hash, reset.user_id],
   );
   audit(req, 'auth.reset_done', { userId: reset.user_id });
