@@ -4,11 +4,11 @@ import { httpError } from '../lib/errors.js';
 import { sendPrivate, watermarkedPreview, makeThumb } from '../lib/storage.js';
 import { faceThumbnail } from '../lib/faces.js';
 import { uuid, canSeeEvent } from '../lib/data.js';
-import { requireAuth } from '../middleware/auth.js';
+import { requireAuth, blockPending } from '../middleware/auth.js';
 
 // Images privées : chaque requête vérifie que l'utilisateur a le droit de voir la photo.
 const router = Router();
-router.use(requireAuth);
+router.use(requireAuth, blockPending);
 
 /** Photo visible par l'utilisateur (droits vérifiés), avec son numéro dans la galerie. */
 async function visiblePhoto(req) {

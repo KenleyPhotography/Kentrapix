@@ -12,6 +12,7 @@ import { resetLinkEmail, signupEmail } from '../lib/emails.js';
 import { audit } from '../lib/audit.js';
 import { upload, storeAvatar, removeKeys } from '../lib/storage.js';
 import { issueSession, clearSession, requireAuth, requireRole } from '../middleware/auth.js';
+import { codeRule } from '../lib/accessCode.js';
 
 export const BCRYPT_COST = 12;
 export const passwordRule = z
@@ -64,7 +65,8 @@ router.get('/options', async (req, res) => {
 });
 
 // ---------- Créer un compte (inscription libre) ----------
-// Le nouveau compte est un client sans galerie : il ne voit rien tant que le studio ne lui a rien publié.
+// Le nouveau compte est un client sans galerie. Il n'a aucun accès tant qu'il n'a pas saisi le code d'un photographe
+// (POST /access-code) : ce code le rattache à ce photographe, qui sera le seul à voir son compte.
 const signupLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   limit: 5,
@@ -88,7 +90,7 @@ router.post('/signup', signupLimiter, async (req, res) => {
   const id = crypto.randomUUID();
   const hash = await bcrypt.hash(data.password, BCRYPT_COST);
   await query(
-    "INSERT INTO users (id, role, name, email, phone, password_hash, last_login_at) VALUES (?, 'client', ?, ?, ?, ?, CURRENT_TIMESTAMP)",
+    "INSERT INTO users (id, role, name, email, phone, password_hash, last_login_at, access_granted) VALUES (?, 'client', ?, ?, ?, ?, CURRENT_TIMESTAMP, 0)",
     [id, data.name, data.email, data.phone, hash],
   );
   audit(req, 'auth.signup', { userId: id, details: { email: data.email } });
@@ -96,6 +98,42 @@ router.post('/signup', signupLimiter, async (req, res) => {
   sendMail({ to: user.email, userId: user.id, kind: 'welcome', ...signupEmail(user) });
   issueSession(res, user);
   res.status(201).json({ user: publicUser(user) });
+});
+
+// ---------- Code du photographe (clients inscrits seuls) ----------
+// Peu de combinaisons possibles : essais limités par compte et par connexion.
+const codeLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 8,
+  keyGenerator: (req) => `${req.user?.id || 'anon'}`,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: { error: 'Trop d’essais. Réessayez dans une heure ou demandez le bon code à votre photographe.' },
+});
+
+router.post('/access-code', requireAuth, codeLimiter, async (req, res) => {
+  if (req.user.role !== 'client' || req.user.access_granted) throw httpError(400, 'Votre accès est déjà actif.');
+  const { code } = z.object({ code: codeRule }).parse(req.body);
+  const [staff] = await query("SELECT id, name FROM users WHERE access_code = ? AND role IN ('owner', 'admin') AND active = 1", [code]);
+  if (!staff) {
+    audit(req, 'auth.code_failed');
+    throw httpError(400, 'Code incorrect. Vérifiez-le auprès de votre photographe.');
+  }
+  await query('UPDATE users SET created_by = ?, access_granted = 1 WHERE id = ? AND access_granted = 0', [staff.id, req.user.id]);
+  audit(req, 'auth.code_ok', { details: { photographer: staff.id } });
+  const [user] = await query('SELECT * FROM users WHERE id = ?', [req.user.id]);
+  res.json({ user: publicUser(user) });
+});
+
+// Le membre de l'équipe change son propre code (2 à 4 caractères, unique).
+router.patch('/my-code', requireRole('owner', 'admin'), async (req, res) => {
+  const { code } = z.object({ code: codeRule }).parse(req.body);
+  const [used] = await query('SELECT id FROM users WHERE access_code = ? AND id <> ?', [code, req.user.id]);
+  if (used) throw httpError(409, 'Ce code est déjà utilisé par quelqu’un d’autre. Choisissez-en un autre.');
+  await query('UPDATE users SET access_code = ? WHERE id = ?', [code, req.user.id]);
+  audit(req, 'profile.code_change');
+  const [user] = await query('SELECT * FROM users WHERE id = ?', [req.user.id]);
+  res.json({ user: publicUser(user) });
 });
 
 // ---------- Mot de passe oublié ----------

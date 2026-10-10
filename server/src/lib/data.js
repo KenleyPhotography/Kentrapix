@@ -17,6 +17,9 @@ export const publicUser = (u) => ({
   senderName: u.sender_name || '',
   mustChangePassword: !!u.must_change_password,
   notificationsSeenAt: toIso(u.notifications_seen_at),
+  // Code d'accès : visible seulement par son propriétaire (équipe) ; client sans code : écran de saisie.
+  accessCode: ['owner', 'admin'].includes(u.role) ? u.access_code || '' : undefined,
+  needsCode: u.role === 'client' && !u.access_granted,
 });
 
 export const mapClient = (u) => ({
@@ -29,6 +32,8 @@ export const mapClient = (u) => ({
   active: !!u.active,
   createdAt: toIso(u.created_at),
   lastLoginAt: toIso(u.last_login_at),
+  pendingCode: u.role === 'client' && !u.access_granted,
+  accessCode: ['owner', 'admin'].includes(u.role) ? u.access_code || '' : undefined,
 });
 
 // La couverture vient soit d'une image dédiée, soit de la première photo.
@@ -115,8 +120,9 @@ export async function getPermissions() {
   return perms;
 }
 
-// Propriétaire : tout. Photographe (admin) : les galeries qu'il a créées. Tous : leurs galeries publiées.
+// Photographe (propriétaire ou admin) : les galeries qu'il a créées. Client : ses galeries publiées.
 export const canSeeEvent = (user, e) =>
-  user.role === 'owner' ||
+  // Chaque photographe (propriétaire compris) ne voit que les galeries de ses propres clients.
+  (user.role === 'owner' && (e.created_by === user.id || e.created_by == null)) ||
   (user.role === 'admin' && e.created_by === user.id) ||
   (e.client_id === user.id && !!e.published && !e.archived && !isExpired(e));

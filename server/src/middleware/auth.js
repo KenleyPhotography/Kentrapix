@@ -35,7 +35,7 @@ export async function loadUser(req, res, next) {
   try {
     const payload = jwt.verify(token, config.jwtSecret, { algorithms: ['HS256'] });
     const [user] = await query(
-      'SELECT id, role, name, email, phone, sender_name, avatar_key, active, must_change_password, token_version, notifications_seen_at FROM users WHERE id = ?',
+      'SELECT id, role, name, email, phone, sender_name, avatar_key, active, must_change_password, token_version, notifications_seen_at, access_code, access_granted FROM users WHERE id = ?',
       [payload.sub],
     );
     if (user && user.active && user.role === payload.role && user.token_version === payload.v) req.user = user;
@@ -62,6 +62,16 @@ export const requireRole = (...roles) => (req, res, next) => {
   if (!req.user) throw httpError(401, 'Veuillez vous connecter.');
   if (roles.length && !roles.includes(req.user.role)) throw httpError(403, 'Accès refusé.');
   if (req.user.must_change_password) throw httpError(403, 'Changez votre mot de passe temporaire pour continuer.');
+  if (needsCode(req.user)) throw httpError(403, 'Entrez le code de votre photographe pour continuer.');
+  next();
+};
+
+/** Client inscrit seul, qui n'a pas encore validé le code d'un photographe : aucun accès aux galeries. */
+export const needsCode = (user) => user?.role === 'client' && !user.access_granted;
+
+/** Pour les routes qui n'exigent que la connexion (images) : refuse aussi les clients sans code. */
+export const blockPending = (req, res, next) => {
+  if (needsCode(req.user)) throw httpError(403, 'Entrez le code de votre photographe pour continuer.');
   next();
 };
 

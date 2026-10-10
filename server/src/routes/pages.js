@@ -52,7 +52,8 @@ router.get('/share.html', (req, res) => {
   res.set('Referrer-Policy', 'no-referrer').sendFile(page('share.html'));
 });
 
-const ready = (user) => user && !user.must_change_password;
+// Prêt = connecté, mot de passe définitif, et (client inscrit seul) code d'un photographe validé.
+const ready = (user) => user && !user.must_change_password && !(user.role === 'client' && !user.access_granted);
 
 router.get('/login.html', (req, res) => {
   if (ready(req.user)) return res.redirect(home(req.user));

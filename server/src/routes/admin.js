@@ -18,6 +18,7 @@ import {
 } from '../lib/emails.js';
 import { kickAnnouncements } from '../lib/announcements.js';
 import { requireStaff, requireOwner, STAFF_ROLES } from '../middleware/auth.js';
+import { freshCode } from '../lib/accessCode.js';
 import { kickFaces, mergePeople, rescanEvent, removeEmptyPeople } from '../lib/faces.js';
 import { config } from '../config.js';
 import { BCRYPT_COST, passwordRule } from './auth.js';
@@ -43,13 +44,16 @@ const keep = (data, row, key, column = key) => (data[key] !== undefined ? data[k
 const ownCover = (key) => (key?.startsWith('covers/') ? key : null);
 
 // ---------- Photographes : chacun ne voit que ce qu'il a créé ----------
-// Le propriétaire voit tout. Un admin (photographe abonné) voit ses clients, ses galeries
-// et ce qui en dépend (photos, commentaires, visages, e-mails envoyés).
+// Chaque photographe — propriétaire compris — ne voit que ses clients (ceux qui ont saisi son code), ses galeries
+// et ce qui en dépend (photos, commentaires, visages, e-mails envoyés). Le propriétaire voit en plus l'équipe
+// et les comptes encore sans photographe (inscrits qui n'ont pas validé de code).
 const isOwner = (req) => req.user.role === 'owner';
 /** Filtre SQL des comptes visibles : [condition, paramètres]. */
-const accountScope = (req, a = 'u') => (isOwner(req) ? ['1=1', []] : [`(${a}.created_by = ? OR ${a}.id = ?)`, [req.user.id, req.user.id]]);
+const accountScope = (req, a = 'u') => (isOwner(req)
+  ? [`(${a}.role <> 'client' OR ${a}.created_by IS NULL OR ${a}.created_by = ?)`, [req.user.id]]
+  : [`(${a}.created_by = ? OR ${a}.id = ?)`, [req.user.id, req.user.id]]);
 /** Filtre SQL des galeries visibles. */
-const eventScope = (req, e = 'e') => (isOwner(req) ? ['1=1', []] : [`${e}.created_by = ?`, [req.user.id]]);
+const eventScope = (req, e = 'e') => (isOwner(req) ? [`(${e}.created_by = ? OR ${e}.created_by IS NULL)`, [req.user.id]] : [`${e}.created_by = ?`, [req.user.id]]);
 
 /** Nom d'expéditeur des e-mails : celui choisi dans « Mon profil », sinon le nom du compte. */
 export const senderOf = (user) => ({ fromName: user.sender_name || user.name, replyTo: user.email });
@@ -133,11 +137,11 @@ const findClient = (req, id) => findAccount(req, id, ['client']);
 async function createAccount(req, role, data) {
   const id = crypto.randomUUID();
   const hash = await bcrypt.hash(data.password, BCRYPT_COST);
-  // Mot de passe temporaire : à changer à la première connexion.
+  // Mot de passe temporaire : à changer à la première connexion. Un membre de l'équipe reçoit un code d'accès.
   await query(
-    `INSERT INTO users (id, role, created_by, name, email, phone, password_hash, must_change_password)
-     VALUES (?, ?, ?, ?, ?, ?, ?, 1)`,
-    [id, role, req.user.id, data.name, data.email, data.phone ?? null, hash],
+    `INSERT INTO users (id, role, created_by, name, email, phone, password_hash, must_change_password, access_code)
+     VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)`,
+    [id, role, req.user.id, data.name, data.email, data.phone ?? null, hash, role === 'admin' ? await freshCode() : null],
   );
   return findAccount(req, id);
 }
@@ -246,10 +250,12 @@ router.patch('/team/:id', requireOwner, async (req, res) => {
   const active = data.active ?? !!account.active;
   // Changer de rôle ou désactiver ferme les sessions ouvertes.
   const revoke = role !== account.role || (!active && account.active) ? 1 : 0;
+  if (role === 'client' && account.access_code) await query('UPDATE users SET access_code = NULL WHERE id = ?', [account.id]);
   await query('UPDATE users SET role = ?, active = ?, token_version = token_version + ? WHERE id = ?', [
     role, active ? 1 : 0, revoke, account.id,
   ]);
   const promoted = account.role !== 'admin' && role === 'admin';
+  if (promoted && !account.access_code) await query('UPDATE users SET access_code = ? WHERE id = ?', [await freshCode(), account.id]);
   audit(req, promoted ? 'team.promote' : role !== account.role ? 'team.demote' : active ? 'team.activate' : 'team.deactivate', {
     entity: 'user', entityId: account.id,
   });
@@ -729,7 +735,7 @@ router.post('/photos/delete', async (req, res) => {
 // Les e-mails partent en arrière-plan (lib/announcements.js) : tout de suite, ou à l'heure programmée.
 // Offre gratuite Resend : 100 e-mails par jour (MAIL_DAILY_LIMIT pour une autre offre).
 const MAIL_DAILY_LIMIT = Number(process.env.MAIL_DAILY_LIMIT || 100);
-const announcementScope = (req) => (isOwner(req) ? ['1=1', []] : ['a.created_by = ?', [req.user.id]]);
+const announcementScope = (req) => ['a.created_by = ?', [req.user.id]];
 
 router.get('/announcements', async (req, res) => {
   const [sc, sp] = announcementScope(req);
