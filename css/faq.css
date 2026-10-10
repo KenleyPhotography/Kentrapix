@@ -28,5 +28,5 @@
 [data-theme="dark"] .faq-msg.me{background:#1265d8;border-color:#1265d8}
 [data-theme="dark"] .faq-chips,[data-theme="dark"] .faq-form{border-color:#1d3253}
 [data-theme="dark"] .faq-form input{background:#0a1626;border-color:#1d3253;color:#e6eefb}
-@media (max-width:600px){.faq-fab{width:52px;height:52px;right:14px}.faq-panel{right:12px;bottom:calc(78px + env(safe-area-inset-bottom))}}
+@media (max-width:800px){.faq-fab{width:48px;height:48px;right:14px;bottom:calc(88px + env(safe-area-inset-bottom))}.faq-panel{right:12px;bottom:calc(146px + env(safe-area-inset-bottom));max-height:calc(100vh - 190px)}}
 @media (prefers-reduced-motion:reduce){.faq-panel,.faq-msg{animation:none}.faq-fab{transition:none}}
