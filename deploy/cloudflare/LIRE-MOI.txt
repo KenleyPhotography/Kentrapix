@@ -1,0 +1,11 @@
+Page « Bienvenue » pendant le réveil de Render
+===============================================
+1. Cloudflare > Workers & Pages > Create > Worker, nom : kentrapix-bienvenue.
+2. Edit code : coller tout le contenu de worker.js, puis Deploy.
+3. Worker > Settings > Domains & Routes > Add > Route :
+     Route : kentrapix.kenleyelysee.com/*     Zone : kenleyelysee.com
+4. Dans DNS, l'enregistrement de kentrapix doit être « Proxied » (nuage orange).
+5. Test : suspendre le service Render (Settings > Suspend) ou attendre qu'il dorme,
+   puis ouvrir le site : la page Bienvenue s'affiche, puis le site se charge tout seul.
+   (Reprendre le service ensuite.)
+Le sondage utilise /api/health (déjà défini dans render.yaml).
