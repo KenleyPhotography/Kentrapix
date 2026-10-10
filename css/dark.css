@@ -57,7 +57,6 @@
 [data-theme="dark"] .chip,
 [data-theme="dark"] .empty,
 [data-theme="dark"] .callout,
-[data-theme="dark"] .person-chip { background: rgba(14, 27, 46, 0.72); }
 [data-theme="dark"] .search input:focus { background: var(--surface); }
 [data-theme="dark"] .viewer-comments,
 [data-theme="dark"] .share-card,

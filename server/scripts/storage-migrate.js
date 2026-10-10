@@ -13,7 +13,7 @@ if (!isRemote) {
 }
 const deleteLocal = process.argv.includes('--delete-local');
 // Les filigranes se régénèrent tout seuls : inutile de les copier.
-const FOLDERS = ['originals', 'previews', 'covers', 'avatars', 'music', 'faces'];
+const FOLDERS = ['originals', 'previews', 'covers', 'avatars', 'music'];
 
 let copied = 0, skipped = 0, failed = 0, removed = 0, bytes = 0;
 for (const folder of FOLDERS) {

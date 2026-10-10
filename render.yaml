@@ -26,9 +26,6 @@ services:
         value: "50"
       - key: PREVIEW_WIDTH
         value: "1600"
-      # 512 Mo de mémoire sur l'offre gratuite : mettre false si le serveur manque de mémoire.
-      - key: FACES_ENABLED
-        value: "true"
       - key: DATABASE_URL
         sync: false
       - key: JWT_SECRET

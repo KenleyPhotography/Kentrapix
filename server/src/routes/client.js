@@ -88,26 +88,6 @@ export async function clientBootstrap(id, onlyBy = null) {
     picks = picks.filter((p) => ok.has(p.event_id));
     sent = sent.filter((x) => ok.has(x.event_id));
   }
-  // Personnes détectées (non masquées) : filtre « photos de Marie ». Sont proposées les personnes nommées et celles
-  // vues sur au moins 2 photos ; si une galerie en compte peu, on complète avec les visages les plus fréquents.
-  const everyone = permissions.faces && events.length
-    ? await query(
-      `SELECT pe.id, pe.event_id, pe.name, STRING_AGG(DISTINCT f.photo_id, ',') AS photo_ids,
-         (SELECT f2.id FROM photo_faces f2 WHERE f2.person_id = pe.id ORDER BY f2.score DESC, f2.created_at, f2.id LIMIT 1) AS face_id
-       FROM people pe JOIN photo_faces f ON f.person_id = pe.id JOIN events e ON e.id = pe.event_id
-       WHERE ${VISIBLE} AND pe.hidden = 0
-       GROUP BY pe.id ORDER BY pe.name IS NULL, pe.name, COUNT(DISTINCT f.photo_id) DESC LIMIT 600`,
-      [id],
-    )
-    : [];
-  const count = (p) => String(p.photo_ids || '').split(',').filter(Boolean).length;
-  const people = [];
-  for (const e of events) {
-    const mine = everyone.filter((p) => p.event_id === e.id);
-    const keep = mine.filter((p) => p.name || count(p) >= 2);
-    const extra = mine.filter((p) => !keep.includes(p)).sort((a, b) => count(b) - count(a));
-    people.push(...keep, ...(keep.length < 8 ? extra.slice(0, 12 - keep.length) : []));
-  }
   // Sélection par galerie : photos choisies + dernier envoi au studio.
   const selections = {};
   for (const e of events.filter((e) => e.selection_mode)) {
@@ -134,9 +114,6 @@ export async function clientBootstrap(id, onlyBy = null) {
     downloads: downloads.map(mapDownload),
     permissions,
     selections,
-    people: people.map((p) => ({
-      id: p.id, eventId: p.event_id, name: p.name, face: `/media/face/${p.face_id}`, photoIds: String(p.photo_ids || '').split(',').filter(Boolean),
-    })),
   };
 }
 

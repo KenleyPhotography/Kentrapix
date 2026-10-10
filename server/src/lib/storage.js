@@ -20,7 +20,7 @@ import { httpError } from './errors.js';
 //    elles ne sont jamais enregistrées sur ce serveur ;
 //  - local : photos dans STORAGE_DIR.
 // Les clés sont identiques dans les deux modes : 'originals/…', 'previews/…', 'covers/…', etc.
-const FOLDERS = ['originals', 'previews', 'thumbs', 'covers', 'avatars', 'watermarks', 'faces', 'music', 'tmp'];
+const FOLDERS = ['originals', 'previews', 'thumbs', 'covers', 'avatars', 'watermarks', 'music', 'tmp'];
 // Sans cache libvips : sinon Windows garde les images ouvertes et refuse de les supprimer (EBUSY).
 sharp.cache(false);
 // Un seul fil de traitement d'image en production : moins de mémoire utilisée en même temps (petit hébergement).
@@ -125,6 +125,32 @@ export async function removeKeys(keys) {
       .catch(() => new Promise((r) => setTimeout(r, 1500)).then(() => remove(k)))
       .catch((err) => console.error(`Suppression impossible (${k}) : ${err.code || err.name}`))),
   );
+}
+
+/** Tous les fichiers stockés : [{ key, size, modified }] (bucket ou dossier local). Sert au nettoyage de l'espace. */
+export async function listStoredFiles() {
+  const out = [];
+  if (isRemote) {
+    let token;
+    do {
+      const page = await s3.send(new ListObjectsV2Command({ Bucket, ContinuationToken: token }));
+      for (const o of page.Contents || []) out.push({ key: o.Key, size: o.Size ?? 0, modified: o.LastModified ?? new Date() });
+      token = page.IsTruncated ? page.NextContinuationToken : undefined;
+    } while (token);
+    return out;
+  }
+  const walk = async (dir, prefix) => {
+    for (const e of await fs.readdir(dir, { withFileTypes: true }).catch(() => [])) {
+      const full = path.join(dir, e.name);
+      if (e.isDirectory()) await walk(full, `${prefix}${e.name}/`);
+      else {
+        const st = await fs.stat(full).catch(() => null);
+        if (st) out.push({ key: `${prefix}${e.name}`, size: st.size, modified: st.mtime });
+      }
+    }
+  };
+  await walk(config.storageDir, '');
+  return out;
 }
 
 // ---------- Liens signés (mode en ligne) ----------

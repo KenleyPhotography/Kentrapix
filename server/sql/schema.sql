@@ -90,14 +90,12 @@ CREATE TABLE IF NOT EXISTS photos (
   width         INTEGER      NOT NULL DEFAULT 0,
   height        INTEGER      NOT NULL DEFAULT 0,
   position      INTEGER      NOT NULL DEFAULT 0,
-  faces_status  VARCHAR(10)  NOT NULL DEFAULT 'pending' CHECK (faces_status IN ('pending', 'processing', 'done', 'failed')),
   thumb_key     VARCHAR(255) NULL, -- miniature 800 px de la grille (créée au premier affichage)
   created_at    TIMESTAMP(0) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT uq_photos_original UNIQUE (original_key)
 );
 CREATE INDEX IF NOT EXISTS idx_photos_event ON photos (event_id, position);
 CREATE INDEX IF NOT EXISTS idx_photos_event_album ON photos (event_id, album);
-CREATE INDEX IF NOT EXISTS idx_photos_faces ON photos (faces_status, created_at);
 
 -- 4. favorites
 CREATE TABLE IF NOT EXISTS favorites (
@@ -130,7 +128,7 @@ CREATE TABLE IF NOT EXISTS permissions (
 );
 INSERT INTO permissions (perm_key, enabled) VALUES
   ('individual', 1), ('selection', 1), ('event', 1), ('favorites', 1), ('sharing', 1),
-  ('comments', 1), ('signup', 1), ('faces', 1), ('share_download', 0)
+  ('comments', 1), ('signup', 1), ('share_download', 0)
 ON CONFLICT DO NOTHING;
 
 -- 7. audit_log — journal
@@ -215,35 +213,6 @@ CREATE TABLE IF NOT EXISTS event_selections (
   PRIMARY KEY (event_id, user_id)
 );
 
--- 14. people — personnes reconnues (visages)
-CREATE TABLE IF NOT EXISTS people (
-  id         VARCHAR(36)  PRIMARY KEY,
-  event_id   VARCHAR(36)  NOT NULL REFERENCES events (id) ON DELETE CASCADE,
-  name       VARCHAR(120) NULL,
-  hidden     SMALLINT     NOT NULL DEFAULT 0,
-  embedding  BYTEA        NOT NULL,
-  face_count INTEGER      NOT NULL DEFAULT 0,
-  created_at TIMESTAMP(0) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP(0) NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-CREATE INDEX IF NOT EXISTS idx_people_event ON people (event_id);
-
--- 15. photo_faces — visages détectés
-CREATE TABLE IF NOT EXISTS photo_faces (
-  id         VARCHAR(36)  PRIMARY KEY,
-  photo_id   VARCHAR(36)  NOT NULL REFERENCES photos (id) ON DELETE CASCADE,
-  person_id  VARCHAR(36)  NULL REFERENCES people (id) ON DELETE SET NULL,
-  box_x      REAL         NOT NULL,
-  box_y      REAL         NOT NULL,
-  box_w      REAL         NOT NULL,
-  box_h      REAL         NOT NULL,
-  score      REAL         NOT NULL,
-  embedding  BYTEA        NOT NULL,
-  created_at TIMESTAMP(0) NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-CREATE INDEX IF NOT EXISTS idx_faces_photo ON photo_faces (photo_id);
-CREATE INDEX IF NOT EXISTS idx_faces_person ON photo_faces (person_id);
-
 -- 16. share_links — liens de partage famille
 CREATE TABLE IF NOT EXISTS share_links (
   id             VARCHAR(36)  PRIMARY KEY,
@@ -303,7 +272,7 @@ CREATE INDEX IF NOT EXISTS idx_announcement_recipients_user ON announcement_reci
 DO $$
 DECLARE t text;
 BEGIN
-  FOREACH t IN ARRAY ARRAY['users', 'events', 'permissions', 'event_selections', 'people'] LOOP
+  FOREACH t IN ARRAY ARRAY['users', 'events', 'permissions', 'event_selections'] LOOP
     EXECUTE format('DROP TRIGGER IF EXISTS trg_%1$s_updated_at ON %1$I', t);
     EXECUTE format('CREATE TRIGGER trg_%1$s_updated_at BEFORE UPDATE ON %1$I FOR EACH ROW EXECUTE FUNCTION kp_touch_updated_at()', t);
   END LOOP;

@@ -45,8 +45,6 @@ export const config = {
   s3: s3Config(),
   // true = ne jamais supprimer de fichier photo (copie de test qui partage le bucket de la production).
   keepFiles: process.env.STORAGE_KEEP_FILES === 'true',
-  // false = pas d'analyse des visages (petit hébergement : ~300 Mo de mémoire en moins). Les photos restent « en attente ».
-  facesEnabled: process.env.FACES_ENABLED !== 'false',
 };
 
 // Supabase : Project Settings > Database > Connection string > « Session pooler » (IPv4).

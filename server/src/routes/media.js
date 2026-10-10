@@ -2,7 +2,6 @@ import { Router } from 'express';
 import { query } from '../db.js';
 import { httpError } from '../lib/errors.js';
 import { sendPrivate, watermarkedPreview, makeThumb } from '../lib/storage.js';
-import { faceThumbnail } from '../lib/faces.js';
 import { uuid, canSeeEvent } from '../lib/data.js';
 import { requireAuth, blockPending } from '../middleware/auth.js';
 
@@ -64,17 +63,6 @@ router.get('/cover/:id', async (req, res) => {
     return sendPrivate(res, await watermarkedPreview(event.cover_key, `cover-${name}`, null));
   }
   await sendPrivate(res, event.cover_key);
-});
-
-// Vignette d'un visage (filtre « personnes »).
-router.get('/face/:id', async (req, res) => {
-  const [face] = await query(
-    `SELECT f.*, p.preview_key, e.client_id, e.created_by, e.expires_at, e.published, e.archived
-     FROM photo_faces f JOIN photos p ON p.id = f.photo_id JOIN events e ON e.id = p.event_id WHERE f.id = ?`,
-    [uuid.parse(req.params.id)],
-  );
-  if (!face || !canSeeEvent(req.user, face)) throw httpError(404, 'Image introuvable.');
-  await sendPrivate(res, await faceThumbnail(face));
 });
 
 // Musique du diaporama d'une galerie.

@@ -19,9 +19,6 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1148.0",
     "@aws-sdk/s3-request-presigner": "^3.1148.0",
-    "@tensorflow/tfjs": "^4.22.0",
-    "@tensorflow/tfjs-backend-wasm": "^4.22.0",
-    "@vladmandic/human": "^3.3.6",
     "archiver": "^7.0.1",
     "bcryptjs": "^3.0.2",
     "cookie-parser": "^1.4.7",

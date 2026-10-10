@@ -43,7 +43,7 @@ Une galerie peut être livrée à n'importe quel compte (client, admin ou propri
 
 Chaque **admin** est un photographe indépendant :
 
-- il ne voit que **ses** clients, **ses** galeries, leurs photos, commentaires, visages et **ses** e-mails envoyés
+- il ne voit que **ses** clients, **ses** galeries, leurs photos, commentaires et **ses** e-mails envoyés
   (colonnes `users.created_by` et `events.created_by`, migration `006_photographers.sql`) ;
 - il ne voit ni la page **Équipe** ni les **Réglages** globaux (réservés au propriétaire) ;
 - ses e-mails partent avec **son nom** (« Mon profil » → *Nom d’expéditeur des e-mails*), depuis l'adresse
@@ -105,7 +105,7 @@ ne sont plus enregistrées sur le serveur :
 - **affichage / téléchargement** : `/media/…` vérifie les droits puis redirige vers un lien signé (2 h, identique pendant
   une heure pour profiter du cache du navigateur) — les photos ne transitent pas par le serveur ;
 - passent encore par le serveur, sans y être conservés : le ZIP « Tout télécharger », la création des filigranes
-  (mode sélection) et des vignettes de visages (à partir de l'aperçu), les couvertures, avatars et musiques envoyés.
+  (mode sélection), les couvertures, avatars et musiques envoyés.
 
 Mise en route : `npm run storage:setup` (vérifie la connexion et autorise le site dans les règles CORS du bucket),
 puis `npm run storage:migrate` (copie les photos existantes ; `-- --delete-local` supprime ensuite les copies locales).
@@ -123,16 +123,6 @@ Ancienne base MySQL : sauvegarde `kentrapix-mysql-2026-10-09.sql` (dossier `back
 `manifest.webmanifest` + `sw.js` : le site s’installe sur l’écran d’accueil (Android/Chrome : bouton **Installer**
 dans « Mon profil » ; iPhone : Safari → Partager → Sur l’écran d’accueil). Le service worker ne met en cache que
 l’interface (css/js/logo/img) ; photos, musique et API restent toujours privées. **HTTPS obligatoire** en ligne.
-
-## Reconnaissance des visages
-
-Chaque photo importée est analysée **en arrière-plan** (moteur Human + TensorFlow WASM, sans module natif, environ 5 s par photo) : les visages sont regroupés par personne dans chaque galerie.
-
-- Studio : bouton **Visages** sur une galerie → nommer les personnes, masquer, fusionner deux groupes, réanalyser.
-- Client : seules les personnes **nommées** apparaissent dans la rangée « Personnes » de la galerie (filtre). Désactivable dans Réglages.
-- Seuil de ressemblance : `FACE_MATCH` (cosinus, défaut 0,78 — strict : une même personne peut apparaître en deux groupes, à fusionner ; deux personnes ne sont pas mélangées).
-- Limite : les très petits visages (fond d’une photo de groupe) ne sont pas détectés.
-- Données biométriques : supprimées avec la photo ou la galerie ; analyse interrompue ou en échec relancée au démarrage du serveur.
 
 ## Architecture
 
@@ -209,7 +199,7 @@ gardé sur le disque du serveur. Configuration : [render.yaml](../render.yaml) �
    tunnel, puis *DNS* > `CNAME kentrapix → kentrapix.onrender.com` (**DNS only**, nuage gris).
 5. Chaque `git push` sur `master` redéploie le site.
 
-Offre gratuite : 512 Mo de mémoire (visages ≈ 300 Mo ; `FACES_ENABLED=false` les désactive) et mise en veille après
+Offre gratuite : 512 Mo de mémoire et mise en veille après
 15 min sans visite (≈ 1 min d'attente pour le visiteur suivant ; les rappels d'expiration ne partent pas pendant la veille).
 
 En attendant Render, le PC peut toujours servir le site : `deploy/windows/run-kentrapix.ps1` (relance automatique)

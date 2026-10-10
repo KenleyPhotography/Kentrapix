@@ -32,7 +32,6 @@ sans risque. La colonne « API Supabase bloquée (RLS) » doit indiquer **oui** 
 | `photo_comments` | Commentaires sous les photos | `photo_id`, `user_id` | CASCADE |
 | `password_resets` | Liens « mot de passe oublié » (hash du jeton) | `user_id` | CASCADE |
 | `photo_selections` / `event_selections` | Mode sélection : choix et envoi au studio | `user_id`, `photo_id` / `event_id` | CASCADE |
-| `people` / `photo_faces` | Reconnaissance des visages | `event_id` / `photo_id`, `person_id` | CASCADE / SET NULL |
 | `share_links` | Liens de partage famille | `event_id`, `user_id` | CASCADE |
 | `schema_migrations` | Migrations déjà appliquées | — | — |
 

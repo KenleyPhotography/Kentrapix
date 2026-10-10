@@ -3,7 +3,6 @@
 //   t = étiquette courte du bouton, q = question complète, k = mots-clés (minuscules, sans accents), a = réponse courte.
 const FAQ = [
   { t: '🔎 Mes photos', q: 'Où sont mes photos ?', k: 'retrouver trouver voir photos galerie ouvrir ou sont', a: 'Menu <b>Mes galeries</b> → touchez votre galerie.' },
-  { t: '🙂 Par visage', q: 'Comment trier par visage ?', k: 'visage visages personne personnes moi trier filtre reconnaissance retrouver quelqu un', a: 'Dans la galerie, touchez un visage sur la ligne <b>Trier par visage</b>.<br>Touchez <b>Tout afficher</b> pour revenir.' },
   { t: '❤️ Favoris', q: 'Comment mettre en favori ?', k: 'favori favoris coeur aimer preferee preferees garder', a: 'Touchez le <b>cœur</b> sur une photo.<br>Vos favoris sont dans l’onglet <b>Favoris</b>.' },
   { t: '✅ Ma sélection', q: 'Comment envoyer ma sélection ?', k: 'selection selectionner choisir envoyer valider retouche album limite nombre photos', a: '1. Touchez vos photos.<br>2. Touchez <b>Envoyer ma sélection</b>.<br>Votre photographe est prévenu.' },
   { t: '⬇️ Télécharger', q: 'Comment télécharger mes photos ?', k: 'telecharger telechargement download zip enregistrer originale qualite hd', a: 'Ouvrez une photo → <b>Télécharger</b>.<br>Plusieurs photos ? Elles arrivent en fichier ZIP.' },

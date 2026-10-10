@@ -19,7 +19,7 @@ import {
 import { kickAnnouncements } from '../lib/announcements.js';
 import { requireStaff, requireOwner, STAFF_ROLES, requireStudio } from '../middleware/auth.js';
 import { freshCode } from '../lib/accessCode.js';
-import { kickFaces, mergePeople, rescanEvent, removeEmptyPeople } from '../lib/faces.js';
+import { scanOrphans, cleanOrphans } from '../lib/cleanup.js';
 import { config } from '../config.js';
 import { BCRYPT_COST, passwordRule } from './auth.js';
 import { clientBootstrap } from './client.js';
@@ -616,7 +616,6 @@ async function insertPhoto(event, album, filename, stored) {
         stored.previewBytes, stored.width, stored.height, event.id],
     );
     const [photo] = await query('SELECT * FROM photos WHERE id = ?', [id]);
-    kickFaces(); // analyse des visages en arrière-plan
     return mapPhoto(photo);
   } catch (err) {
     await removeKeys([stored.originalKey, stored.previewKey]);
@@ -705,13 +704,11 @@ async function deletePhotos(photos, { background = false } = {}) {
   for (let i = 0; i < ids.length; i += 500) {
     const chunk = ids.slice(i, i + 500);
     const chunkPhotos = photos.slice(i, i + 500);
-    const faces = await query(`SELECT id FROM photo_faces WHERE photo_id IN (${inList(chunk)})`, chunk);
     // Couverture tirée d'une de ces photos : la galerie revient à « sans couverture ».
     await query(`UPDATE events SET cover_key = NULL WHERE cover_key IN (${inList(chunkPhotos)})`, chunkPhotos.map((p) => p.preview_key));
     await query(`DELETE FROM photos WHERE id IN (${inList(chunk)})`, chunk); // favoris, commentaires, visages : ON DELETE CASCADE
-    keys.push(...chunkPhotos.flatMap((p) => [p.original_key, p.preview_key, p.thumb_key]), ...faces.map((f) => `faces/${f.id}.webp`));
+    keys.push(...chunkPhotos.flatMap((p) => [p.original_key, p.preview_key, p.thumb_key]));
   }
-  await removeEmptyPeople();
   const files = async () => {
     for (let i = 0; i < keys.length; i += 50) await removeKeys(keys.slice(i, i + 50));
     for (let i = 0; i < ids.length; i += 20) await Promise.all(ids.slice(i, i + 20).map((id) => removeWatermarks(id)));
@@ -938,69 +935,18 @@ router.delete('/comments/:id', async (req, res) => {
   res.status(204).end();
 });
 
-// ---------- Visages ----------
-router.get('/events/:id/people', async (req, res) => {
-  const event = await findEvent(req, req.params.id);
-  const [people, [status]] = await Promise.all([
-    query(
-      `SELECT pe.id, pe.name, pe.hidden, COUNT(DISTINCT f.photo_id) AS photo_count,
-         (SELECT f2.id FROM photo_faces f2 WHERE f2.person_id = pe.id ORDER BY f2.score DESC, f2.created_at, f2.id LIMIT 1) AS face_id
-       FROM people pe JOIN photo_faces f ON f.person_id = pe.id
-       WHERE pe.event_id = ? GROUP BY pe.id ORDER BY pe.name IS NULL, pe.name, photo_count DESC`,
-      [event.id],
-    ),
-    query(
-      `SELECT SUM(CASE WHEN faces_status IN ('pending', 'processing') THEN 1 ELSE 0 END) AS pending,
-         SUM(CASE WHEN faces_status = 'done' THEN 1 ELSE 0 END) AS done,
-         SUM(CASE WHEN faces_status = 'failed' THEN 1 ELSE 0 END) AS failed, COUNT(*) AS total FROM photos WHERE event_id = ?`,
-      [event.id],
-    ),
-  ]);
-  res.json({
-    people: people.map((p) => ({
-      id: p.id, name: p.name, hidden: !!p.hidden, photoCount: Number(p.photo_count), face: `/media/face/${p.face_id}`,
-    })),
-    status: { pending: Number(status.pending || 0), done: Number(status.done || 0), failed: Number(status.failed || 0), total: Number(status.total) },
-  });
+// ---------- Nettoyer l'espace (propriétaire) ----------
+// Fichiers qui n'appartiennent plus à aucune photo, galerie ou compte (anciens essais, suppressions interrompues,
+// miniatures de visages d'avant leur retrait). Analyse d'abord, suppression seulement sur demande.
+router.get('/storage/orphans', requireOwner, async (req, res) => {
+  res.json(await scanOrphans());
 });
 
-async function findPerson(req, id) {
-  const [es, ep] = eventScope(req);
-  const [person] = await query(`SELECT pe.* FROM people pe JOIN events e ON e.id = pe.event_id WHERE pe.id = ? AND ${es}`, [uuid.parse(id), ...ep]);
-  if (!person) throw httpError(404, 'Personne introuvable.');
-  return person;
-}
-
-router.patch('/people/:id', async (req, res) => {
-  const person = await findPerson(req, req.params.id);
-  const data = z.object({
-    name: z.string().trim().max(120).optional().transform((v) => (v === undefined ? undefined : v || null)),
-    hidden: z.boolean().optional(),
-  }).parse(req.body);
-  await query('UPDATE people SET name = ?, hidden = ? WHERE id = ?', [
-    data.name !== undefined ? data.name : person.name,
-    (data.hidden ?? !!person.hidden) ? 1 : 0,
-    person.id,
-  ]);
-  audit(req, 'people.update', { entity: 'person', entityId: person.id, details: { name: data.name, hidden: data.hidden } });
-  res.status(204).end();
-});
-
-router.post('/people/:id/merge', async (req, res) => {
-  const from = await findPerson(req, req.params.id);
-  const { intoId } = z.object({ intoId: uuid }).parse(req.body);
-  const into = await findPerson(req, intoId);
-  if (from.event_id !== into.event_id || from.id === into.id) throw httpError(400, 'Fusion impossible entre ces personnes.');
-  await mergePeople(from.id, into.id);
-  audit(req, 'people.merge', { entity: 'person', entityId: into.id, details: { from: from.id } });
-  res.status(204).end();
-});
-
-router.post('/events/:id/faces/rescan', async (req, res) => {
-  const event = await findEvent(req, req.params.id);
-  await rescanEvent(event.id);
-  audit(req, 'faces.rescan', { entity: 'event', entityId: event.id });
-  res.status(202).json({ ok: true });
+router.post('/storage/cleanup', requireOwner, async (req, res) => {
+  if (config.keepFiles) throw httpError(400, 'Cette copie de test partage le stockage de la production : nettoyage désactivé.');
+  const done = await cleanOrphans();
+  audit(req, 'storage.cleanup', { details: { files: done.count, bytes: done.bytes } });
+  res.json(done);
 });
 
 // ---------- Autorisations ----------
