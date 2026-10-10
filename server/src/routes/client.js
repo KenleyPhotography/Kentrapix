@@ -36,6 +36,23 @@ router.get('/bootstrap', async (req, res) => {
 });
 
 /**
+ * Tous les photographes d'un client, avec leur profil : ceux dont il a saisi le code, celui qui a créé son compte
+ * et tout photographe qui lui a publié une galerie (même sans code saisi).
+ */
+async function photographersOf(clientId) {
+  return query(
+    `SELECT s.* FROM (
+       SELECT staff_id AS sid, created_at AS since FROM client_photographers WHERE client_id = ?
+       UNION ALL SELECT created_by, created_at FROM users WHERE id = ? AND created_by IS NOT NULL
+       UNION ALL SELECT created_by, created_at FROM events WHERE client_id = ? AND published = 1 AND archived = 0 AND created_by IS NOT NULL
+     ) x JOIN users s ON s.id = x.sid
+     WHERE s.role IN ('owner', 'admin') AND s.active = 1
+     GROUP BY s.id ORDER BY MIN(x.since)`,
+    [clientId, clientId, clientId],
+  );
+}
+
+/**
  * Données de l'espace d'un client, exactement filtrées comme il les voit.
  * Réutilisé par l'aperçu admin (GET /api/admin/clients/:id/preview).
  */
@@ -102,11 +119,7 @@ export async function clientBootstrap(id, onlyBy = null) {
     };
   }
   // Ses photographes : ceux dont il a saisi le code (ou qui l'ont créé), avec leurs coordonnées.
-  const photographers = await query(
-    `SELECT s.* FROM client_photographers cp JOIN users s ON s.id = cp.staff_id
-     WHERE cp.client_id = ? AND s.role IN ('owner', 'admin') AND s.active = 1 ORDER BY cp.created_at`,
-    [id],
-  );
+  const photographers = await photographersOf(id);
   // Nom du photographe qui a créé chaque galerie (affiché « Par … » chez le client).
   const creators = [...new Set(events.map((e) => e.created_by).filter(Boolean))];
   const names = creators.length
@@ -159,11 +172,7 @@ router.post('/photographers', codeLimiter, async (req, res) => {
   const added = await query('INSERT INTO client_photographers (client_id, staff_id) VALUES (?, ?) ON CONFLICT DO NOTHING', [req.user.id, staff.id]);
   if (!added.affectedRows) throw httpError(409, 'Ce photographe est déjà dans votre liste.');
   audit(req, 'client.photographer_add', { details: { photographer: staff.id } });
-  const rows = await query(
-    `SELECT s.* FROM client_photographers cp JOIN users s ON s.id = cp.staff_id
-     WHERE cp.client_id = ? AND s.role IN ('owner', 'admin') AND s.active = 1 ORDER BY cp.created_at`,
-    [req.user.id],
-  );
+  const rows = await photographersOf(req.user.id);
   res.status(201).json({ photographers: rows.map(mapPhotographer), added: staff.name });
 });
 
