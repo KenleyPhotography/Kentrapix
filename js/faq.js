@@ -1,19 +1,20 @@
 // Assistant d'aide KentraPix : répond aux questions fréquentes des clients (sans serveur, sans IA).
-// Pour ajouter une question : ajoutez une ligne dans FAQ (mots-clés en minuscules, sans accents).
+// Pour ajouter une question : ajoutez une ligne dans FAQ.
+//   t = étiquette courte du bouton, q = question complète, k = mots-clés (minuscules, sans accents), a = réponse courte.
 const FAQ = [
-  { q: 'Comment retrouver mes photos ?', k: 'retrouver trouver voir photos galerie ouvrir ou sont', a: 'Ouvrez <b>Mes galeries</b> dans le menu, puis touchez la galerie de votre événement. Vos photos s’affichent tout de suite.' },
-  { q: 'Comment trier par visage ?', k: 'visage visages personne personnes moi trier filtre reconnaissance retrouver quelqu un', a: 'Dans votre galerie, la ligne <b>Trier par visage</b> montre les personnes reconnues. Touchez un visage pour ne voir que ses photos, puis <b>Tout afficher</b> pour revenir à toutes les photos. Si vous ne la voyez pas, la reconnaissance n’est pas encore terminée ou n’est pas activée pour cette galerie.' },
-  { q: 'Comment choisir mes photos préférées ?', k: 'favori favoris coeur aimer preferee preferees garder', a: 'Touchez le <b>cœur</b> sur une photo pour l’ajouter à vos <b>Favoris</b>. Retrouvez-les tous dans l’onglet Favoris.' },
-  { q: 'Comment envoyer ma sélection à mon photographe ?', k: 'selection selectionner choisir envoyer valider retouche album limite nombre photos', a: 'Si votre galerie est en <b>mode sélection</b>, cochez les photos que vous voulez. Votre choix s’enregistre à chaque clic. Quand vous avez fini, touchez <b>Envoyer ma sélection</b> (vous pouvez ajouter un message). Votre photographe est prévenu par e-mail. Vous pouvez modifier votre choix puis toucher <b>Renvoyer ma sélection</b>.' },
-  { q: 'Comment télécharger mes photos ?', k: 'telecharger telechargement download zip enregistrer originale qualite hd', a: 'Ouvrez une photo et touchez <b>Télécharger</b>, ou sélectionnez plusieurs photos pour recevoir un fichier ZIP. Vous pouvez aussi télécharger toute la galerie. Les photos sont en qualité originale.' },
-  { q: 'Pourquoi je ne peux pas télécharger ?', k: 'impossible telecharger bloque desactive pas possible grise indisponible', a: 'Dans une galerie en <b>mode sélection</b>, le téléchargement est désactivé tant que le photographe n’a pas livré les photos finales. Il peut aussi être désactivé pour certains événements. Contactez votre photographe pour l’activer.' },
-  { q: 'Mon lien de téléchargement a expiré', k: 'lien expire expiré expiration telechargement 10 minutes', a: 'Les liens de téléchargement sont valables <b>10 minutes</b>, par sécurité. Relancez simplement le téléchargement pour en obtenir un nouveau.' },
-  { q: 'Comment partager avec ma famille ?', k: 'partager partage famille amis lien mot de passe envoyer invite', a: 'Ouvrez votre galerie et touchez le bouton <b>Partager avec la famille</b>. Créez un lien avec un mot de passe, puis envoyez les deux à vos proches. Vous choisissez s’ils peuvent télécharger ou commenter, et vous pouvez retirer le lien à tout moment.' },
-  { q: 'Comment laisser un commentaire ?', k: 'commentaire commenter message ecrire retouche demande question photographe contacter', a: 'Ouvrez une photo et écrivez dans la zone <b>Commentaires</b>. Votre photographe le voit et peut vous répondre depuis son espace.' },
-  { q: 'Combien de temps ma galerie reste-t-elle disponible ?', k: 'duree expire expiration disparait supprimee combien temps disponible', a: 'Chaque galerie a une date d’expiration fixée par votre photographe. Pensez à télécharger vos photos avant cette date. Si votre galerie a disparu, contactez-le pour la réactiver.' },
-  { q: 'Mes photos sont-elles privées ?', k: 'prive privee securite confidentiel confidentialite visible google public', a: 'Oui. Votre galerie n’est visible que par vous et par les personnes à qui vous donnez un lien protégé par mot de passe. Elle n’apparaît pas sur Google.' },
-  { q: 'J’ai oublié mon mot de passe', k: 'mot de passe oublie connexion connecter reinitialiser changer login', a: 'Sur la page de connexion, touchez <b>Mot de passe oublié ?</b> et suivez le lien reçu par e-mail. Pour le changer, ouvrez votre <b>Profil</b>.' },
-  { q: 'Comment installer l’application ?', k: 'installer application app telephone ecran accueil icone pwa', a: 'Touchez <b>Installer l’application</b> : KentraPix s’ajoute à votre écran d’accueil et s’ouvre comme une vraie application.' },
+  { t: '🔎 Mes photos', q: 'Où sont mes photos ?', k: 'retrouver trouver voir photos galerie ouvrir ou sont', a: 'Menu <b>Mes galeries</b> → touchez votre galerie.' },
+  { t: '🙂 Par visage', q: 'Comment trier par visage ?', k: 'visage visages personne personnes moi trier filtre reconnaissance retrouver quelqu un', a: 'Dans la galerie, touchez un visage sur la ligne <b>Trier par visage</b>.<br>Touchez <b>Tout afficher</b> pour revenir.' },
+  { t: '❤️ Favoris', q: 'Comment mettre en favori ?', k: 'favori favoris coeur aimer preferee preferees garder', a: 'Touchez le <b>cœur</b> sur une photo.<br>Vos favoris sont dans l’onglet <b>Favoris</b>.' },
+  { t: '✅ Ma sélection', q: 'Comment envoyer ma sélection ?', k: 'selection selectionner choisir envoyer valider retouche album limite nombre photos', a: '1. Touchez vos photos.<br>2. Touchez <b>Envoyer ma sélection</b>.<br>Votre photographe est prévenu.' },
+  { t: '⬇️ Télécharger', q: 'Comment télécharger mes photos ?', k: 'telecharger telechargement download zip enregistrer originale qualite hd', a: 'Ouvrez une photo → <b>Télécharger</b>.<br>Plusieurs photos ? Elles arrivent en fichier ZIP.' },
+  { t: '🚫 Pas de téléchargement', q: 'Pourquoi je ne peux pas télécharger ?', k: 'impossible telecharger bloque desactive pas possible grise indisponible', a: 'Une galerie en <b>mode sélection</b> n’est pas téléchargeable.<br>Demandez à votre photographe de l’activer.' },
+  { t: '⏱️ Lien expiré', q: 'Mon lien de téléchargement a expiré', k: 'lien expire expiré expiration telechargement 10 minutes', a: 'Le lien dure <b>10 minutes</b>.<br>Relancez le téléchargement.' },
+  { t: '👪 Partager', q: 'Comment partager avec ma famille ?', k: 'partager partage famille amis lien mot de passe envoyer invite', a: 'Touchez <b>Partager avec la famille</b>, créez un lien avec un mot de passe, puis envoyez-le.' },
+  { t: '💬 Commentaire', q: 'Comment laisser un commentaire ?', k: 'commentaire commenter message ecrire retouche demande question photographe contacter', a: 'Ouvrez une photo et écrivez dans <b>Commentaires</b>.<br>Votre photographe vous répond.' },
+  { t: '📅 Durée', q: 'Combien de temps ma galerie reste-t-elle disponible ?', k: 'duree expire expiration disparait supprimee combien temps disponible', a: 'Votre photographe fixe une date de fin.<br>Téléchargez vos photos avant.' },
+  { t: '🔒 Vie privée', q: 'Mes photos sont-elles privées ?', k: 'prive privee securite confidentiel confidentialite visible google public', a: 'Oui. Seuls vous et ceux qui ont votre lien et son mot de passe peuvent les voir.' },
+  { t: '🔑 Mot de passe', q: 'J’ai oublié mon mot de passe', k: 'mot de passe oublie connexion connecter reinitialiser changer login', a: 'Page de connexion → <b>Mot de passe oublié ?</b><br>Un lien vous est envoyé par e-mail.' },
+  { t: '📱 Installer', q: 'Comment installer l’application ?', k: 'installer application app telephone ecran accueil icone pwa', a: 'Touchez <b>Installer l’application</b> : elle s’ajoute à votre écran d’accueil.' },
 ];
 
 const norm = (s) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9 ]+/g, ' ');
@@ -72,12 +73,12 @@ export function initFaq() {
     scroll();
     setTimeout(() => { dots.remove(); htmls.forEach((h) => say(h)); }, matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 550);
   };
-  const answer = (f) => `<b>${f.q}</b><br>${f.a}`;
+  const answer = (f) => f.a;
   const suggest = (list) => {
     chips.replaceChildren(...list.map((f) => {
       const c = document.createElement('button');
       c.type = 'button';
-      c.textContent = f.q;
+      c.textContent = f.t;
       c.onclick = () => { say(f.q, true); reply([answer(f)]); };
       return c;
     }));
@@ -89,7 +90,7 @@ export function initFaq() {
     fab.setAttribute('aria-expanded', String(on));
     fab.classList.toggle('on', on);
     if (on) {
-      if (!log.children.length) { say('Bonjour 👋 Je peux répondre à vos questions sur vos photos. Choisissez une question ou écrivez la vôtre.'); suggest(FAQ.slice(0, 5)); }
+      if (!log.children.length) { say('Bonjour 👋 Comment puis-je vous aider ?<br>Touchez un sujet ou écrivez votre question.'); suggest(FAQ.slice(0, 6)); }
       input.focus();
     } else fab.focus();
   };
@@ -104,8 +105,8 @@ export function initFaq() {
     input.value = '';
     say(t, true);
     const found = search(t);
-    if (found.length) { reply(found.map(answer)); suggest(FAQ.filter((f) => !found.includes(f)).slice(0, 3)); }
-    else { reply(['Je n’ai pas trouvé de réponse précise. Essayez avec un autre mot, ou laissez un <b>commentaire</b> sur une photo : votre photographe vous répondra.']); suggest(FAQ.slice(0, 4)); }
+    if (found.length) { reply(found.map(answer)); suggest(FAQ.filter((f) => !found.includes(f)).slice(0, 4)); }
+    else { reply(['Je n’ai pas trouvé de réponse précise. Essayez avec un autre mot, ou laissez un <b>commentaire</b> sur une photo : votre photographe vous répondra.']); suggest(FAQ.slice(0, 6)); }
   };
 
   // Bulle d'invitation, une seule fois par visite.
