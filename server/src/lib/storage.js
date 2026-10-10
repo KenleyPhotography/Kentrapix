@@ -116,11 +116,14 @@ async function readStream(key) {
 /** Supprime des fichiers privés. Un échec est signalé mais ne fait pas échouer l'action. */
 export async function removeKeys(keys) {
   if (config.keepFiles) return; // copie de test : les fichiers appartiennent à la production
+  // Un 2e essai après une courte pause : une coupure réseau passagère ne doit pas laisser un fichier orphelin qui occupe de l'espace.
+  const remove = (k) => (isRemote
+    ? s3.send(new DeleteObjectCommand({ Bucket, Key: k }))
+    : fs.rm(resolveKey(k), { force: true, maxRetries: 3 }));
   await Promise.all(
-    keys.filter(Boolean).map((k) => (isRemote
-      ? s3.send(new DeleteObjectCommand({ Bucket, Key: k }))
-      : fs.rm(resolveKey(k), { force: true, maxRetries: 3 })
-    ).catch((err) => console.error(`Suppression impossible (${k}) : ${err.code || err.name}`))),
+    keys.filter(Boolean).map((k) => remove(k)
+      .catch(() => new Promise((r) => setTimeout(r, 1500)).then(() => remove(k)))
+      .catch((err) => console.error(`Suppression impossible (${k}) : ${err.code || err.name}`))),
   );
 }
 

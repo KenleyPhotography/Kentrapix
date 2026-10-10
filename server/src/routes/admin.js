@@ -566,10 +566,11 @@ router.post('/events/:id/notify', async (req, res) => {
 
 router.delete('/events/:id', async (req, res) => {
   const event = await findEvent(req, req.params.id);
-  const photos = await query('SELECT id, original_key, preview_key, thumb_key FROM photos WHERE event_id = ?', [event.id]);
-  await query('DELETE FROM events WHERE id = ?', [event.id]); // photos et favoris : ON DELETE CASCADE
-  await removeKeys([ownCover(event.cover_key), event.music_key, ...photos.flatMap((p) => [p.original_key, p.preview_key, p.thumb_key])]);
-  await Promise.all(photos.map((p) => removeWatermarks(p.id)));
+  // Photos d'abord (fichiers original, aperçu, miniature, visages, filigranes + lignes en base), puis la galerie, sa couverture et sa musique.
+  const photos = await query('SELECT * FROM photos WHERE event_id = ?', [event.id]);
+  await deletePhotos(photos, { background: photos.length > 20 });
+  await query('DELETE FROM events WHERE id = ?', [event.id]);
+  await removeKeys([ownCover(event.cover_key), event.music_key]);
   audit(req, 'event.delete', { entity: 'event', entityId: event.id, details: { name: event.name, photos: photos.length } });
   res.status(204).end();
 });
