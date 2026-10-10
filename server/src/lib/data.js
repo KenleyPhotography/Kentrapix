@@ -19,7 +19,26 @@ export const publicUser = (u) => ({
   notificationsSeenAt: toIso(u.notifications_seen_at),
   // Code d'accès : visible seulement par son propriétaire (équipe) ; client sans code : écran de saisie.
   accessCode: ['owner', 'admin'].includes(u.role) ? u.access_code || '' : undefined,
+  whatsapp: u.whatsapp || '',
+  website: u.website || '',
+  instagram: u.instagram || '',
+  address: u.address || '',
+  bio: u.bio || '',
   needsCode: u.role === 'client' && !u.access_granted,
+});
+
+/** Photographe tel que son client le voit : profil et coordonnées qu'il a choisi de renseigner. */
+export const mapPhotographer = (u) => ({
+  name: u.name,
+  studio: u.sender_name || '',
+  avatar: avatarUrl(u),
+  email: u.email,
+  phone: u.phone || '',
+  whatsapp: u.whatsapp || u.phone || '',
+  website: u.website || '',
+  instagram: u.instagram || '',
+  address: u.address || '',
+  bio: u.bio || '',
 });
 
 export const mapClient = (u) => ({

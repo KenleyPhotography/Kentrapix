@@ -6,7 +6,7 @@ import { query, placeholders, utcStamp } from '../db.js';
 import { httpError } from '../lib/errors.js';
 import { fileExists, sendPrivate, zipOriginals, downloadName } from '../lib/storage.js';
 import {
-  uuid, mapEvent, mapPhoto, mapDownload, mapComment, getPermissions, EVENT_COLUMNS, PHOTO_COLUMNS, COMMENT_SELECT,
+  uuid, mapEvent, mapPhoto, mapPhotographer, mapDownload, mapComment, getPermissions, EVENT_COLUMNS, PHOTO_COLUMNS, COMMENT_SELECT,
   NOT_EXPIRED,
 } from '../lib/data.js';
 import { audit } from '../lib/audit.js';
@@ -89,7 +89,13 @@ export async function clientBootstrap(id) {
       submittedAt: toIso(s?.submitted_at),
     };
   }
+  // Son photographe : celui dont il a saisi le code (ou qui l'a créé), avec ses coordonnées.
+  const [photographer] = await query(
+    "SELECT s.* FROM users s JOIN users c ON c.created_by = s.id WHERE c.id = ? AND s.role IN ('owner', 'admin') AND s.active = 1",
+    [id],
+  );
   return {
+    photographer: photographer ? mapPhotographer(photographer) : null,
     events: events.map(mapEvent),
     photos: photos.map(mapPhoto),
     notifications: await clientNotifications(id, events),

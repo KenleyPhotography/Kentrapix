@@ -2228,3 +2228,22 @@ td.actions .btn.icon-btn + .btn.icon-btn { margin-left: 6px; }
 .vc-list::-webkit-scrollbar-thumb:hover, .notif-list::-webkit-scrollbar-thumb:hover { background: var(--blue); }
 .people-row::-webkit-scrollbar-track, .modal::-webkit-scrollbar-track, .table-wrap::-webkit-scrollbar-track { background: transparent; }
 .people-row { padding-bottom: 8px; }
+
+/* ==========================================================================
+   Carte « Mon photographe » (accueil et profil du client)
+   ========================================================================== */
+.photographer-card { margin: var(--space-6, 24px) 0; padding: var(--space-5, 20px); border: 1px solid var(--border); border-radius: var(--radius-lg, 20px); background: var(--surface, #fff); box-shadow: var(--shadow-sm, 0 2px 10px rgba(8, 36, 69, 0.06)); }
+.pc-head { display: flex; align-items: center; gap: 16px; }
+.pc-head h2 { margin: 6px 0 0; font-size: 1.25rem; color: var(--ink); }
+.pc-avatar { flex: none; width: 64px; height: 64px; border-radius: 50%; object-fit: cover; box-shadow: 0 6px 16px rgba(8, 36, 69, 0.18); }
+.pc-initials { display: grid; place-items: center; background: var(--gradient-primary); color: #fff; font-weight: 700; font-size: 1.2rem; }
+.pc-studio { margin: 2px 0 0; color: var(--muted); font-size: var(--text-sm, 14px); }
+.pc-bio { margin: 14px 0 0; color: var(--text); line-height: 1.55; }
+.pc-address { display: flex; align-items: center; gap: 8px; margin: 10px 0 0; color: var(--muted); font-size: var(--text-sm, 14px); }
+.pc-address svg { width: 16px; height: 16px; color: var(--blue); flex: none; }
+.pc-links { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.pc-link { display: inline-flex; align-items: center; gap: 8px; padding: 9px 14px; border-radius: 999px; background: var(--blue-soft); color: var(--blue); font-weight: 600; font-size: var(--text-sm, 14px); text-decoration: none; transition: background .15s, transform .15s, color .15s; }
+.pc-link svg { width: 16px; height: 16px; }
+.pc-link:hover { background: var(--blue); color: #fff; transform: translateY(-1px); }
+[data-theme="dark"] .photographer-card { background: rgba(14, 27, 46, 0.72); }
+[data-theme="dark"] .pc-link { background: rgba(28, 119, 238, 0.18); color: #9cc6ff; }

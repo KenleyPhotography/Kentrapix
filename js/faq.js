@@ -21,16 +21,16 @@ const norm = (s) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').rep
 const STOP = new Set('comment pour avec mes les des une que qui est pas sur dans mon ton ses nos vos peux puis pourquoi quand'.split(' '));
 const words = (s) => norm(s).split(' ').filter((w) => w.length > 2 && !STOP.has(w));
 
-function search(text) {
+function search(text, list = FAQ) {
   const w = words(text);
   if (!w.length) return [];
-  return FAQ.map((f) => {
+  return list.map((f) => {
     const hay = norm(f.q + ' ' + f.k);
     return { f, score: w.reduce((n, x) => n + (hay.includes(x) ? 1 : 0), 0) };
   }).filter((r) => r.score > 0).sort((a, b) => b.score - a.score).filter((r, _, all) => r.score === all[0].score).slice(0, 2).map((r) => r.f);
 }
 
-export function initFaq() {
+export function initFaq(getPhotographer) {
   if (document.getElementById('faq-root')) return;
   const ICON = '/logo/faq-icon.webp';
   const root = document.createElement('div');
@@ -73,6 +73,14 @@ export function initFaq() {
     scroll();
     setTimeout(() => { dots.remove(); htmls.forEach((h) => say(h)); }, matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 550);
   };
+  // Question « Contacter mon photographe » : réponse construite avec ses vraies coordonnées.
+  const contact = () => {
+    const p = getPhotographer?.();
+    if (!p) return null;
+    const bits = [p.phone && `📞 ${p.phone}`, p.whatsapp && `💬 WhatsApp : ${p.whatsapp}`, p.email && `✉️ ${p.email}`, p.instagram && `📷 @${p.instagram}`].filter(Boolean);
+    return { t: '📞 Mon photographe', q: 'Comment contacter mon photographe ?', k: 'contacter photographe telephone appeler whatsapp mail email joindre numero coordonnees', a: `<b>${p.name}</b>${bits.length ? '<br>' + bits.join('<br>') : ''}<br>Tous ses contacts sont aussi sur votre page d’accueil.` };
+  };
+  const items = () => [contact(), ...FAQ].filter(Boolean);
   const answer = (f) => f.a;
   const suggest = (list) => {
     chips.replaceChildren(...list.map((f) => {
@@ -90,7 +98,7 @@ export function initFaq() {
     fab.setAttribute('aria-expanded', String(on));
     fab.classList.toggle('on', on);
     if (on) {
-      if (!log.children.length) { say('Bonjour 👋 Comment puis-je vous aider ?<br>Touchez un sujet ou écrivez votre question.'); suggest(FAQ.slice(0, 6)); }
+      if (!log.children.length) { say('Bonjour 👋 Comment puis-je vous aider ?<br>Touchez un sujet ou écrivez votre question.'); suggest(items().slice(0, 6)); }
       input.focus();
     } else fab.focus();
   };
@@ -104,9 +112,9 @@ export function initFaq() {
     if (!t) return;
     input.value = '';
     say(t, true);
-    const found = search(t);
-    if (found.length) { reply(found.map(answer)); suggest(FAQ.filter((f) => !found.includes(f)).slice(0, 4)); }
-    else { reply(['Je n’ai pas trouvé de réponse précise. Essayez avec un autre mot, ou laissez un <b>commentaire</b> sur une photo : votre photographe vous répondra.']); suggest(FAQ.slice(0, 6)); }
+    const found = search(t, items());
+    if (found.length) { reply(found.map(answer)); suggest(items().filter((f) => !found.includes(f)).slice(0, 4)); }
+    else { reply(['Je n’ai pas trouvé de réponse précise. Essayez avec un autre mot, ou laissez un <b>commentaire</b> sur une photo : votre photographe vous répondra.']); suggest(items().slice(0, 6)); }
   };
 
   // Bulle d'invitation, une seule fois par visite.

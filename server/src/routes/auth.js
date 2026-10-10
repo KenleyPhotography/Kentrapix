@@ -261,13 +261,37 @@ const profileSchema = z.object({
   phone: z.string().trim().max(40).optional().transform((v) => v || null),
   // Photographes : nom affiché comme expéditeur de leurs e-mails (vide = nom du compte).
   senderName: z.string().trim().max(80).optional(),
+  // Photographes : coordonnées montrées à leurs clients.
+  whatsapp: z.string().trim().max(40).optional(),
+  website: z.string().trim().max(200).optional(),
+  instagram: z.string().trim().max(80).optional(),
+  address: z.string().trim().max(200).optional(),
+  bio: z.string().trim().max(500).optional(),
 });
 
+// Adresse de site : https:// ajouté si absent ; refus de tout autre schéma (javascript:…).
+const cleanWebsite = (v) => {
+  if (!v) return null;
+  const url = v.toLowerCase().startsWith('http://') || v.toLowerCase().startsWith('https://') ? v : `https://${v}`;
+  try { return ['http:', 'https:'].includes(new URL(url).protocol) ? url : null; } catch { return null; }
+};
+// Identifiant Instagram : accepte « @nom » ou le lien du profil.
+const cleanInstagram = (v) => {
+  if (!v) return null;
+  const handle = v.replace(/^https?:\/\/(www\.)?instagram\.com\//i, '').replace(/^@/, '').split(/[/?#]/)[0].replace(/[^A-Za-z0-9._]/g, '');
+  return handle || null;
+};
+
 router.patch('/profile', requireRole(), async (req, res) => {
-  const { name, phone, senderName } = profileSchema.parse(req.body);
+  const { name, phone, senderName, whatsapp, website, instagram, address, bio } = profileSchema.parse(req.body);
   const staff = ['owner', 'admin'].includes(req.user.role);
   const sender = staff && senderName !== undefined ? senderName || null : req.user.sender_name ?? null;
   await query('UPDATE users SET name = ?, phone = ?, sender_name = ? WHERE id = ?', [name, phone, sender, req.user.id]);
+  if (staff) {
+    await query('UPDATE users SET whatsapp = ?, website = ?, instagram = ?, address = ?, bio = ? WHERE id = ?', [
+      whatsapp || null, cleanWebsite(website), cleanInstagram(instagram), address || null, bio || null, req.user.id,
+    ]);
+  }
   audit(req, 'profile.update');
   const [user] = await query('SELECT * FROM users WHERE id = ?', [req.user.id]);
   res.json({ user: publicUser(user) });
