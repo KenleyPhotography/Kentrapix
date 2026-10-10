@@ -31,14 +31,20 @@ function search(text) {
 
 export function initFaq() {
   if (document.getElementById('faq-root')) return;
+  const ICON = '/logo/faq-icon.webp';
   const root = document.createElement('div');
   root.id = 'faq-root';
   root.innerHTML = `
+    <div class="faq-nudge" id="faq-nudge" hidden>Une question ? Je suis là 👋</div>
     <button class="faq-fab" type="button" aria-label="Aide" aria-expanded="false" aria-controls="faq-panel">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg>
+      <img src="${ICON}" alt="" width="60" height="60">
     </button>
     <section class="faq-panel" id="faq-panel" role="dialog" aria-label="Aide KentraPix" hidden>
-      <header><div><strong>Besoin d’aide ?</strong><small>Réponses instantanées</small></div><button type="button" class="faq-x" aria-label="Fermer">×</button></header>
+      <header>
+        <img class="faq-logo" src="${ICON}" alt="" width="44" height="44">
+        <div><strong>Besoin d’aide ?</strong><small><i></i>Réponses instantanées</small></div>
+        <button type="button" class="faq-x" aria-label="Fermer">×</button>
+      </header>
       <div class="faq-log" id="faq-log" aria-live="polite"></div>
       <div class="faq-chips" id="faq-chips"></div>
       <form class="faq-form" id="faq-form"><input id="faq-in" type="text" placeholder="Posez votre question…" autocomplete="off" maxlength="120"><button type="submit" aria-label="Envoyer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button></form>
@@ -46,26 +52,39 @@ export function initFaq() {
   document.body.appendChild(root);
 
   const fab = root.querySelector('.faq-fab'), panel = root.querySelector('.faq-panel'), log = root.querySelector('#faq-log'),
-    chips = root.querySelector('#faq-chips'), form = root.querySelector('#faq-form'), input = root.querySelector('#faq-in');
+    chips = root.querySelector('#faq-chips'), form = root.querySelector('#faq-form'), input = root.querySelector('#faq-in'),
+    nudge = root.querySelector('#faq-nudge');
 
+  const scroll = () => { log.scrollTop = log.scrollHeight; };
   const say = (html, me) => {
     const b = document.createElement('div');
     b.className = 'faq-msg' + (me ? ' me' : '');
     if (me) b.textContent = html; else b.innerHTML = html;
     log.appendChild(b);
-    log.scrollTop = log.scrollHeight;
+    scroll();
   };
-  const answer = (f) => say(`<b>${f.q}</b><br>${f.a}`);
+  // Petite pause « en train d'écrire » avant chaque réponse : plus vivant qu'un affichage instantané.
+  const reply = (htmls) => {
+    const dots = document.createElement('div');
+    dots.className = 'faq-msg faq-typing';
+    dots.innerHTML = '<i></i><i></i><i></i>';
+    log.appendChild(dots);
+    scroll();
+    setTimeout(() => { dots.remove(); htmls.forEach((h) => say(h)); }, matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 550);
+  };
+  const answer = (f) => `<b>${f.q}</b><br>${f.a}`;
   const suggest = (list) => {
     chips.replaceChildren(...list.map((f) => {
       const c = document.createElement('button');
       c.type = 'button';
       c.textContent = f.q;
-      c.onclick = () => { say(f.q, true); answer(f); };
+      c.onclick = () => { say(f.q, true); reply([answer(f)]); };
       return c;
     }));
   };
+  const hideNudge = () => { nudge.hidden = true; };
   const open = (on) => {
+    hideNudge();
     panel.hidden = !on;
     fab.setAttribute('aria-expanded', String(on));
     fab.classList.toggle('on', on);
@@ -85,7 +104,15 @@ export function initFaq() {
     input.value = '';
     say(t, true);
     const found = search(t);
-    if (found.length) { found.forEach(answer); suggest(FAQ.filter((f) => !found.includes(f)).slice(0, 3)); }
-    else { say('Je n’ai pas trouvé de réponse précise. Essayez avec un autre mot, ou laissez un <b>commentaire</b> sur une photo : votre photographe vous répondra.'); suggest(FAQ.slice(0, 4)); }
+    if (found.length) { reply(found.map(answer)); suggest(FAQ.filter((f) => !found.includes(f)).slice(0, 3)); }
+    else { reply(['Je n’ai pas trouvé de réponse précise. Essayez avec un autre mot, ou laissez un <b>commentaire</b> sur une photo : votre photographe vous répondra.']); suggest(FAQ.slice(0, 4)); }
   };
+
+  // Bulle d'invitation, une seule fois par visite.
+  try {
+    if (!sessionStorage.getItem('kp-faq-nudge')) {
+      sessionStorage.setItem('kp-faq-nudge', '1');
+      setTimeout(() => { if (panel.hidden) { nudge.hidden = false; setTimeout(hideNudge, 6000); } }, 4000);
+    }
+  } catch (e) { /* stockage indisponible : pas de bulle */ }
 }
