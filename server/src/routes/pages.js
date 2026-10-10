@@ -11,7 +11,9 @@ const staff = (user) => ['owner', 'admin'].includes(user.role);
 const home = (user) => (staff(user) ? '/admin.html' : '/client.html');
 
 // En développement : pas de cache, chaque modification est visible tout de suite.
-const assetCache = { maxAge: config.isProd ? '1h' : 0 };
+// CSS et JS : le navigateur revérifie à chaque fois (réponse 304 très légère si rien n'a changé), pour qu'une mise à jour
+// du site s'affiche tout de suite au lieu de rester cachée plusieurs heures.
+const assetCache = { maxAge: 0, setHeaders: (res) => res.setHeader('Cache-Control', 'no-cache') };
 router.use('/css', express.static(path.join(frontendRoot, 'css'), assetCache));
 router.use('/logo', express.static(path.join(frontendRoot, 'logo'), { maxAge: '7d' }));
 router.use('/img', express.static(path.join(frontendRoot, 'img'), { maxAge: '7d' }));
