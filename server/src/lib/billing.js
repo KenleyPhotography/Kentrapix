@@ -36,6 +36,7 @@ export function mapInvoice(i, payments = []) {
     number: i.number,
     title: i.title,
     notes: i.notes || '',
+    paymentType: i.payment_type === 'cash' ? 'cash' : 'credit',
     currency: i.currency,
     total: Number(i.total),
     paid,

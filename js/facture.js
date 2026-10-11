@@ -11,6 +11,7 @@
   var METHOD = { especes: 'Espèces', moncash: 'MonCash', natcash: 'NatCash', virement: 'Virement', carte: 'Carte', cheque: 'Chèque', autre: 'Autre' };
   // Petites icônes de contact (traits, couleur du thème)
   var ICON = {
+    file: '<svg viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8Z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg>',
     phone: '<svg viewBox="0 0 24 24"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg>',
     chat: '<svg viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg>',
     mail: '<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>',
@@ -52,7 +53,7 @@
     sheet.innerHTML =
       '<header class="band">' +
         '<div class="brand"><img src="/logo/kentrapix-icon.svg" alt="" width="46" height="46"><div><b>Kentra<span>Pix</span></b><small>Galeries photo privées</small></div></div>' +
-        '<div class="docmeta"><h1>Facture</h1><p><strong>' + esc(f.number) + '</strong></p><p>Émise le ' + esc(day(f.issuedAt)) + '</p></div>' +
+        '<div class="docmeta"><h1><span class="fiche">' + ICON.file + '</span>Facture</h1><p><strong>' + esc(f.number) + '</strong></p><p>Émise le ' + esc(day(f.issuedAt)) + '</p></div>' +
       '</header>' +
       '<div class="body">' +
         (STAMP[f.status] ? '<div class="stamp ' + esc(f.status) + '">' + esc(STAMP[f.status]) + '</div>' : '') +
@@ -61,17 +62,13 @@
           (contacts ? '<ul class="contacts">' + contacts + '</ul>' : '') + '</section>' +
           '<section class="card to"><h2>Facturé à</h2><strong>' + esc(f.client.name) + '</strong>' + (f.event ? '<p>Galerie : ' + esc(f.event) + '</p>' : '') + '<p><span class="badge ' + esc(f.status) + '">' + esc(STATUS[f.status] || f.status) + '</span></p></section>' +
         '</div>' +
-        '<dl class="dates"><div><dt>Date d’émission</dt><dd>' + esc(day(f.issuedAt)) + '</dd></div><div><dt>Échéance</dt><dd>' + esc(day(f.dueDate)) + '</dd></div><div><dt>Numéro</dt><dd>' + esc(f.number) + '</dd></div></dl>' +
+        '<dl class="dates"><div><dt>Date d’émission</dt><dd>' + esc(day(f.issuedAt)) + '</dd></div><div><dt>Échéance</dt><dd>' + esc(day(f.dueDate)) + '</dd></div><div><dt>Paiement</dt><dd><span class="ptype ' + esc(f.paymentType) + '">' + (f.paymentType === 'cash' ? 'Cash' : 'Crédit') + '</span>' + (f.paymentType === 'credit' && f.paid > 0 ? ' · avance ' + esc(money(f.paid, cur)) : '') + '</dd></div></dl>' +
         '<table><thead><tr><th>Description</th><th class="num">Montant</th></tr></thead><tbody><tr><td>' + esc(f.title) + '</td><td class="num">' + esc(money(f.total, cur)) + '</td></tr></tbody></table>' +
         '<div class="totals"><div><span>Total</span><strong>' + esc(money(f.total, cur)) + '</strong></div><div><span>Déjà payé</span><span>' + esc(money(f.paid, cur)) + '</span></div>' +
         '<div class="due' + (f.balance <= 0 ? ' zero' : '') + '"><span>' + (f.balance <= 0 ? 'Facture réglée' : 'Reste à payer') + '</span><span>' + esc(money(Math.max(0, f.balance), cur)) + '</span></div></div>' +
         pays +
         (f.notes ? '<div class="notes">' + esc(f.notes) + '</div>' : '') +
-        '<div class="sign">' +
-          '<div><strong>Le photographe</strong><span>' + esc(person || s.name) + '</span><em>Date et signature</em></div>' +
-          '<div><strong>Le client</strong><span>' + esc(f.client.name) + ' — « Bon pour accord »</span><em>Date et signature</em></div>' +
-        '</div>' +
-      '</div>' +
-      '<footer class="foot"><span>' + esc(s.name) + (s.phone ? ' · ' + esc(s.phone) : '') + (s.email ? ' · ' + esc(s.email) : '') + '</span><span>Facture générée avec KentraPix</span></footer>';
+        '<div class="sign"><div><strong>Le photographe</strong><span>' + esc(person || s.name) + '</span><em>Date et signature</em></div></div>' +
+      '</div>';
   }
 })();

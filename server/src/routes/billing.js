@@ -61,10 +61,15 @@ const invoiceSchema = z.object({
   issuedAt: optionalDay,
   dueDate: optionalDay,
   notes: z.string().trim().max(1000, 'Notes trop longues (1000 caractères max).').optional().transform((v) => v || null),
+  // cash : payée en totalité tout de suite. credit : une avance (facultative) maintenant, le solde plus tard.
+  paymentType: z.enum(['cash', 'credit']).default('credit'),
+  advance: z.union([z.literal(''), z.literal(null), money]).optional().transform((v) => (v === '' || v == null ? 0 : v)),
+  advanceMethod: z.enum(METHODS).default('especes'),
 });
 
 billingRouter.post('/invoices', async (req, res) => {
   const data = invoiceSchema.parse(req.body);
+  if (data.paymentType === 'credit' && data.advance > data.amount) throw httpError(400, 'L’avance ne peut pas dépasser le total de la facture.');
   const [as, ap] = accountScope(req);
   const [client] = await query(`SELECT u.id FROM users u WHERE u.id = ? AND u.role = 'client' AND ${as}`, [data.clientId, ...ap]);
   if (!client) throw httpError(404, 'Client introuvable.');
@@ -78,16 +83,23 @@ billingRouter.post('/invoices', async (req, res) => {
     id = crypto.randomUUID();
     try {
       await query(
-        `INSERT INTO invoices (id, staff_id, client_id, event_id, number, title, notes, currency, total, issued_at, due_date, public_token)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, CURRENT_DATE), ?, ?)`,
-        [id, req.user.id, data.clientId, data.eventId, await nextNumber(req.user.id), data.title, data.notes, data.currency, data.amount, data.issuedAt, data.dueDate, newToken()],
+        `INSERT INTO invoices (id, staff_id, client_id, event_id, number, title, notes, currency, total, issued_at, due_date, public_token, payment_type)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, CURRENT_DATE), ?, ?, ?)`,
+        [id, req.user.id, data.clientId, data.eventId, await nextNumber(req.user.id), data.title, data.notes, data.currency, data.amount, data.issuedAt, data.dueDate, newToken(), data.paymentType],
       );
       break;
     } catch (err) {
       if (err.code !== '23505' || attempt === 4) throw err; // numéro déjà pris (deux créations en même temps) : on réessaie
     }
   }
-  audit(req, 'invoice.create', { entity: 'invoice', entityId: id, details: { client: data.clientId, amount: data.amount, currency: data.currency } });
+  // Cash : payée en totalité maintenant. Crédit : l'avance éventuelle est enregistrée comme premier paiement.
+  const first = data.paymentType === 'cash' ? data.amount : data.advance;
+  if (first > 0) {
+    await query('INSERT INTO payments (id, invoice_id, amount, method, paid_at, note) VALUES (?, ?, ?, ?, COALESCE(?, CURRENT_DATE), ?)', [
+      crypto.randomUUID(), id, first, data.advanceMethod, data.issuedAt, data.paymentType === 'cash' ? 'Paiement comptant' : 'Avance à la commande',
+    ]);
+  }
+  audit(req, 'invoice.create', { entity: 'invoice', entityId: id, details: { client: data.clientId, amount: data.amount, currency: data.currency, type: data.paymentType, advance: first } });
   res.status(201).json({ invoice: (await loadInvoice(req, id)).invoice });
 });
 
@@ -221,7 +233,7 @@ invoiceApi.get('/:token', async (req, res) => {
   const payments = await query('SELECT * FROM payments WHERE invoice_id = ? ORDER BY paid_at, created_at', [row.id]);
   const inv = mapInvoice(row, payments);
   res.set('Cache-Control', 'no-store').json({
-    number: inv.number, title: inv.title, notes: inv.notes, currency: inv.currency, total: inv.total, paid: inv.paid, balance: inv.balance,
+    number: inv.number, title: inv.title, notes: inv.notes, paymentType: inv.paymentType, currency: inv.currency, total: inv.total, paid: inv.paid, balance: inv.balance,
     status: inv.status, issuedAt: inv.issuedAt, dueDate: inv.dueDate, event: inv.eventName,
     client: { name: inv.client.name },
     payments: inv.payments.map((p) => ({ amount: p.amount, method: p.method, paidAt: p.paidAt })),

@@ -120,7 +120,8 @@ function invoiceCard(i) {
   const wa = waLink(num || i.client.phone, i.status === 'paid' ? invoiceText(i) : reminderText(i));
   const open = i.status !== 'cancelled' && i.status !== 'paid';
   return `<article class="inv-card ${i.status === 'overdue' ? 'is-late' : ''} ${i.status === 'cancelled' ? 'is-off' : ''}">
-    <header><div><strong>${escape(i.number)}</strong><span>${escape(i.title)}</span></div>${pill(i.status)}</header>
+    <header><span class="inv-ico">${icon('file')}</span><div><strong>${escape(i.number)}</strong><span>${escape(i.title)}</span></div>${pill(i.status)}</header>
+    <p class="inv-type"><span class="badge ${i.paymentType === 'cash' ? 'is-live' : 'is-draft'}">${i.paymentType === 'cash' ? 'Cash' : 'Crédit'}</span>${i.paymentType === 'credit' && i.paid > 0 ? `<span>Avance reçue : ${escape(money(i.paid, i.currency))}</span>` : ''}</p>
     <p class="inv-client">${icon('users')} ${escape(i.client.name)}${i.eventName ? ` · ${escape(i.eventName)}` : ''}</p>
     <dl class="inv-amounts"><div><dt>Total</dt><dd>${escape(money(i.total, i.currency))}</dd></div><div><dt>Payé</dt><dd>${escape(money(i.paid, i.currency))}</dd></div><div><dt>Solde</dt><dd class="${i.status === 'overdue' ? 'amt-late' : ''}">${escape(money(Math.max(0, i.balance), i.currency))}</dd></div></dl>
     <p class="inv-foot"><span>Échéance : ${fday(i.dueDate)}</span>${i.sentAt ? '<span>Envoyée par e-mail</span>' : ''}</p>
@@ -196,16 +197,23 @@ export async function bindBilling(c) {
       <label>Titre de la facture<input name="title" required maxlength="200" placeholder="Ex. Mariage — forfait complet"></label>
       <div class="row2"><label>Montant<input name="amount" type="number" min="0.01" step="0.01" required></label>
       <label>Devise<select name="currency">${Object.entries(CURRENCIES).map(([k, v]) => `<option value="${k}" ${k === currency ? 'selected' : ''}>${k} — ${v}</option>`).join('')}</select></label></div>
-      <label>Échéance <span class="optional">(facultatif)</span><input name="dueDate" type="date"></label>
+      <label>Type de paiement<select name="paymentType" id="inv-type"><option value="credit">Crédit — avance maintenant, solde plus tard</option><option value="cash">Cash — payé en totalité maintenant</option></select></label>
+      <div class="row2" id="inv-advance-row"><label>Avance reçue <span class="optional">(facultatif)</span><input name="advance" type="number" min="0" step="0.01" placeholder="0"></label>
+      <label>Mode de paiement<select name="advanceMethod">${Object.entries(METHODS).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select></label></div>
+      <label>Échéance du solde <span class="optional">(facultatif)</span><input name="dueDate" type="date"></label>
       <label>Notes <span class="optional">(visibles sur la facture)</span><input name="notes" maxlength="1000" placeholder="Ex. Acompte de 50 % à la réservation"></label>`,
     async (v) => {
-      const res = await api('/api/admin/invoices', { method: 'POST', body: { clientId: v.clientId, eventId: v.eventId || '', title: v.title, amount: v.amount, currency: v.currency, dueDate: v.dueDate || '', notes: v.notes || '' } });
+      const res = await api('/api/admin/invoices', { method: 'POST', body: { clientId: v.clientId, eventId: v.eventId || '', title: v.title, amount: v.amount, currency: v.currency, dueDate: v.dueDate || '', notes: v.notes || '', paymentType: v.paymentType, advance: v.paymentType === 'credit' ? (v.advance || '') : '', advanceMethod: v.advanceMethod } });
       await refreshAll();
       ctx.toast(`Facture ${res.invoice.number} créée.`);
     }, { submit: 'Créer la facture' });
     const sel = document.getElementById('inv-client'), ev = document.getElementById('inv-event');
     const filter = () => { ev.querySelectorAll('option[data-c]').forEach((o) => { o.hidden = o.dataset.c !== sel.value; o.disabled = o.hidden; }); if (ev.selectedOptions[0]?.disabled) ev.value = ''; };
     sel?.addEventListener('change', filter); filter();
+    // Cash : tout est payé maintenant ; Crédit : on peut noter une avance et l'échéance du solde.
+    const type = document.getElementById('inv-type'), adv = document.getElementById('inv-advance-row');
+    const sync = () => { const cash = type.value === 'cash'; adv.querySelector('label:first-child').hidden = cash; adv.querySelector('input').disabled = cash; };
+    type?.addEventListener('change', sync); sync();
   }
   function payModal(inv) {
     ctx.modal(`Paiement — ${inv.number}`, `

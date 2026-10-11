@@ -14,6 +14,10 @@ body{margin:0;padding:28px 12px 56px;font-family:Inter,system-ui,'Segoe UI',sans
 .brand b{font-size:24px;font-weight:800;letter-spacing:-.02em}.brand b span{color:#9cc6ff}
 .brand small{display:block;font-size:12px;letter-spacing:.14em;text-transform:uppercase;opacity:.8;font-weight:600}
 .docmeta{text-align:right}
+.docmeta h1 .fiche{display:inline-grid;vertical-align:middle;margin-right:10px;padding:8px;border-radius:12px;background:rgba(255,255,255,.16)}
+.docmeta h1 .fiche svg{width:26px;height:26px;fill:none;stroke:#fff;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.ptype{display:inline-block;padding:2px 10px;border-radius:99px;font-size:13px;font-weight:700;background:var(--sky);color:var(--blue)}
+.ptype.cash{background:#e6f4ec;color:var(--green)}
 .docmeta h1{margin:0;font-family:Fraunces,Georgia,serif;font-weight:500;font-size:clamp(30px,5vw,40px);letter-spacing:.02em;text-transform:uppercase}
 .docmeta p{margin:2px 0 0;font-size:14px;opacity:.92}.docmeta strong{font-size:16px}
 
@@ -56,8 +60,8 @@ h3{margin:28px 0 8px;font-size:12px;letter-spacing:.12em;text-transform:uppercas
 .notes{margin:22px 0 0;padding:14px 18px;border-left:4px solid var(--blue);border-radius:0 14px 14px 0;background:#f7f9fd;font-size:14px;line-height:1.6;white-space:pre-wrap}
 
 /* Zone de signatures */
-.sign{display:grid;grid-template-columns:1fr 1fr;gap:28px;margin-top:38px}
-.sign div{padding-top:70px;border-top:1.5px solid var(--ink)}
+.sign{display:grid;grid-template-columns:minmax(0,320px);gap:28px;margin-top:38px}
+.sign div{margin-top:64px;padding-top:8px;border-top:1.5px solid var(--ink)}
 .sign strong{display:block;color:var(--ink);font-size:14px}
 .sign span{display:block;margin-top:2px;font-size:12px;color:var(--muted)}
 .sign em{display:block;margin-top:14px;font-style:normal;font-size:12px;color:var(--muted)}

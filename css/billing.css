@@ -109,3 +109,9 @@
 [data-theme="dark"] .inv-card { background: rgba(14, 27, 46, 0.72); }
 [data-theme="dark"] .inv-amounts { background: rgba(28, 119, 238, 0.14); }
 .viz .legend svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+.inv-card header .inv-ico { flex: none; display: grid; place-items: center; width: 38px; height: 38px; border-radius: 12px; background: var(--blue-soft, #e8f1ff); color: var(--blue, #1265d8); }
+.inv-card header .inv-ico svg { width: 20px; height: 20px; }
+.inv-card header { align-items: center; }
+.inv-card header > div { flex: 1; }
+.inv-type { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 0; font-size: 0.8125rem; color: var(--muted, #64748b); }
