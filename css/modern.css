@@ -2203,14 +2203,12 @@ td.actions .btn.icon-btn + .btn.icon-btn { margin-left: 6px; }
 /* ==========================================================================
    Photos verrouillées par le photographe (N premières photos débloquées)
    ========================================================================== */
-.photo-tile.locked { position: relative; display: grid; place-content: center; justify-items: center; gap: 4px; min-height: 120px; overflow: hidden; background: linear-gradient(135deg, #0c4088, #1466d3); color: #fff; border-radius: var(--radius, 14px); cursor: pointer; transition: transform 0.15s, filter 0.15s; }
-.photo-tile.locked .lk-bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; filter: blur(2px) saturate(1.15); transform: scale(1.08); pointer-events: none; }
-.photo-tile.locked .lk-veil { position: absolute; inset: 0; background: linear-gradient(135deg, rgba(12, 64, 136, 0.34), rgba(20, 102, 211, 0.16)); pointer-events: none; }
-.photo-tile.locked > svg, .photo-tile.locked > span, .photo-tile.locked > small { position: relative; z-index: 1; text-shadow: 0 1px 6px rgba(0, 20, 70, 0.6); }
-.photo-tile.locked svg { width: 28px; height: 28px; opacity: 0.95; }
-.photo-tile.locked span { font-weight: 700; }
-.photo-tile.locked small { opacity: 0.8; font-size: 0.75rem; }
-.photo-tile.locked:hover { filter: brightness(1.1); transform: translateY(-2px); }
+.photo-tile.locked { position: relative; display: grid; place-content: center; justify-items: center; gap: 8px; min-height: 120px; overflow: hidden; background: #cfdcef; border-radius: var(--radius, 14px); cursor: not-allowed; transition: transform 0.15s; }
+.photo-tile.locked .lk-bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; pointer-events: none; user-select: none; } /* le flou est déjà dans l'image (niveau choisi par le photographe) */
+.photo-tile.locked .lk-badge { position: relative; z-index: 1; display: grid; place-items: center; width: 54px; height: 54px; border-radius: 50%; background: rgba(8, 36, 69, 0.62); box-shadow: 0 6px 18px rgba(0, 20, 70, 0.35); color: #fff; backdrop-filter: blur(2px); }
+.photo-tile.locked .lk-badge svg { width: 26px; height: 26px; stroke: #fff; }
+.photo-tile.locked .lk-num { position: relative; z-index: 1; padding: 2px 11px; border-radius: 99px; background: rgba(8, 36, 69, 0.62); color: #fff; font-size: 0.78rem; font-weight: 700; }
+.photo-tile.locked:hover { transform: translateY(-2px); }
 .lock-banner { display: flex; align-items: flex-start; gap: 12px; margin: 10px 0 14px; padding: 12px 16px; border: 1px solid var(--blue-line, #c4d9f7); border-radius: var(--radius-lg, 16px); background: var(--blue-soft, #e8f1ff); color: var(--ink, #082445); }
 .lock-banner svg { flex: none; width: 22px; height: 22px; margin-top: 2px; color: var(--blue, #1265d8); }
 .lock-banner div { display: grid; gap: 2px; }

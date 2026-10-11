@@ -26,12 +26,12 @@ async function visiblePhoto(req) {
 }
 
 /**
- * Photo verrouillée (« visible mais verrouillée ») : seulement une empreinte floue de 80 px de large, de quoi deviner les
- * couleurs derrière le cadenas — jamais la photo. Calculée une fois puis gardée (locks/<id>-2.webp).
+ * Photo verrouillée (« visible mais verrouillée ») : seulement une version réduite (320 px) et floue (niveau choisi par le photographe), de quoi deviner les
+ * couleurs derrière le cadenas — jamais la photo. Calculée une fois puis gardée (locks/<id>-b25.webp…).
  */
 router.get('/lockthumb/:id', async (req, res) => {
   const [photo] = await query(
-    `SELECT p.id, p.preview_key, p.thumb_key, p.event_id, e.client_id, e.created_by, e.expires_at, e.published, e.archived, e.lock_mode, e.unlock_limit, e.unlock_numbers,
+    `SELECT p.id, p.preview_key, p.thumb_key, p.event_id, e.client_id, e.created_by, e.expires_at, e.published, e.archived, e.lock_mode, e.lock_blur, e.unlock_limit, e.unlock_numbers,
        (SELECT COUNT(*) FROM photos q WHERE q.event_id = p.event_id
           AND (q.position < p.position OR (q.position = p.position AND q.created_at <= p.created_at))) AS number
      FROM photos p JOIN events e ON e.id = p.event_id WHERE p.id = ?`,
@@ -41,11 +41,13 @@ router.get('/lockthumb/:id', async (req, res) => {
   if (!photo || !canSeeEvent(req.user, photo) || seesEverything(req.user, photo) || photo.lock_mode === 'hidden' || !isLockedFor(photo, photo.number)) {
     throw httpError(404, 'Image introuvable.');
   }
-  const key = `locks/${photo.id}-2.webp`;
+  const sigma = Number(photo.lock_blur ?? 2.5);
+  const key = `locks/${photo.id}-b${Math.round(sigma * 10)}.webp`; // un fichier par niveau de flou
   if (!(await fileExists(key))) {
     const source = await readFile(photo.thumb_key || photo.preview_key);
-    await putFile(key, await sharp(source).rotate().resize({ width: 80 }).blur(2.5).webp({ quality: 50 }).toBuffer(), 'image/webp');
+    await putFile(key, await sharp(source).rotate().resize({ width: 320, withoutEnlargement: true }).blur(sigma).webp({ quality: 62 }).toBuffer(), 'image/webp');
   }
+  res.set('Cache-Control', 'private, max-age=300');
   await sendPrivate(res, key);
 });
 

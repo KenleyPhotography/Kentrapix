@@ -80,6 +80,7 @@ export const mapEvent = (e) => ({
   unlockNumbers: effectiveNumbers(e), // « 1-10, 15 », '' (aucune) ou null (toutes)
   lockMode: e.lock_mode || 'locked',
   lockReason: e.lock_reason || '',
+  lockBlur: Number(e.lock_blur ?? 2.5),
   music: e.music_key ? `/media/music/${e.id}?v=${e.music_key.split('/').pop().split('.')[0]}` : null,
 });
 

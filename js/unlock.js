@@ -54,6 +54,10 @@ export function unlockSection(e, photos) {
         <label>Photos non débloquées
           <select name="lockMode"><option value="locked" ${e.lockMode !== 'hidden' ? 'selected' : ''}>Visibles mais verrouillées</option><option value="hidden" ${e.lockMode === 'hidden' ? 'selected' : ''}>Cachées</option></select>
         </label>
+        <label>Flou des photos verrouillées
+          <select name="lockBlur"><option value="2.5" ${Number(e.lockBlur) === 2.5 || !e.lockBlur ? 'selected' : ''}>Léger (2.5) — on devine bien la photo</option><option value="6" ${Number(e.lockBlur) === 6 ? 'selected' : ''}>Moyen (6)</option><option value="12" ${Number(e.lockBlur) === 12 ? 'selected' : ''}>Fort (12) — presque illisible</option></select>
+          <small class="field-hint">Sert seulement aux photos « visibles mais verrouillées » : une version réduite et floue, jamais la vraie photo.</small>
+        </label>
         <label>Message pour le client <span class="optional">(facultatif)</span>
           <input name="lockReason" maxlength="300" value="${escape(e.lockReason || '')}" placeholder="Ex. Disponibles après le paiement du solde">
           <small class="field-hint">Explique au client pourquoi il ne peut pas ouvrir les autres photos.</small>

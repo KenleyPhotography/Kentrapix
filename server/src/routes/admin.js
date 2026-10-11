@@ -21,6 +21,7 @@ import { requireStaff, requireOwner, STAFF_ROLES, requireStudio } from '../middl
 import { freshCode } from '../lib/accessCode.js';
 import { scanOrphans, cleanOrphans } from '../lib/cleanup.js';
 import { normalizeNumbers } from '../lib/unlock.js';
+const LOCK_LEVELS = [2.5, 6, 12]; // niveaux de flou proposés pour les photos verrouillées
 import { isOwner, accountScope, eventScope } from '../lib/scope.js';
 import { billingRouter } from './billing.js';
 import { config } from '../config.js';
@@ -417,6 +418,7 @@ const eventPatchSchema = eventSchema
     unlockMode: z.enum(['all', 'some']),
     unlockNumbers: z.string().trim().max(2000, 'Liste de numéros trop longue.'),
     lockMode: z.enum(['locked', 'hidden']),
+    lockBlur: z.enum(['2.5', '6', '12']).transform(Number),
     lockReason: z.string().trim().max(300, 'Message trop long (300 caractères max).').transform((v) => v || null),
   })
   .partial();
@@ -436,7 +438,7 @@ router.patch('/events/:id', upload.single('coverFile'), async (req, res) => {
   } else if (data.unlockLimit !== undefined) unlock = { limit: data.unlockLimit, numbers: null };
   await query(
     `UPDATE events SET client_id = ?, name = ?, type = ?, event_date = ?, location = ?, description = ?,
-       cover_key = ?, published = ?, allow_download = ?, archived = ?, selection_mode = ?, selection_limit = ?, unlock_limit = ?, unlock_numbers = ?, lock_mode = ?, lock_reason = ?,
+       cover_key = ?, published = ?, allow_download = ?, archived = ?, selection_mode = ?, selection_limit = ?, unlock_limit = ?, unlock_numbers = ?, lock_mode = ?, lock_reason = ?, lock_blur = ?,
        published_at = CASE WHEN ? = 1 AND published_at IS NULL THEN CURRENT_TIMESTAMP ELSE published_at END,
        expiry_notified_at = CASE WHEN expires_at IS NOT DISTINCT FROM ? THEN expiry_notified_at END, expires_at = ? WHERE id = ?`,
     [
@@ -452,6 +454,7 @@ router.patch('/events/:id', upload.single('coverFile'), async (req, res) => {
       unlock.numbers,
       data.lockMode ?? event.lock_mode ?? 'locked',
       data.lockReason !== undefined ? data.lockReason : event.lock_reason,
+      data.lockBlur ?? Number(event.lock_blur ?? 2.5),
       published ? 1 : 0, // première publication : notification « nouvelle galerie »
       // Nouvelle date d'expiration : le rappel « 7 jours » pourra repartir.
       keep(data, event, 'expiresAt', 'expires_at'), keep(data, event, 'expiresAt', 'expires_at'),
@@ -730,7 +733,7 @@ async function deletePhotos(photos, { background = false } = {}) {
     // Couverture tirée d'une de ces photos : la galerie revient à « sans couverture ».
     await query(`UPDATE events SET cover_key = NULL WHERE cover_key IN (${inList(chunkPhotos)})`, chunkPhotos.map((p) => p.preview_key));
     await query(`DELETE FROM photos WHERE id IN (${inList(chunk)})`, chunk); // favoris, commentaires, visages : ON DELETE CASCADE
-    keys.push(...chunkPhotos.flatMap((p) => [p.original_key, p.preview_key, p.thumb_key, `locks/${p.id}-2.webp`]));
+    keys.push(...chunkPhotos.flatMap((p) => [p.original_key, p.preview_key, p.thumb_key, ...LOCK_LEVELS.map((s) => `locks/${p.id}-b${Math.round(s * 10)}.webp`)]));
   }
   const files = async () => {
     for (let i = 0; i < keys.length; i += 50) await removeKeys(keys.slice(i, i + 50));
