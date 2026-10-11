@@ -730,7 +730,7 @@ async function deletePhotos(photos, { background = false } = {}) {
     // Couverture tirée d'une de ces photos : la galerie revient à « sans couverture ».
     await query(`UPDATE events SET cover_key = NULL WHERE cover_key IN (${inList(chunkPhotos)})`, chunkPhotos.map((p) => p.preview_key));
     await query(`DELETE FROM photos WHERE id IN (${inList(chunk)})`, chunk); // favoris, commentaires, visages : ON DELETE CASCADE
-    keys.push(...chunkPhotos.flatMap((p) => [p.original_key, p.preview_key, p.thumb_key]));
+    keys.push(...chunkPhotos.flatMap((p) => [p.original_key, p.preview_key, p.thumb_key, `locks/${p.id}-2.webp`]));
   }
   const files = async () => {
     for (let i = 0; i < keys.length; i += 50) await removeKeys(keys.slice(i, i + 50));

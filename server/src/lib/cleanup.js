@@ -28,6 +28,7 @@ export async function findOrphans() {
     .filter((f) => {
       if (REFERENCED_FOLDERS.includes(f.folder)) return !used.has(f.key);
       if (f.folder === 'watermarks') return !photoIds.has(f.key.split('/')[1]?.slice(0, 36)); // watermarks/<id photo>-…
+      if (f.folder === 'locks') return !photoIds.has(f.key.split('/')[1]?.slice(0, 36)); // locks/<id photo>.webp
       return f.folder === 'faces' || f.folder === 'tmp'; // anciennes miniatures de visages, restes d'imports
     });
 }

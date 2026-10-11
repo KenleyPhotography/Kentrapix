@@ -2203,7 +2203,10 @@ td.actions .btn.icon-btn + .btn.icon-btn { margin-left: 6px; }
 /* ==========================================================================
    Photos verrouillées par le photographe (N premières photos débloquées)
    ========================================================================== */
-.photo-tile.locked { display: grid; place-content: center; justify-items: center; gap: 4px; min-height: 120px; background: linear-gradient(135deg, #0c4088, #1466d3); color: #fff; border-radius: var(--radius, 14px); cursor: pointer; transition: transform 0.15s, filter 0.15s; }
+.photo-tile.locked { position: relative; display: grid; place-content: center; justify-items: center; gap: 4px; min-height: 120px; overflow: hidden; background: linear-gradient(135deg, #0c4088, #1466d3); color: #fff; border-radius: var(--radius, 14px); cursor: pointer; transition: transform 0.15s, filter 0.15s; }
+.photo-tile.locked .lk-bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; filter: blur(2px) saturate(1.15); transform: scale(1.08); pointer-events: none; }
+.photo-tile.locked .lk-veil { position: absolute; inset: 0; background: linear-gradient(135deg, rgba(12, 64, 136, 0.34), rgba(20, 102, 211, 0.16)); pointer-events: none; }
+.photo-tile.locked > svg, .photo-tile.locked > span, .photo-tile.locked > small { position: relative; z-index: 1; text-shadow: 0 1px 6px rgba(0, 20, 70, 0.6); }
 .photo-tile.locked svg { width: 28px; height: 28px; opacity: 0.95; }
 .photo-tile.locked span { font-weight: 700; }
 .photo-tile.locked small { opacity: 0.8; font-size: 0.75rem; }

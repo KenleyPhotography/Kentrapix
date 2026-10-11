@@ -20,7 +20,7 @@ import { httpError } from './errors.js';
 //    elles ne sont jamais enregistrées sur ce serveur ;
 //  - local : photos dans STORAGE_DIR.
 // Les clés sont identiques dans les deux modes : 'originals/…', 'previews/…', 'covers/…', etc.
-const FOLDERS = ['originals', 'previews', 'thumbs', 'covers', 'avatars', 'watermarks', 'music', 'tmp'];
+const FOLDERS = ['originals', 'previews', 'thumbs', 'covers', 'avatars', 'watermarks', 'locks', 'music', 'tmp'];
 // Sans cache libvips : sinon Windows garde les images ouvertes et refuse de les supprimer (EBUSY).
 sharp.cache(false);
 // Un seul fil de traitement d'image en production : moins de mémoire utilisée en même temps (petit hébergement).

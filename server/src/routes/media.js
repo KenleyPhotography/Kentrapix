@@ -1,7 +1,8 @@
 import { Router } from 'express';
 import { query } from '../db.js';
 import { httpError } from '../lib/errors.js';
-import { sendPrivate, watermarkedPreview, makeThumb } from '../lib/storage.js';
+import sharp from 'sharp';
+import { sendPrivate, watermarkedPreview, makeThumb, fileExists, readFile, putFile } from '../lib/storage.js';
 import { uuid, canSeeEvent, isLockedFor, seesEverything, LOCK_DEFAULT_REASON } from '../lib/data.js';
 import { requireAuth, blockPending } from '../middleware/auth.js';
 
@@ -23,6 +24,30 @@ async function visiblePhoto(req) {
   if (!seesEverything(req.user, photo) && isLockedFor(photo, photo.number)) throw httpError(403, photo.lock_reason || LOCK_DEFAULT_REASON);
   return photo;
 }
+
+/**
+ * Photo verrouillée (« visible mais verrouillée ») : seulement une empreinte floue de 80 px de large, de quoi deviner les
+ * couleurs derrière le cadenas — jamais la photo. Calculée une fois puis gardée (locks/<id>-2.webp).
+ */
+router.get('/lockthumb/:id', async (req, res) => {
+  const [photo] = await query(
+    `SELECT p.id, p.preview_key, p.thumb_key, p.event_id, e.client_id, e.created_by, e.expires_at, e.published, e.archived, e.lock_mode, e.unlock_limit, e.unlock_numbers,
+       (SELECT COUNT(*) FROM photos q WHERE q.event_id = p.event_id
+          AND (q.position < p.position OR (q.position = p.position AND q.created_at <= p.created_at))) AS number
+     FROM photos p JOIN events e ON e.id = p.event_id WHERE p.id = ?`,
+    [uuid.parse(req.params.id)],
+  );
+  // Seulement pour une photo réellement verrouillée en mode « visible mais verrouillée » ; sinon, rien à montrer ici.
+  if (!photo || !canSeeEvent(req.user, photo) || seesEverything(req.user, photo) || photo.lock_mode === 'hidden' || !isLockedFor(photo, photo.number)) {
+    throw httpError(404, 'Image introuvable.');
+  }
+  const key = `locks/${photo.id}-2.webp`;
+  if (!(await fileExists(key))) {
+    const source = await readFile(photo.thumb_key || photo.preview_key);
+    await putFile(key, await sharp(source).rotate().resize({ width: 80 }).blur(2.5).webp({ quality: 50 }).toBuffer(), 'image/webp');
+  }
+  await sendPrivate(res, key);
+});
 
 // Mode sélection : le client ne reçoit qu'une version filigranée et numérotée (l'équipe voit l'original).
 const mustWatermark = (user, photo) =>

@@ -99,7 +99,7 @@ export const seesEverything = (user, e) => user.role === 'owner' || (user.role =
 export const LOCK_DEFAULT_REASON = 'Votre photographe n’a pas encore débloqué ces photos.';
 
 export const mapPhoto = (p) => (p.__locked ? {
-  id: p.id, eventId: p.event_id, album: '', filename: '', preview: null, thumb: null,
+  id: p.id, eventId: p.event_id, album: '', filename: '', preview: null, thumb: null, lockThumb: `/media/lockthumb/${p.id}`,
   width: p.width, height: p.height, size: 0, commentCount: 0, number: Number(p.number || 0), locked: true,
 } : {
   id: p.id,
