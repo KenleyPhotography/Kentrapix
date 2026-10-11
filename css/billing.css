@@ -117,3 +117,29 @@
 .inv-type { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 0; font-size: 0.8125rem; color: var(--muted, #64748b); }
 .inv-type .badge { display: inline-flex; align-items: center; gap: 6px; }
 .inv-type .badge svg { width: 14px; height: 14px; }
+
+/* ---------- Import des photos : bloc de progression visible sur toutes les pages du studio ---------- */
+#upload-dock { position: fixed; right: 16px; bottom: 16px; z-index: 70; width: min(360px, calc(100vw - 24px)); max-height: 60vh; display: flex; flex-direction: column; background: var(--surface, #fff); border: 1px solid var(--border, #e0eaf8); border-radius: 18px; box-shadow: 0 24px 60px -20px rgba(8, 36, 69, 0.5); overflow: hidden; animation: ud-in 0.25s ease; }
+@keyframes ud-in { from { opacity: 0; transform: translateY(12px); } }
+#upload-dock header { display: flex; align-items: center; gap: 8px; padding: 12px 14px; color: #fff; background: linear-gradient(120deg, #0c4088, #1265d8); }
+#upload-dock header > div { flex: 1; min-width: 0; }
+#upload-dock header strong { display: block; font-size: 0.95rem; }
+#upload-dock header span { font-size: 0.78rem; opacity: 0.92; }
+#upload-dock header button { width: 28px; height: 28px; border: 0; border-radius: 50%; background: rgba(255, 255, 255, 0.2); color: #fff; font-size: 16px; line-height: 1; cursor: pointer; }
+#upload-dock header button:hover { background: rgba(255, 255, 255, 0.34); }
+#upload-dock .ud-bar { height: 4px; background: var(--blue-soft, #e8f1ff); }
+#upload-dock .ud-bar i { display: block; height: 100%; width: 0; background: var(--blue, #1265d8); transition: width 0.4s ease; }
+#upload-dock.is-idle .ud-bar i { background: #13804b; }
+#ud-list { overflow: auto; padding: 8px; display: grid; gap: 6px; scrollbar-width: thin; }
+#upload-dock .upload-row { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid var(--border, #e0eaf8); border-radius: 12px; background: var(--surface, #fff); }
+#upload-dock .upload-row .progress { flex: 1; min-width: 0; }
+#upload-dock .upload-row strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.8125rem; color: var(--ink, #082445); }
+#upload-dock .upload-row p { margin: 1px 0 4px; font-size: 0.75rem; color: var(--muted, #64748b); }
+#upload-dock .upload-row .btn { padding: 4px 10px; font-size: 0.75rem; }
+#upload-dock .upload-row[data-state="done"] { border-color: #bfe3cf; }
+#upload-dock .upload-row[data-state="fail"] { border-color: #f3c2c2; }
+#upload-dock.is-collapsed #ud-list { display: none; }
+[data-theme="dark"] #upload-dock { background: #0e1b2e; border-color: #1d3253; }
+[data-theme="dark"] #upload-dock .upload-row { background: #13243b; border-color: #1d3253; }
+@media (max-width: 800px) { #upload-dock { right: 12px; bottom: calc(88px + env(safe-area-inset-bottom)); } }
+@media (prefers-reduced-motion: reduce) { #upload-dock { animation: none; } }

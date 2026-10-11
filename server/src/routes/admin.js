@@ -140,9 +140,19 @@ async function findOwnClient(req, id) {
   return client;
 }
 
+// Mot de passe TEMPORAIRE (remplacé à la première connexion) : coût de hachage 10, ~4 fois plus rapide que 12
+// (le serveur gratuit est lent). Le mot de passe choisi par la personne, lui, garde le coût 12.
+const TEMP_COST = 10;
+
+/** Envoie un e-mail en arrière-plan : la réponse part tout de suite (l'envoi prend ~1 s). */
+const queueMail = (promise) => {
+  Promise.resolve(promise).catch((err) => console.error('E-mail :', err.message));
+  return { status: 'queued', error: null };
+};
+
 async function createAccount(req, role, data) {
   const id = crypto.randomUUID();
-  const hash = await bcrypt.hash(data.password, BCRYPT_COST);
+  const hash = await bcrypt.hash(data.password, TEMP_COST);
   // Mot de passe temporaire : à changer à la première connexion. Un membre de l'équipe reçoit un code d'accès.
   await query(
     `INSERT INTO users (id, role, created_by, name, email, phone, whatsapp, password_hash, must_change_password, access_code)
@@ -153,7 +163,7 @@ async function createAccount(req, role, data) {
 }
 
 async function setTemporaryPassword(account, password) {
-  const hash = await bcrypt.hash(password, BCRYPT_COST);
+  const hash = await bcrypt.hash(password, TEMP_COST);
   await query(
     'UPDATE users SET password_hash = ?, must_change_password = 1, token_version = token_version + 1 WHERE id = ?',
     [hash, account.id],
@@ -165,7 +175,7 @@ router.post('/clients', async (req, res) => {
   const data = accountSchema.extend({ password: passwordRule, sendEmail: sendFlag }).parse(req.body);
   const client = await createAccount(req, 'client', data);
   audit(req, 'client.create', { entity: 'user', entityId: client.id, details: { email: data.email } });
-  const email = data.sendEmail ? await mailTo(req, client, welcomeEmail({ ...client, password: data.password, studio: studioName(req) }), { kind: 'welcome' }) : null;
+  const email = data.sendEmail ? queueMail(mailTo(req, client, welcomeEmail({ ...client, password: data.password, studio: studioName(req) }), { kind: 'welcome' })) : null;
   res.status(201).json({ client: mapClient(client), email });
 });
 
@@ -252,7 +262,7 @@ router.post('/team', requireOwner, async (req, res) => {
   const data = accountSchema.extend({ password: passwordRule, sendEmail: sendFlag }).parse(req.body);
   const admin = await createAccount(req, 'admin', data);
   audit(req, 'team.create', { entity: 'user', entityId: admin.id, details: { email: data.email } });
-  const email = data.sendEmail ? await mailTo(req, admin, adminInviteEmail({ ...admin, password: data.password }), { kind: 'admin_invite' }) : null;
+  const email = data.sendEmail ? queueMail(mailTo(req, admin, adminInviteEmail({ ...admin, password: data.password }), { kind: 'admin_invite' })) : null;
   res.status(201).json({ account: mapClient(admin), email });
 });
 
