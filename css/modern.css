@@ -2214,3 +2214,22 @@ td.actions .btn.icon-btn + .btn.icon-btn { margin-left: 6px; }
 .lock-banner span { color: var(--text, #172b46); font-size: var(--text-sm, 14px); line-height: 1.45; }
 [data-theme="dark"] .lock-banner { background: rgba(28, 119, 238, 0.14); border-color: rgba(28, 119, 238, 0.35); color: #fff; }
 [data-theme="dark"] .lock-banner span { color: #cfe0fb; }
+
+/* ==========================================================================
+   Ordinateur : barre de défilement visible au bord de la page et dans le menu bleu
+   (sur téléphone elles restent cachées : le doigt suffit).
+   ========================================================================== */
+@media (min-width: 801px) {
+  html { scrollbar-width: thin; scrollbar-color: var(--blue-line) transparent; }
+  html::-webkit-scrollbar { display: block; width: 12px; height: 12px; }
+  html::-webkit-scrollbar-track { background: transparent; }
+  html::-webkit-scrollbar-thumb { background: var(--blue-line); border-radius: 99px; border: 3px solid transparent; background-clip: content-box; }
+  html::-webkit-scrollbar-thumb:hover { background: var(--blue); background-clip: content-box; }
+  .sidebar { overflow-y: auto; scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.45) transparent; }
+  .sidebar::-webkit-scrollbar { display: block; width: 8px; }
+  .sidebar::-webkit-scrollbar-track { background: transparent; }
+  .sidebar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.4); border-radius: 99px; }
+  .sidebar::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.7); }
+}
+[data-theme="dark"] html { scrollbar-color: #2a4a78 transparent; }
+[data-theme="dark"] html::-webkit-scrollbar-thumb { background: #2a4a78; background-clip: content-box; }
