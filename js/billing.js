@@ -77,6 +77,10 @@ const currencyChips = () => {
 // ====================================================================================================
 const head = (title, actions = '') => `<header class="page-head"><h1>${title}</h1>${actions ? `<div class="page-actions">${actions}</div>` : ''}</header>`;
 const btn = (label, attr, ico = '', cls = '') => `<button class="btn sm ${cls}" ${attr}>${ico ? icon(ico) : ''}${label}</button>`;
+const CH = { email: 'e-mail', whatsapp: 'WhatsApp', call: 'appel', sms: 'SMS' };
+const fstamp = (iso) => (iso ? new Date(iso).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '');
+const logsOf = (id) => (bill.reminderLog || []).filter((l) => l.invoiceId === id && l.status === 'sent');
+const lastRem = (i) => { const l = logsOf(i.id)[0]; return l ? `<span>Dernier rappel : ${CH[l.channel] || l.channel}, ${fstamp(l.at)} (${logsOf(i.id).length} au total)</span>` : ''; };
 const ibtn = (label, attr, ico, cls = '') => `<button type="button" class="btn sm icon-btn ${cls}" ${attr} title="${label}" aria-label="${label}" data-tip="${label}">${icon(ico)}</button>`;
 const alink = (label, href, ico, cls = '') => `<a class="btn sm icon-btn ${cls}" href="${escape(href)}" target="_blank" rel="noopener noreferrer" title="${label}" aria-label="${label}" data-tip="${label}">${icon(ico)}</a>`;
 
@@ -124,8 +128,8 @@ function invoiceCard(i) {
     <p class="inv-type"><span class="badge ${i.paymentType === 'cash' ? 'is-live' : 'is-draft'}">${icon(i.paymentType === 'cash' ? 'cash' : 'card')} ${i.paymentType === 'cash' ? 'Cash' : 'Crédit'}</span>${i.paymentType === 'credit' && i.paid > 0 ? `<span>Avance reçue : ${escape(money(i.paid, i.currency))}</span>` : ''}</p>
     <p class="inv-client">${icon('users')} ${escape(i.client.name)}${i.eventName ? ` · ${escape(i.eventName)}` : ''}</p>
     <dl class="inv-amounts"><div><dt>Total</dt><dd>${escape(money(i.total, i.currency))}</dd></div><div><dt>Payé</dt><dd>${escape(money(i.paid, i.currency))}</dd></div><div><dt>Solde</dt><dd class="${i.status === 'overdue' ? 'amt-late' : ''}">${escape(money(Math.max(0, i.balance), i.currency))}</dd></div></dl>
-    <p class="inv-foot"><span>Échéance : ${fday(i.dueDate)}</span>${i.sentAt ? '<span>Envoyée par e-mail</span>' : ''}</p>
-    <div class="actions">${alink('Voir la facture', i.url, 'eye')}${open ? ibtn('Enregistrer un paiement', `data-pay="${i.id}"`, 'check') : ''}${i.status !== 'cancelled' ? ibtn('Envoyer par e-mail', `data-send="${i.id}"`, 'send') : ''}${open ? ibtn('Rappel par e-mail', `data-remind="${i.id}"`, 'mail') : ''}${wa ? alink('WhatsApp', wa, 'chat') : ''}${ibtn('Gérer', `data-manage-invoice="${i.id}"`, 'more')}</div>
+    <p class="inv-foot"><span>Échéance : ${fday(i.dueDate)}</span>${i.sentAt ? '<span>Envoyée par e-mail</span>' : ''}${lastRem(i)}</p>
+    <div class="actions">${alink('Voir la facture', i.url, 'eye')}${open ? ibtn('Enregistrer un paiement', `data-pay="${i.id}"`, 'check') : ''}${i.status !== 'cancelled' ? ibtn('Envoyer par e-mail', `data-send="${i.id}"`, 'send') : ''}${open ? ibtn('Rappel par e-mail', `data-remind="${i.id}"`, 'mail') : ''}${wa ? alink('WhatsApp', wa, 'chat').replace('<a ', `<a data-wa-log="${i.id}" `) : ''}${ibtn('Gérer', `data-manage-invoice="${i.id}"`, 'more')}</div>
   </article>`;
 }
 
@@ -139,14 +143,16 @@ function reminderSection() {
     const d = daysBetween(today, i.dueDate);
     const when = d > 0 ? `en retard de ${d} jour${d > 1 ? 's' : ''}` : d === 0 ? 'échéance aujourd’hui' : `échéance dans ${-d} jour${d < -1 ? 's' : ''}`;
     const wa = waLink(i.client.whatsapp, reminderText(i));
-    return `<li class="rem-row ${d > 0 ? 'is-late' : ''}"><span class="rem-ico">${icon(d > 0 ? 'bell' : 'clock')}</span><div><strong>${escape(i.client.name)}</strong><span>${escape(i.number)} · reste ${escape(money(i.balance, i.currency))} · ${when}</span></div><div class="actions">${wa ? alink('WhatsApp', wa, 'chat') : ''}${ibtn('Rappel par e-mail', `data-remind="${i.id}"`, 'mail')}</div></li>`;
+    return `<li class="rem-row ${d > 0 ? 'is-late' : ''}"><span class="rem-ico">${icon(d > 0 ? 'bell' : 'clock')}</span><div><strong>${escape(i.client.name)}</strong><span>${escape(i.number)} · reste ${escape(money(i.balance, i.currency))} · ${when}</span></div><div class="actions">${wa ? alink('WhatsApp', wa, 'chat').replace('<a ', `<a data-wa-log="${i.id}" `) : ''}${ibtn('Rappel par e-mail', `data-remind="${i.id}"`, 'mail')}</div></li>`;
   }).join('');
   const ownHtml = own.map((r) => {
     const late = !r.done && r.dueAt < today;
     return `<li class="rem-row ${r.done ? 'is-done' : ''} ${late ? 'is-late' : ''}"><label class="rem-check"><input type="checkbox" data-rem-done="${r.id}" ${r.done ? 'checked' : ''} aria-label="Terminé"></label><div><strong>${escape(r.title)}</strong><span>${fday(r.dueAt)}${r.clientName ? ` · ${escape(r.clientName)}` : ''}${late ? ' · en retard' : ''}</span></div><div class="actions">${ibtn('Supprimer', `data-rem-del="${r.id}"`, 'trash')}</div></li>`;
   }).join('');
+  const hist = (bill.reminderLog || []).slice(0, 8).map((l) => { const inv = bill.invoices.find((x) => x.id === l.invoiceId); return `<li class="rem-row is-done"><span class="rem-ico">${icon(l.channel === 'email' ? 'mail' : 'chat')}</span><div><strong>${escape(inv?.client.name || 'Client')}</strong><span>${escape(inv?.number || '')} · rappel par ${CH[l.channel] || l.channel}${l.status === 'failed' ? ' (échec)' : ''} · ${fstamp(l.at)}</span></div></li>`; }).join('');
   return `<section class="settings bill-block"><h2>Rappels</h2>
-    ${autoHtml || ownHtml ? `<ul class="rem-list">${autoHtml}${ownHtml}</ul>` : '<div class="empty small"><p>Aucun rappel. Les factures en retard ou bientôt échues apparaissent ici automatiquement.</p></div>'}</section>`;
+    ${autoHtml || ownHtml ? `<ul class="rem-list">${autoHtml}${ownHtml}</ul>` : '<div class="empty small"><p>Aucun rappel. Les factures en retard ou bientôt échues apparaissent ici automatiquement.</p></div>'}
+    ${hist ? `<details class="acc"><summary><span>Rappels envoyés</span><small>${bill.reminderLog.length}</small></summary><ul class="acc-body rem-list">${hist}</ul></details>` : ''}</section>`;
 }
 
 export async function bindBilling(c) {
@@ -178,6 +184,7 @@ export async function bindBilling(c) {
       if (!confirm(`Envoyer un rappel de paiement à ${inv.client.name} (reste ${money(inv.balance, inv.currency)}) ?`)) return;
       b.disabled = true; const res = await api(`/api/admin/invoices/${inv.id}/remind`, { method: 'POST' }); mailResult(res, 'Rappel envoyé par e-mail.'); await refreshAll();
     }); });
+    r.querySelectorAll('[data-wa-log]').forEach((a) => { a.addEventListener('click', () => { api(`/api/admin/invoices/${a.dataset.waLog}/reminded`, { method: 'POST', body: { channel: 'whatsapp' } }).then(refreshAll).catch(() => {}); }); });
     r.querySelectorAll('[data-new-invoice-for]').forEach((b) => { b.onclick = () => invoiceModal(b.dataset.newInvoiceFor); });
     r.querySelectorAll('[data-rem-done]').forEach((b) => { b.onchange = act(async () => { await api(`/api/admin/reminders/${b.dataset.remDone}`, { method: 'PATCH', body: { done: b.checked } }); await refreshAll(); }); });
     r.querySelectorAll('[data-rem-del]').forEach((b) => { b.onclick = act(async () => { await api(`/api/admin/reminders/${b.dataset.remDel}`, { method: 'DELETE' }); await refreshAll(); }); });

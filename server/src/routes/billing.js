@@ -32,19 +32,21 @@ async function loadInvoice(req, id) {
 
 // ---------- Tout d'un coup : factures + paiements + rappels ----------
 billingRouter.get('/billing', async (req, res) => {
-  const [rows, payments, reminders] = await Promise.all([
+  const [rows, payments, reminders, log] = await Promise.all([
     query(`${INVOICE_SELECT} WHERE i.staff_id = ? ORDER BY i.issued_at DESC, i.created_at DESC`, [req.user.id]),
     query('SELECT p.* FROM payments p JOIN invoices i ON i.id = p.invoice_id WHERE i.staff_id = ? ORDER BY p.paid_at, p.created_at', [req.user.id]),
     query(
       `SELECT r.*, u.name AS client_name FROM reminders r LEFT JOIN users u ON u.id = r.client_id
        WHERE r.staff_id = ? ORDER BY r.done, r.due_at`, [req.user.id],
     ),
+    query('SELECT id, invoice_id, channel, status, created_at FROM reminder_log WHERE staff_id = ? ORDER BY created_at DESC LIMIT 100', [req.user.id]),
   ]);
   const byInvoice = {};
   for (const p of payments) (byInvoice[p.invoice_id] ??= []).push(p);
   res.json({
     today: today(),
     invoices: rows.map((i) => mapInvoice(i, byInvoice[i.id] || [])),
+    reminderLog: log.map((l) => ({ id: l.id, invoiceId: l.invoice_id, channel: l.channel, status: l.status, at: `${String(l.created_at).replace(' ', 'T')}Z` })),
     reminders: reminders.map((r) => ({
       id: r.id, title: r.title, dueAt: String(r.due_at).slice(0, 10), done: !!r.done, clientId: r.client_id, clientName: r.client_name || '', invoiceId: r.invoice_id,
     })),
@@ -165,6 +167,19 @@ billingRouter.delete('/payments/:id', async (req, res) => {
   res.json({ invoice: (await loadInvoice(req, p.invoice_id)).invoice });
 });
 
+// ---------- Historique des rappels de paiement (e-mail, WhatsApp, appel) ----------
+async function logReminder(staffId, invoiceId, channel, status = 'sent') {
+  await query('INSERT INTO reminder_log (id, staff_id, invoice_id, channel, status) VALUES (?, ?, ?, ?, ?)', [crypto.randomUUID(), staffId, invoiceId, channel, status]);
+  if (status === 'sent') await query('UPDATE invoices SET reminded_at = CURRENT_TIMESTAMP WHERE id = ?', [invoiceId]);
+}
+// WhatsApp et appel se font hors du site : le photographe enregistre le rappel d'un clic.
+billingRouter.post('/invoices/:id/reminded', async (req, res) => {
+  const { channel } = z.object({ channel: z.enum(['whatsapp', 'call', 'sms']) }).parse(req.body);
+  const { row } = await loadInvoice(req, req.params.id);
+  await logReminder(req.user.id, row.id, channel);
+  res.json({ invoice: (await loadInvoice(req, row.id)).invoice });
+});
+
 // ---------- Envoi par e-mail : facture et rappel de paiement ----------
 async function mailInvoice(req, res, kind, template) {
   const { row, invoice } = await loadInvoice(req, req.params.id);
@@ -177,6 +192,7 @@ async function mailInvoice(req, res, kind, template) {
   if (email.status === 'sent') {
     await query(`UPDATE invoices SET ${kind === 'invoice' ? 'sent_at' : 'reminded_at'} = CURRENT_TIMESTAMP WHERE id = ?`, [row.id]);
   }
+  if (kind === 'invoice_reminder') await logReminder(req.user.id, row.id, 'email', email.status === 'sent' ? 'sent' : 'failed');
   audit(req, kind === 'invoice' ? 'invoice.send' : 'invoice.remind', { entity: 'invoice', entityId: row.id, details: { status: email.status } });
   res.json({ email, invoice: (await loadInvoice(req, row.id)).invoice });
 }
