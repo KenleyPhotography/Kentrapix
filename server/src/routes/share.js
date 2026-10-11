@@ -24,7 +24,7 @@ const token = z.string().regex(/^[A-Za-z0-9_-]{32}$/, 'Lien invalide.');
 /** Lien encore valable : galerie publiée, non archivée, non expirée, toujours au client, partage autorisé. */
 async function findShare(rawToken) {
   const [link] = await query(
-    `SELECT l.*, e.name AS event_name, e.type, e.event_date, e.location, e.selection_mode, e.music_key, e.allow_download AS event_download,
+    `SELECT l.*, e.name AS event_name, e.type, e.event_date, e.location, e.selection_mode, e.music_key, e.allow_download AS event_download, e.unlock_limit,
        COALESCE(s.sender_name, s.name) AS studio
      FROM share_links l
      JOIN events e ON e.id = l.event_id AND e.client_id = l.user_id
@@ -99,6 +99,9 @@ shareApi.get('/:token', async (req, res) => {
      FROM photos WHERE event_id = ? ORDER BY position, created_at`,
     [link.event_id],
   );
+  // Photos non débloquées par le photographe : cachées pour la famille.
+  const limit = link.unlock_limit == null ? Infinity : Number(link.unlock_limit);
+  const open = photos.filter((p) => Number(p.number) <= limit);
   const base = `/media/share/${link.token}`;
   const comments = await canComment(link);
   const counts = comments
@@ -114,7 +117,7 @@ shareApi.get('/:token', async (req, res) => {
       name: link.event_name, type: link.type, date: link.event_date, location: link.location || '',
       music: link.music_key ? `${base}/music` : null,
     },
-    photos: photos.map((p) => ({
+    photos: open.map((p) => ({
       id: p.id, preview: `${base}/photo/${p.id}`, width: p.width, height: p.height, number: Number(p.number), commentCount: counts[p.id] || 0,
     })),
   });
@@ -187,7 +190,7 @@ shareMedia.get('/:token/photo/:id', async (req, res) => {
      FROM photos p WHERE p.id = ? AND p.event_id = ?`,
     [z.string().uuid().parse(req.params.id), link.event_id],
   );
-  if (!photo) throw httpError(404, 'Photo introuvable.');
+  if (!photo || (link.unlock_limit != null && Number(photo.number) > Number(link.unlock_limit))) throw httpError(404, 'Photo introuvable.');
   // Galerie en mode sélection : la famille voit, comme le client, la version filigranée.
   if (link.selection_mode) return sendPrivate(res, await watermarkedPreview(photo.preview_key, photo.id, Number(photo.number)));
   await sendPrivate(res, photo.preview_key);
@@ -209,10 +212,14 @@ async function downloadableShare(req, rawToken) {
 // Une photo : l'original, sous son nom de fichier.
 shareMedia.get('/:token/download/:id', async (req, res) => {
   const link = await downloadableShare(req, req.params.token);
-  const [photo] = await query('SELECT original_key, filename FROM photos WHERE id = ? AND event_id = ?', [
-    z.string().uuid().parse(req.params.id), link.event_id,
-  ]);
-  if (!photo) throw httpError(404, 'Photo introuvable.');
+  const [photo] = await query(
+    `SELECT p.original_key, p.filename,
+       (SELECT COUNT(*) FROM photos q WHERE q.event_id = p.event_id
+          AND (q.position < p.position OR (q.position = p.position AND q.created_at <= p.created_at))) AS number
+     FROM photos p WHERE p.id = ? AND p.event_id = ?`,
+    [z.string().uuid().parse(req.params.id), link.event_id],
+  );
+  if (!photo || (link.unlock_limit != null && Number(photo.number) > Number(link.unlock_limit))) throw httpError(404, 'Photo introuvable.');
   await query('UPDATE share_links SET last_used_at = CURRENT_TIMESTAMP WHERE id = ?', [link.id]);
   await sendPrivate(res, photo.original_key, downloadName(photo));
 });
@@ -220,7 +227,8 @@ shareMedia.get('/:token/download/:id', async (req, res) => {
 // Toute la galerie : un ZIP des originaux (sans compression, les photos le sont déjà).
 shareMedia.get('/:token/download', async (req, res) => {
   const link = await downloadableShare(req, req.params.token);
-  const photos = await query('SELECT original_key, filename FROM photos WHERE event_id = ? ORDER BY position, created_at', [link.event_id]);
+  let photos = await query('SELECT original_key, filename FROM photos WHERE event_id = ? ORDER BY position, created_at', [link.event_id]);
+  if (link.unlock_limit != null) photos = photos.slice(0, Number(link.unlock_limit));
   if (!photos.length) throw httpError(404, 'Aucune photo.');
   const name = `${link.event_name}`.replace(/[^\p{L}\p{N} ._-]+/gu, '').trim().slice(0, 80) || 'photos';
   res.attachment(`${name}.zip`);

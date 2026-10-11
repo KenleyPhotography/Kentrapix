@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { query } from '../db.js';
 import { httpError } from '../lib/errors.js';
 import { sendPrivate, watermarkedPreview, makeThumb } from '../lib/storage.js';
-import { uuid, canSeeEvent } from '../lib/data.js';
+import { uuid, canSeeEvent, isLockedFor, seesEverything, LOCK_DEFAULT_REASON } from '../lib/data.js';
 import { requireAuth, blockPending } from '../middleware/auth.js';
 
 // Images privées : chaque requête vérifie que l'utilisateur a le droit de voir la photo.
@@ -12,13 +12,15 @@ router.use(requireAuth, blockPending);
 /** Photo visible par l'utilisateur (droits vérifiés), avec son numéro dans la galerie. */
 async function visiblePhoto(req) {
   const [photo] = await query(
-    `SELECT p.id, p.preview_key, p.thumb_key, p.event_id, e.client_id, e.created_by, e.expires_at, e.published, e.archived, e.selection_mode,
+    `SELECT p.id, p.preview_key, p.thumb_key, p.event_id, e.client_id, e.created_by, e.expires_at, e.published, e.archived, e.selection_mode, e.unlock_limit, e.lock_reason,
        (SELECT COUNT(*) FROM photos q WHERE q.event_id = p.event_id
           AND (q.position < p.position OR (q.position = p.position AND q.created_at <= p.created_at))) AS number
      FROM photos p JOIN events e ON e.id = p.event_id WHERE p.id = ?`,
     [uuid.parse(req.params.id)],
   );
   if (!photo || !canSeeEvent(req.user, photo)) throw httpError(404, 'Photo introuvable.');
+  // Photo pas encore débloquée par le photographe : le client ne peut ni l'afficher ni la télécharger.
+  if (!seesEverything(req.user, photo) && isLockedFor(photo, photo.number)) throw httpError(403, photo.lock_reason || LOCK_DEFAULT_REASON);
   return photo;
 }
 

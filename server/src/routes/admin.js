@@ -405,6 +405,10 @@ const eventPatchSchema = eventSchema
     selectionLimit: z.string().trim().regex(/^\d*$/, 'Nombre maximum invalide.').transform((v) => (v ? Number(v) : null)),
     // Dernier jour de disponibilité ('' = pas d'expiration).
     expiresAt: z.string().trim().regex(/^(\d{4}-\d{2}-\d{2})?$/, 'Date d’expiration invalide.').transform((v) => v || null),
+    // Photos débloquées pour le client : vide = toutes ; sinon les N premières. Les autres : verrouillées ou cachées.
+    unlockLimit: z.string().trim().regex(/^\d*$/, 'Nombre de photos débloquées invalide.').transform((v) => (v === '' ? null : Number(v))),
+    lockMode: z.enum(['locked', 'hidden']),
+    lockReason: z.string().trim().max(300, 'Message trop long (300 caractères max).').transform((v) => v || null),
   })
   .partial();
 
@@ -417,7 +421,7 @@ router.patch('/events/:id', upload.single('coverFile'), async (req, res) => {
   const archived = !!keep(data, event, 'archived');
   await query(
     `UPDATE events SET client_id = ?, name = ?, type = ?, event_date = ?, location = ?, description = ?,
-       cover_key = ?, published = ?, allow_download = ?, archived = ?, selection_mode = ?, selection_limit = ?,
+       cover_key = ?, published = ?, allow_download = ?, archived = ?, selection_mode = ?, selection_limit = ?, unlock_limit = ?, lock_mode = ?, lock_reason = ?,
        published_at = CASE WHEN ? = 1 AND published_at IS NULL THEN CURRENT_TIMESTAMP ELSE published_at END,
        expiry_notified_at = CASE WHEN expires_at IS NOT DISTINCT FROM ? THEN expiry_notified_at END, expires_at = ? WHERE id = ?`,
     [
@@ -429,6 +433,9 @@ router.patch('/events/:id', upload.single('coverFile'), async (req, res) => {
       archived ? 1 : 0,
       keep(data, event, 'selectionMode', 'selection_mode') ? 1 : 0,
       data.selectionLimit !== undefined ? data.selectionLimit || null : event.selection_limit,
+      data.unlockLimit !== undefined ? data.unlockLimit : event.unlock_limit,
+      data.lockMode ?? event.lock_mode ?? 'locked',
+      data.lockReason !== undefined ? data.lockReason : event.lock_reason,
       published ? 1 : 0, // première publication : notification « nouvelle galerie »
       // Nouvelle date d'expiration : le rappel « 7 jours » pourra repartir.
       keep(data, event, 'expiresAt', 'expires_at'), keep(data, event, 'expiresAt', 'expires_at'),

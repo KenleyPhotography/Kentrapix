@@ -8,7 +8,7 @@ import { query, placeholders, utcStamp } from '../db.js';
 import { httpError } from '../lib/errors.js';
 import { fileExists, sendPrivate, zipOriginals, downloadName } from '../lib/storage.js';
 import {
-  uuid, mapEvent, mapPhoto, mapPhotographer, mapDownload, mapComment, getPermissions, EVENT_COLUMNS, PHOTO_COLUMNS, COMMENT_SELECT,
+  uuid, mapEvent, mapPhoto, isLockedFor, LOCK_DEFAULT_REASON, mapPhotographer, mapDownload, mapComment, getPermissions, EVENT_COLUMNS, PHOTO_COLUMNS, COMMENT_SELECT,
   NOT_EXPIRED,
 } from '../lib/data.js';
 import { audit } from '../lib/audit.js';
@@ -99,6 +99,15 @@ export async function clientBootstrap(id, onlyBy = null) {
     };
   }
   // Ses photographes : ceux dont il a saisi le code (ou qui l'ont créé), avec leurs coordonnées.
+  // Photos que le photographe n'a pas encore débloquées : cachées ou renvoyées « verrouillées » (sans image ni nom de fichier).
+  const totals = {};
+  for (const p of photos) totals[p.event_id] = (totals[p.event_id] || 0) + 1;
+  const evById = Object.fromEntries(events.map((e) => [e.id, e]));
+  photos = photos.flatMap((p) => {
+    const e = evById[p.event_id];
+    if (!e || !isLockedFor(e, p.number)) return [p];
+    return e.lock_mode === 'hidden' ? [] : [{ ...p, __locked: true }];
+  });
   const photographers = await photographersOf(id);
   // Nom du photographe qui a créé chaque galerie (affiché « Par … » chez le client).
   const creators = [...new Set(events.map((e) => e.created_by).filter(Boolean))];
@@ -107,7 +116,11 @@ export async function clientBootstrap(id, onlyBy = null) {
     : {};
   return {
     photographers: photographers.map(mapPhotographer),
-    events: events.map((e) => ({ ...mapEvent(e), photographer: names[e.created_by] || '' })),
+    events: events.map((e) => {
+      const m = mapEvent(e);
+      // Première photo verrouillée : elle ne peut pas servir de couverture.
+      return { ...m, cover: !e.cover_key && isLockedFor(e, 1) ? null : m.cover, photographer: names[e.created_by] || '', totalPhotos: totals[e.id] || 0 };
+    }),
     photos: photos.map(mapPhoto),
     notifications: await clientNotifications(id, events),
     favorites: favorites.map((f) => f.photo_id),
@@ -120,11 +133,14 @@ export async function clientBootstrap(id, onlyBy = null) {
 async function visiblePhotos(userId, ids) {
   if (!ids.length) return [];
   return query(
-    `SELECT p.*, e.allow_download, e.selection_mode, e.name AS event_name FROM photos p JOIN events e ON e.id = p.event_id
+    `SELECT p.*, e.allow_download, e.selection_mode, e.name AS event_name, e.unlock_limit,
+       (SELECT COUNT(*) FROM photos q WHERE q.event_id = p.event_id
+          AND (q.position < p.position OR (q.position = p.position AND q.created_at <= p.created_at))) AS number
+     FROM photos p JOIN events e ON e.id = p.event_id
      WHERE ${VISIBLE} AND p.id IN (${placeholders(ids.length)})
      ORDER BY p.position, p.created_at`,
     [userId, ...ids],
-  );
+  ).then((rows) => rows.filter((p) => !isLockedFor(p, p.number)));
 }
 
 // ---------- Mes photographes ----------
@@ -245,6 +261,10 @@ router.put('/events/:id/selection', async (req, res) => {
       [event.id, ...ids],
     );
     if (Number(n) !== ids.length) throw httpError(400, 'Certaines photos n’appartiennent pas à cette galerie.');
+    if (event.unlock_limit != null) {
+      const open = new Set((await query('SELECT id FROM photos WHERE event_id = ? ORDER BY position, created_at LIMIT ?', [event.id, Number(event.unlock_limit)])).map((p) => p.id));
+      if (ids.some((pid) => !open.has(pid))) throw httpError(400, event.lock_reason || LOCK_DEFAULT_REASON);
+    }
   }
   await query(
     'DELETE FROM photo_selections WHERE user_id = ? AND photo_id IN (SELECT id FROM photos WHERE event_id = ?)',
@@ -331,6 +351,7 @@ router.post('/downloads', async (req, res) => {
     if (event.selection_mode) throw httpError(403, 'Galerie en mode sélection : le téléchargement est impossible.');
     if (!perms.event || !event.allow_download) throw httpError(403, 'Le téléchargement de cet événement est désactivé.');
     photos = await query('SELECT * FROM photos WHERE event_id = ? ORDER BY position, created_at', [event.id]);
+    if (event.unlock_limit != null) photos = photos.slice(0, Number(event.unlock_limit));
     eventId = event.id;
     name = `KentraPix-${slug(event.name)}.zip`;
   } else {

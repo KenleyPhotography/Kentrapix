@@ -74,6 +74,9 @@ export const mapEvent = (e) => ({
   selectionLimit: e.selection_limit ?? null,
   archived: !!e.archived,
   expiresAt: e.expires_at || null,
+  unlockLimit: e.unlock_limit ?? null,
+  lockMode: e.lock_mode || 'locked',
+  lockReason: e.lock_reason || '',
   music: e.music_key ? `/media/music/${e.id}?v=${e.music_key.split('/').pop().split('.')[0]}` : null,
 });
 
@@ -86,7 +89,16 @@ export const daysUntil = (date) => Math.round((Date.parse(String(date).slice(0, 
 /** Condition SQL équivalente. */
 export const NOT_EXPIRED = '(e.expires_at IS NULL OR e.expires_at >= CURRENT_DATE)';
 
-export const mapPhoto = (p) => ({
+/** Photo n° `number` de la galerie `e` : verrouillée par le photographe (au-delà de unlock_limit) ? */
+export const isLockedFor = (e, number) => e.unlock_limit != null && Number(number) > Number(e.unlock_limit);
+/** Le photographe de la galerie (et le propriétaire) voient tout ; le client, lui, est limité par unlock_limit. */
+export const seesEverything = (user, e) => user.role === 'owner' || (user.role === 'admin' && e.created_by === user.id);
+export const LOCK_DEFAULT_REASON = 'Votre photographe n’a pas encore débloqué ces photos.';
+
+export const mapPhoto = (p) => (p.__locked ? {
+  id: p.id, eventId: p.event_id, album: '', filename: '', preview: null, thumb: null,
+  width: p.width, height: p.height, size: 0, commentCount: 0, number: Number(p.number || 0), locked: true,
+} : {
   id: p.id,
   eventId: p.event_id,
   album: p.album,
@@ -98,6 +110,7 @@ export const mapPhoto = (p) => ({
   size: Number(p.size_bytes),
   commentCount: Number(p.comment_count || 0),
   number: Number(p.number || 0),
+  locked: false,
 });
 
 /** Colonnes photo + nombre de commentaires. */
