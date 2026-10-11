@@ -115,3 +115,5 @@
 .inv-card header { align-items: center; }
 .inv-card header > div { flex: 1; }
 .inv-type { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 0; font-size: 0.8125rem; color: var(--muted, #64748b); }
+.inv-type .badge { display: inline-flex; align-items: center; gap: 6px; }
+.inv-type .badge svg { width: 14px; height: 14px; }

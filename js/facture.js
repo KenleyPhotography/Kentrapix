@@ -11,6 +11,8 @@
   var METHOD = { especes: 'Espèces', moncash: 'MonCash', natcash: 'NatCash', virement: 'Virement', carte: 'Carte', cheque: 'Chèque', autre: 'Autre' };
   // Petites icônes de contact (traits, couleur du thème)
   var ICON = {
+    cash: '<svg viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.6"/><path d="M6 10v.01M18 14v.01"/></svg>',
+    card: '<svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2.5"/><path d="M2 10h20M6 15h4"/></svg>',
     file: '<svg viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8Z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg>',
     phone: '<svg viewBox="0 0 24 24"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg>',
     chat: '<svg viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg>',
@@ -62,7 +64,7 @@
           (contacts ? '<ul class="contacts">' + contacts + '</ul>' : '') + '</section>' +
           '<section class="card to"><h2>Facturé à</h2><strong>' + esc(f.client.name) + '</strong>' + (f.event ? '<p>Galerie : ' + esc(f.event) + '</p>' : '') + '<p><span class="badge ' + esc(f.status) + '">' + esc(STATUS[f.status] || f.status) + '</span></p></section>' +
         '</div>' +
-        '<dl class="dates"><div><dt>Date d’émission</dt><dd>' + esc(day(f.issuedAt)) + '</dd></div><div><dt>Échéance</dt><dd>' + esc(day(f.dueDate)) + '</dd></div><div><dt>Paiement</dt><dd><span class="ptype ' + esc(f.paymentType) + '">' + (f.paymentType === 'cash' ? 'Cash' : 'Crédit') + '</span>' + (f.paymentType === 'credit' && f.paid > 0 ? ' · avance ' + esc(money(f.paid, cur)) : '') + '</dd></div></dl>' +
+        '<dl class="dates"><div><dt>Date d’émission</dt><dd>' + esc(day(f.issuedAt)) + '</dd></div><div><dt>Échéance</dt><dd>' + esc(day(f.dueDate)) + '</dd></div><div><dt>Paiement</dt><dd><span class="ptype ' + esc(f.paymentType) + '">' + (f.paymentType === 'cash' ? ICON.cash + 'Cash' : ICON.card + 'Crédit') + '</span>' + (f.paymentType === 'credit' && f.paid > 0 ? ' · avance ' + esc(money(f.paid, cur)) : '') + '</dd></div></dl>' +
         '<table><thead><tr><th>Description</th><th class="num">Montant</th></tr></thead><tbody><tr><td>' + esc(f.title) + '</td><td class="num">' + esc(money(f.total, cur)) + '</td></tr></tbody></table>' +
         '<div class="totals"><div><span>Total</span><strong>' + esc(money(f.total, cur)) + '</strong></div><div><span>Déjà payé</span><span>' + esc(money(f.paid, cur)) + '</span></div>' +
         '<div class="due' + (f.balance <= 0 ? ' zero' : '') + '"><span>' + (f.balance <= 0 ? 'Facture réglée' : 'Reste à payer') + '</span><span>' + esc(money(Math.max(0, f.balance), cur)) + '</span></div></div>' +

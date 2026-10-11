@@ -121,7 +121,7 @@ function invoiceCard(i) {
   const open = i.status !== 'cancelled' && i.status !== 'paid';
   return `<article class="inv-card ${i.status === 'overdue' ? 'is-late' : ''} ${i.status === 'cancelled' ? 'is-off' : ''}">
     <header><span class="inv-ico">${icon('file')}</span><div><strong>${escape(i.number)}</strong><span>${escape(i.title)}</span></div>${pill(i.status)}</header>
-    <p class="inv-type"><span class="badge ${i.paymentType === 'cash' ? 'is-live' : 'is-draft'}">${i.paymentType === 'cash' ? 'Cash' : 'Crédit'}</span>${i.paymentType === 'credit' && i.paid > 0 ? `<span>Avance reçue : ${escape(money(i.paid, i.currency))}</span>` : ''}</p>
+    <p class="inv-type"><span class="badge ${i.paymentType === 'cash' ? 'is-live' : 'is-draft'}">${icon(i.paymentType === 'cash' ? 'cash' : 'card')} ${i.paymentType === 'cash' ? 'Cash' : 'Crédit'}</span>${i.paymentType === 'credit' && i.paid > 0 ? `<span>Avance reçue : ${escape(money(i.paid, i.currency))}</span>` : ''}</p>
     <p class="inv-client">${icon('users')} ${escape(i.client.name)}${i.eventName ? ` · ${escape(i.eventName)}` : ''}</p>
     <dl class="inv-amounts"><div><dt>Total</dt><dd>${escape(money(i.total, i.currency))}</dd></div><div><dt>Payé</dt><dd>${escape(money(i.paid, i.currency))}</dd></div><div><dt>Solde</dt><dd class="${i.status === 'overdue' ? 'amt-late' : ''}">${escape(money(Math.max(0, i.balance), i.currency))}</dd></div></dl>
     <p class="inv-foot"><span>Échéance : ${fday(i.dueDate)}</span>${i.sentAt ? '<span>Envoyée par e-mail</span>' : ''}</p>

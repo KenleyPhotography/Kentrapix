@@ -16,7 +16,8 @@ body{margin:0;padding:28px 12px 56px;font-family:Inter,system-ui,'Segoe UI',sans
 .docmeta{text-align:right}
 .docmeta h1 .fiche{display:inline-grid;vertical-align:middle;margin-right:10px;padding:8px;border-radius:12px;background:rgba(255,255,255,.16)}
 .docmeta h1 .fiche svg{width:26px;height:26px;fill:none;stroke:#fff;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
-.ptype{display:inline-block;padding:2px 10px;border-radius:99px;font-size:13px;font-weight:700;background:var(--sky);color:var(--blue)}
+.ptype svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.ptype{display:inline-flex;align-items:center;gap:6px;padding:2px 10px;border-radius:99px;font-size:13px;font-weight:700;background:var(--sky);color:var(--blue)}
 .ptype.cash{background:#e6f4ec;color:var(--green)}
 .docmeta h1{margin:0;font-family:Fraunces,Georgia,serif;font-weight:500;font-size:clamp(30px,5vw,40px);letter-spacing:.02em;text-transform:uppercase}
 .docmeta p{margin:2px 0 0;font-size:14px;opacity:.92}.docmeta strong{font-size:16px}
