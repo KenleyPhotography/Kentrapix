@@ -12,7 +12,7 @@ router.use(requireAuth, blockPending);
 /** Photo visible par l'utilisateur (droits vérifiés), avec son numéro dans la galerie. */
 async function visiblePhoto(req) {
   const [photo] = await query(
-    `SELECT p.id, p.preview_key, p.thumb_key, p.event_id, e.client_id, e.created_by, e.expires_at, e.published, e.archived, e.selection_mode, e.unlock_limit, e.lock_reason,
+    `SELECT p.id, p.preview_key, p.thumb_key, p.event_id, e.client_id, e.created_by, e.expires_at, e.published, e.archived, e.selection_mode, e.unlock_limit, e.unlock_numbers, e.lock_reason,
        (SELECT COUNT(*) FROM photos q WHERE q.event_id = p.event_id
           AND (q.position < p.position OR (q.position = p.position AND q.created_at <= p.created_at))) AS number
      FROM photos p JOIN events e ON e.id = p.event_id WHERE p.id = ?`,

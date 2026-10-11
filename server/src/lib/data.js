@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { isOpen, effectiveNumbers } from './unlock.js';
 import { query, toIso } from '../db.js';
 
 // ---------- Validation partagée ----------
@@ -76,6 +77,7 @@ export const mapEvent = (e) => ({
   archived: !!e.archived,
   expiresAt: e.expires_at || null,
   unlockLimit: e.unlock_limit ?? null,
+  unlockNumbers: effectiveNumbers(e), // « 1-10, 15 », '' (aucune) ou null (toutes)
   lockMode: e.lock_mode || 'locked',
   lockReason: e.lock_reason || '',
   music: e.music_key ? `/media/music/${e.id}?v=${e.music_key.split('/').pop().split('.')[0]}` : null,
@@ -91,7 +93,7 @@ export const daysUntil = (date) => Math.round((Date.parse(String(date).slice(0, 
 export const NOT_EXPIRED = '(e.expires_at IS NULL OR e.expires_at >= CURRENT_DATE)';
 
 /** Photo n° `number` de la galerie `e` : verrouillée par le photographe (au-delà de unlock_limit) ? */
-export const isLockedFor = (e, number) => e.unlock_limit != null && Number(number) > Number(e.unlock_limit);
+export const isLockedFor = (e, number) => !isOpen(e, Number(number));
 /** Le photographe de la galerie (et le propriétaire) voient tout ; le client, lui, est limité par unlock_limit. */
 export const seesEverything = (user, e) => user.role === 'owner' || (user.role === 'admin' && e.created_by === user.id);
 export const LOCK_DEFAULT_REASON = 'Votre photographe n’a pas encore débloqué ces photos.';

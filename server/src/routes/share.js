@@ -8,7 +8,7 @@ import crypto from 'node:crypto';
 import { query } from '../db.js';
 import { config } from '../config.js';
 import { httpError } from '../lib/errors.js';
-import { getPermissions, NOT_EXPIRED } from '../lib/data.js';
+import { getPermissions, NOT_EXPIRED, isLockedFor } from '../lib/data.js';
 import { sendPrivate, watermarkedPreview, zipOriginals, downloadName } from '../lib/storage.js';
 import { FAMILY_COMMENT_SELECT, familyCommentBody, mapFamilyComment } from '../lib/shares.js';
 
@@ -24,7 +24,7 @@ const token = z.string().regex(/^[A-Za-z0-9_-]{32}$/, 'Lien invalide.');
 /** Lien encore valable : galerie publiée, non archivée, non expirée, toujours au client, partage autorisé. */
 async function findShare(rawToken) {
   const [link] = await query(
-    `SELECT l.*, e.name AS event_name, e.type, e.event_date, e.location, e.selection_mode, e.music_key, e.allow_download AS event_download, e.unlock_limit,
+    `SELECT l.*, e.name AS event_name, e.type, e.event_date, e.location, e.selection_mode, e.music_key, e.allow_download AS event_download, e.unlock_limit, e.unlock_numbers,
        COALESCE(s.sender_name, s.name) AS studio
      FROM share_links l
      JOIN events e ON e.id = l.event_id AND e.client_id = l.user_id
@@ -100,8 +100,7 @@ shareApi.get('/:token', async (req, res) => {
     [link.event_id],
   );
   // Photos non débloquées par le photographe : cachées pour la famille.
-  const limit = link.unlock_limit == null ? Infinity : Number(link.unlock_limit);
-  const open = photos.filter((p) => Number(p.number) <= limit);
+  const open = photos.filter((p) => !isLockedFor(link, p.number));
   const base = `/media/share/${link.token}`;
   const comments = await canComment(link);
   const counts = comments
@@ -190,7 +189,7 @@ shareMedia.get('/:token/photo/:id', async (req, res) => {
      FROM photos p WHERE p.id = ? AND p.event_id = ?`,
     [z.string().uuid().parse(req.params.id), link.event_id],
   );
-  if (!photo || (link.unlock_limit != null && Number(photo.number) > Number(link.unlock_limit))) throw httpError(404, 'Photo introuvable.');
+  if (!photo || isLockedFor(link, photo.number)) throw httpError(404, 'Photo introuvable.');
   // Galerie en mode sélection : la famille voit, comme le client, la version filigranée.
   if (link.selection_mode) return sendPrivate(res, await watermarkedPreview(photo.preview_key, photo.id, Number(photo.number)));
   await sendPrivate(res, photo.preview_key);
@@ -219,7 +218,7 @@ shareMedia.get('/:token/download/:id', async (req, res) => {
      FROM photos p WHERE p.id = ? AND p.event_id = ?`,
     [z.string().uuid().parse(req.params.id), link.event_id],
   );
-  if (!photo || (link.unlock_limit != null && Number(photo.number) > Number(link.unlock_limit))) throw httpError(404, 'Photo introuvable.');
+  if (!photo || isLockedFor(link, photo.number)) throw httpError(404, 'Photo introuvable.');
   await query('UPDATE share_links SET last_used_at = CURRENT_TIMESTAMP WHERE id = ?', [link.id]);
   await sendPrivate(res, photo.original_key, downloadName(photo));
 });
@@ -228,7 +227,7 @@ shareMedia.get('/:token/download/:id', async (req, res) => {
 shareMedia.get('/:token/download', async (req, res) => {
   const link = await downloadableShare(req, req.params.token);
   let photos = await query('SELECT original_key, filename FROM photos WHERE event_id = ? ORDER BY position, created_at', [link.event_id]);
-  if (link.unlock_limit != null) photos = photos.slice(0, Number(link.unlock_limit));
+  photos = photos.filter((_, i) => !isLockedFor(link, i + 1));
   if (!photos.length) throw httpError(404, 'Aucune photo.');
   const name = `${link.event_name}`.replace(/[^\p{L}\p{N} ._-]+/gu, '').trim().slice(0, 80) || 'photos';
   res.attachment(`${name}.zip`);

@@ -20,6 +20,7 @@ import { kickAnnouncements } from '../lib/announcements.js';
 import { requireStaff, requireOwner, STAFF_ROLES, requireStudio } from '../middleware/auth.js';
 import { freshCode } from '../lib/accessCode.js';
 import { scanOrphans, cleanOrphans } from '../lib/cleanup.js';
+import { normalizeNumbers } from '../lib/unlock.js';
 import { isOwner, accountScope, eventScope } from '../lib/scope.js';
 import { billingRouter } from './billing.js';
 import { config } from '../config.js';
@@ -412,6 +413,9 @@ const eventPatchSchema = eventSchema
     expiresAt: z.string().trim().regex(/^(\d{4}-\d{2}-\d{2})?$/, 'Date d’expiration invalide.').transform((v) => v || null),
     // Photos débloquées pour le client : vide = toutes ; sinon les N premières. Les autres : verrouillées ou cachées.
     unlockLimit: z.string().trim().regex(/^\d*$/, 'Nombre de photos débloquées invalide.').transform((v) => (v === '' ? null : Number(v))),
+    // Photos débloquées : 'all' = toutes ; 'some' + unlockNumbers (« 1-10, 15, 20-25 », vide = aucune).
+    unlockMode: z.enum(['all', 'some']),
+    unlockNumbers: z.string().trim().max(2000, 'Liste de numéros trop longue.'),
     lockMode: z.enum(['locked', 'hidden']),
     lockReason: z.string().trim().max(300, 'Message trop long (300 caractères max).').transform((v) => v || null),
   })
@@ -424,9 +428,15 @@ router.patch('/events/:id', upload.single('coverFile'), async (req, res) => {
   const coverKey = req.file ? await storeCover(req.file) : event.cover_key;
   const published = !!keep(data, event, 'published');
   const archived = !!keep(data, event, 'archived');
+  // Règle des photos débloquées : une seule des trois formes à la fois (numéros, N premières, toutes).
+  let unlock = { limit: event.unlock_limit, numbers: event.unlock_numbers };
+  if (data.unlockMode === 'all') unlock = { limit: null, numbers: null };
+  else if (data.unlockMode === 'some') {
+    try { unlock = { limit: null, numbers: normalizeNumbers(data.unlockNumbers ?? '') }; } catch (err) { throw httpError(400, err.message); }
+  } else if (data.unlockLimit !== undefined) unlock = { limit: data.unlockLimit, numbers: null };
   await query(
     `UPDATE events SET client_id = ?, name = ?, type = ?, event_date = ?, location = ?, description = ?,
-       cover_key = ?, published = ?, allow_download = ?, archived = ?, selection_mode = ?, selection_limit = ?, unlock_limit = ?, lock_mode = ?, lock_reason = ?,
+       cover_key = ?, published = ?, allow_download = ?, archived = ?, selection_mode = ?, selection_limit = ?, unlock_limit = ?, unlock_numbers = ?, lock_mode = ?, lock_reason = ?,
        published_at = CASE WHEN ? = 1 AND published_at IS NULL THEN CURRENT_TIMESTAMP ELSE published_at END,
        expiry_notified_at = CASE WHEN expires_at IS NOT DISTINCT FROM ? THEN expiry_notified_at END, expires_at = ? WHERE id = ?`,
     [
@@ -438,7 +448,8 @@ router.patch('/events/:id', upload.single('coverFile'), async (req, res) => {
       archived ? 1 : 0,
       keep(data, event, 'selectionMode', 'selection_mode') ? 1 : 0,
       data.selectionLimit !== undefined ? data.selectionLimit || null : event.selection_limit,
-      data.unlockLimit !== undefined ? data.unlockLimit : event.unlock_limit,
+      unlock.limit,
+      unlock.numbers,
       data.lockMode ?? event.lock_mode ?? 'locked',
       data.lockReason !== undefined ? data.lockReason : event.lock_reason,
       published ? 1 : 0, // première publication : notification « nouvelle galerie »
