@@ -112,3 +112,62 @@ export function bindUnlock(photos) {
   });
   refresh();
 }
+
+/**
+ * Choix de photos réutilisable (partage famille…) : « Toutes » ou « Seulement certaines » par numéros
+ * ou en cochant dans la liste. Champs : name="shareMode" (all|some) et name="shareNumbers".
+ */
+export function photoPickerHtml(photos) {
+  return `<div class="opt-row" role="radiogroup" aria-label="Photos à partager">
+      <label class="opt"><input type="radio" name="shareMode" value="all" checked><span>Toutes les photos</span></label>
+      <label class="opt"><input type="radio" name="shareMode" value="some"><span>Seulement certaines</span></label>
+    </div>
+    <div id="sp-some" hidden>
+      <label>Numéros à partager
+        <input name="shareNumbers" id="sp-nums" placeholder="Ex. 1-10, 15, 20-25" autocomplete="off" inputmode="numeric">
+        <small class="field-hint">Séparez par des virgules ; un tiret pour une série (1-10).</small>
+      </label>
+      <button type="button" class="btn sm" id="sp-open" ${photos.length ? '' : 'disabled'}>Choisir dans la liste (${photos.length})</button>
+      <div id="sp-pick" hidden>
+        <div class="up-tools"><button type="button" class="text-link" data-sp="all">Tout cocher</button><button type="button" class="text-link" data-sp="none">Aucune</button><button type="button" class="text-link" data-sp="invert">Inverser</button><span id="sp-count"></span></div>
+        <div class="up-grid" id="sp-grid"></div>
+      </div>
+    </div>`;
+}
+
+export function bindPhotoPicker(photos) {
+  const host = document.getElementById('overlays');
+  const nums = host.querySelector('#sp-nums');
+  if (!nums) return;
+  const some = host.querySelector('#sp-some'), pick = host.querySelector('#sp-pick'), grid = host.querySelector('#sp-grid'), count = host.querySelector('#sp-count'), sum = host.querySelector('#sp-sum');
+  const total = photos.length;
+  const sorted = [...photos].sort((a, b) => a.number - b.number);
+  const mode = () => host.querySelector('input[name="shareMode"]:checked')?.value || 'all';
+  const refresh = () => {
+    const set = parseNums(nums.value);
+    if (sum) sum.textContent = mode() === 'all' ? 'Toutes' : set.size ? `${Math.min(set.size, total)} sur ${total}` : 'Aucune choisie';
+    if (grid.childElementCount) {
+      grid.querySelectorAll('input').forEach((c) => { c.checked = set.has(Number(c.value)); });
+      count.textContent = `${[...set].filter((n) => n <= total).length} / ${total} cochées`;
+    }
+  };
+  host.querySelectorAll('input[name="shareMode"]').forEach((r) => { r.onchange = () => { some.hidden = mode() === 'all'; refresh(); }; });
+  nums.addEventListener('input', refresh);
+  host.querySelector('#sp-open')?.addEventListener('click', () => {
+    if (!grid.childElementCount) {
+      grid.innerHTML = sorted.map((p) => `<label class="up-tile"><input type="checkbox" value="${p.number}"><img src="${escape(p.thumb || p.preview)}" alt="Photo ${p.number}" loading="lazy" decoding="async"><span>${p.number}</span></label>`).join('');
+      grid.onchange = () => { nums.value = fmtNums(new Set([...grid.querySelectorAll('input:checked')].map((c) => Number(c.value)))); refresh(); };
+    }
+    pick.hidden = !pick.hidden;
+    refresh();
+  });
+  pick.querySelectorAll('[data-sp]').forEach((b) => {
+    b.onclick = () => {
+      const cur = new Set([...grid.querySelectorAll('input:checked')].map((c) => Number(c.value)));
+      const all = sorted.map((p) => p.number);
+      nums.value = fmtNums(b.dataset.sp === 'all' ? new Set(all) : b.dataset.sp === 'none' ? new Set() : new Set(all.filter((n) => !cur.has(n))));
+      refresh();
+    };
+  });
+  refresh();
+}

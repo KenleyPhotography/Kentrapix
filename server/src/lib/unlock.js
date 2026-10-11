@@ -44,5 +44,8 @@ export function isOpen(e, number) {
   return true;
 }
 
+/** Le numéro `number` est-il dans la liste « 1-10, 15 » ? */
+export const inNumbers = (text, number) => parseRanges(text).some(([a, b]) => number >= a && number <= b);
+
 /** Texte à montrer au photographe / client : « 1-10, 15 », '' (aucune) ou null (toutes). */
 export const effectiveNumbers = (e) => (e.unlock_numbers != null ? e.unlock_numbers : e.unlock_limit != null ? (Number(e.unlock_limit) > 0 ? `1-${e.unlock_limit}` : '') : null);

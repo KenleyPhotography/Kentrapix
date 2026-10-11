@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { query, toIso } from '../db.js';
 import { config } from '../config.js';
 import { httpError } from './errors.js';
+import { normalizeNumbers } from './unlock.js';
 
 // Partage famille : liens + mot de passe d'une galerie, créés par le client ou par le studio,
 // et commentaires laissés par la famille (sans compte). Partagé par routes/client.js et routes/admin.js.
@@ -21,6 +22,7 @@ export const mapShare = (l) => ({
   url: `${config.appUrl}/share.html?t=${l.token}`,
   allowDownload: !!l.allow_download,
   allowComments: !!l.allow_comments,
+  photoNumbers: l.photo_numbers || null, // null : toutes les photos ouvertes au client
   views: Number(l.views),
   comments: Number(l.comment_count || 0),
   byStudio: l.created_by_name || null, // null : créé par le client
@@ -33,22 +35,28 @@ export const shareCreateSchema = z.object({
   allowDownload: z.boolean().optional().default(false),
   allowComments: z.boolean().optional().default(true),
   password: z.string().min(6, 'Mot de passe : 6 caractères minimum.').max(100),
+  // Photos partagées : « 1-10, 15 » ; absent ou vide = toutes.
+  photoNumbers: z.string().trim().max(2000).optional(),
 });
 
 export const shareUpdateSchema = z
-  .object({ allowDownload: z.boolean().optional(), allowComments: z.boolean().optional() })
-  .refine((d) => d.allowDownload !== undefined || d.allowComments !== undefined, 'Rien à modifier.');
+  .object({ allowDownload: z.boolean().optional(), allowComments: z.boolean().optional(), photoNumbers: z.string().trim().max(2000).optional() })
+  .refine((d) => d.allowDownload !== undefined || d.allowComments !== undefined || d.photoNumbers !== undefined, 'Rien à modifier.');
 
 /** Crée un lien pour la galerie (appartenant toujours au client : ownerId), noté « créé par le studio » si createdBy. */
 export async function createShare({ eventId, ownerId, createdBy = null, data, bcryptCost }) {
   const [{ n }] = await query('SELECT COUNT(*) AS n FROM share_links WHERE event_id = ? AND user_id = ?', [eventId, ownerId]);
   if (Number(n) >= MAX_LINKS) throw httpError(400, `${MAX_LINKS} liens maximum par galerie : supprimez-en un d’abord.`);
+  let photoNumbers = null;
+  if (data.photoNumbers) {
+    try { photoNumbers = normalizeNumbers(data.photoNumbers) || null; } catch (err) { throw httpError(400, err.message); }
+  }
   const id = crypto.randomUUID();
   await query(
-    `INSERT INTO share_links (id, event_id, user_id, token, password_hash, label, allow_download, allow_comments, created_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO share_links (id, event_id, user_id, token, password_hash, label, allow_download, allow_comments, created_by, photo_numbers)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [id, eventId, ownerId, crypto.randomBytes(24).toString('base64url'), await bcrypt.hash(data.password, bcryptCost),
-      data.label || null, data.allowDownload ? 1 : 0, data.allowComments ? 1 : 0, createdBy],
+      data.label || null, data.allowDownload ? 1 : 0, data.allowComments ? 1 : 0, createdBy, photoNumbers],
   );
   const [row] = await query(`${SHARE_SELECT} WHERE l.id = ?`, [id]);
   return mapShare(row);
@@ -60,6 +68,11 @@ export async function updateShare(id, data) {
   const params = [];
   if (data.allowDownload !== undefined) { sets.push('allow_download = ?'); params.push(data.allowDownload ? 1 : 0); }
   if (data.allowComments !== undefined) { sets.push('allow_comments = ?'); params.push(data.allowComments ? 1 : 0); }
+  if (data.photoNumbers !== undefined) {
+    let n = null;
+    try { n = data.photoNumbers ? normalizeNumbers(data.photoNumbers) || null : null; } catch (err) { throw httpError(400, err.message); }
+    sets.push('photo_numbers = ?'); params.push(n);
+  }
   await query(`UPDATE share_links SET ${sets.join(', ')} WHERE id = ?`, [...params, id]);
   const [row] = await query(`${SHARE_SELECT} WHERE l.id = ?`, [id]);
   return mapShare(row);
