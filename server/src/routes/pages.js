@@ -37,6 +37,7 @@ router.get('/robots.txt', (req, res) => res.type('text').send([
   'Disallow: /client.html',
   'Disallow: /gallery.html',
   'Disallow: /share.html',
+  'Disallow: /facture.html',
   '',
   `Sitemap: ${config.appUrl}/sitemap.xml`,
   '',
@@ -50,6 +51,11 @@ router.get('/favicon.ico', (req, res) => res.type('image/png').set('Cache-Contro
 router.get('/conditions.html', (req, res) => res.sendFile(page('conditions.html')));
 
 // Lien de partage famille : page publique, le mot de passe est vérifié par l'API.
+// Facture : page publique ouverte avec le lien secret reçu par e-mail (les données viennent de /api/invoice/:token).
+router.get('/facture.html', (req, res) => {
+  res.set('Referrer-Policy', 'no-referrer').sendFile(page('facture.html'));
+});
+
 router.get('/share.html', (req, res) => {
   res.set('Referrer-Policy', 'no-referrer').sendFile(page('share.html'));
 });

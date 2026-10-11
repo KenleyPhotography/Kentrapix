@@ -51,6 +51,7 @@ export const mapClient = (u) => ({
   active: !!u.active,
   createdAt: toIso(u.created_at),
   lastLoginAt: toIso(u.last_login_at),
+  whatsapp: u.whatsapp || '',
   pendingCode: u.role === 'client' && !u.access_granted,
   accessCode: ['owner', 'admin'].includes(u.role) ? u.access_code || '' : undefined,
 });

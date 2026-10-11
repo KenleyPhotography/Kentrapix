@@ -20,6 +20,8 @@ import { kickAnnouncements } from '../lib/announcements.js';
 import { requireStaff, requireOwner, STAFF_ROLES, requireStudio } from '../middleware/auth.js';
 import { freshCode } from '../lib/accessCode.js';
 import { scanOrphans, cleanOrphans } from '../lib/cleanup.js';
+import { isOwner, accountScope, eventScope } from '../lib/scope.js';
+import { billingRouter } from './billing.js';
 import { config } from '../config.js';
 import { BCRYPT_COST, passwordRule } from './auth.js';
 import { clientBootstrap } from './client.js';
@@ -31,6 +33,8 @@ import {
 // Studio : propriétaire + admins. La gestion de l'équipe (/team) est réservée au propriétaire.
 const router = Router();
 router.use(requireStudio);
+// Administration : factures, paiements, rappels (billing.js).
+router.use(billingRouter);
 
 const flag = z.enum(['0', '1']).transform((v) => v === '1');
 const text = (max, message) => z.string().trim().min(1, message).max(max);
@@ -47,17 +51,6 @@ const ownCover = (key) => (key?.startsWith('covers/') ? key : null);
 // Chaque photographe — propriétaire compris — ne voit que ses clients (ceux qui ont saisi son code), ses galeries
 // et ce qui en dépend (photos, commentaires, visages, e-mails envoyés). Le propriétaire voit en plus l'équipe
 // et les comptes encore sans photographe (inscrits qui n'ont pas validé de code).
-const isOwner = (req) => req.user.role === 'owner';
-/** Filtre SQL des comptes visibles : [condition, paramètres]. */
-// Un client suivi par plusieurs photographes (table client_photographers) apparaît chez chacun d'eux ;
-// ses galeries restent séparées (eventScope : chaque photographe ne voit que celles qu'il a créées).
-const linked = (a) => `EXISTS (SELECT 1 FROM client_photographers cp WHERE cp.client_id = ${a}.id AND cp.staff_id = ?)`;
-const accountScope = (req, a = 'u') => (isOwner(req)
-  ? [`(${a}.role <> 'client' OR ${a}.created_by IS NULL OR ${a}.created_by = ? OR ${linked(a)})`, [req.user.id, req.user.id]]
-  : [`(${a}.created_by = ? OR ${a}.id = ? OR ${linked(a)})`, [req.user.id, req.user.id, req.user.id]]);
-/** Filtre SQL des galeries visibles. */
-const eventScope = (req, e = 'e') => (isOwner(req) ? [`(${e}.created_by = ? OR ${e}.created_by IS NULL)`, [req.user.id]] : [`${e}.created_by = ?`, [req.user.id]]);
-
 /** Nom d'expéditeur des e-mails : celui choisi dans « Mon profil », sinon le nom du compte. */
 export const senderOf = (user) => ({ fromName: user.sender_name || user.name, replyTo: user.email });
 const studioName = (req) => req.user.sender_name || req.user.name;
@@ -127,6 +120,8 @@ const accountSchema = z.object({
   name: text(120, 'Le nom est obligatoire.'),
   email: z.string().trim().toLowerCase().email('Adresse e-mail invalide.').max(190),
   phone: optionalText(40),
+  // Numéro WhatsApp du client (facultatif : à défaut, son téléphone sert pour WhatsApp).
+  whatsapp: optionalText(40),
 });
 
 async function findAccount(req, id, roles) {
@@ -150,9 +145,9 @@ async function createAccount(req, role, data) {
   const hash = await bcrypt.hash(data.password, BCRYPT_COST);
   // Mot de passe temporaire : à changer à la première connexion. Un membre de l'équipe reçoit un code d'accès.
   await query(
-    `INSERT INTO users (id, role, created_by, name, email, phone, password_hash, must_change_password, access_code)
-     VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)`,
-    [id, role, req.user.id, data.name, data.email, data.phone ?? null, hash, role === 'admin' ? await freshCode() : null],
+    `INSERT INTO users (id, role, created_by, name, email, phone, whatsapp, password_hash, must_change_password, access_code)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`,
+    [id, role, req.user.id, data.name, data.email, data.phone ?? null, data.whatsapp ?? null, hash, role === 'admin' ? await freshCode() : null],
   );
   return findAccount(req, id);
 }
@@ -181,8 +176,8 @@ router.patch('/clients/:id', async (req, res) => {
   // Désactiver un compte ferme immédiatement ses sessions.
   const revoke = !active && client.active ? 1 : 0;
   await query(
-    'UPDATE users SET name = ?, email = ?, phone = ?, active = ?, token_version = token_version + ? WHERE id = ?',
-    [keep(data, client, 'name'), keep(data, client, 'email'), keep(data, client, 'phone'), active ? 1 : 0, revoke, client.id],
+    'UPDATE users SET name = ?, email = ?, phone = ?, whatsapp = ?, active = ?, token_version = token_version + ? WHERE id = ?',
+    [keep(data, client, 'name'), keep(data, client, 'email'), keep(data, client, 'phone'), keep(data, client, 'whatsapp'), active ? 1 : 0, revoke, client.id],
   );
   audit(req, data.active === undefined ? 'client.update' : active ? 'client.activate' : 'client.deactivate', { entity: 'user', entityId: client.id });
   res.json({ client: mapClient(await findClient(req, client.id)) });

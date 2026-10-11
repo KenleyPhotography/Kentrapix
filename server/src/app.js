@@ -13,6 +13,7 @@ import adminRoutes from './routes/admin.js';
 import mediaRoutes from './routes/media.js';
 import pageRoutes from './routes/pages.js';
 import { shareApi, shareMedia } from './routes/share.js';
+import { invoiceApi } from './routes/billing.js';
 
 export function createApp() {
   const app = express();
@@ -70,6 +71,7 @@ export function createApp() {
   app.use('/api/auth', authRoutes);
   app.use('/api/client', clientRoutes);
   app.use('/api/admin', adminRoutes);
+  app.use('/api/invoice', invoiceApi); // page publique d'une facture (lien secret)
   app.use('/api/share', shareApi); // lien de partage famille (sans compte)
   app.use('/api', apiNotFound);
   app.use('/media/share', shareMedia);

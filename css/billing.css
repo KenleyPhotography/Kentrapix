@@ -1,0 +1,111 @@
+/* Administration (factures, soldes, rappels) et Statistiques (graphiques). Bleu Kentra ; rouge réservé aux retards. */
+
+/* ---------- Statuts et montants ---------- */
+.badge.is-late { background: #fde8e8; color: #b42318; display: inline-flex; align-items: center; gap: 5px; }
+.badge.is-late svg { width: 13px; height: 13px; }
+.amt-late { color: #b42318; }
+.stat-late strong { color: #b42318; }
+.stats-mini { margin-top: var(--space-3, 12px); }
+.bill-block { margin-top: var(--space-6, 24px); }
+.bill-block h2 { margin: 0 0 var(--space-3, 12px); font-size: 1.15rem; color: var(--ink); }
+.bill-block td.actions { white-space: nowrap; }
+.bill-block td.actions .btn { margin-left: 4px; }
+.bill-sub { margin: 18px 0 6px; font-size: 0.8rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.bill-danger { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 520px) { .row2 { grid-template-columns: 1fr; } }
+
+/* ---------- Rappels ---------- */
+.rem-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.rem-row { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface, #fff); }
+.rem-row > div:nth-of-type(1) { flex: 1; min-width: 0; display: grid; }
+.rem-row strong { color: var(--ink); }
+.rem-row span { color: var(--muted); font-size: var(--text-sm, 14px); }
+.rem-ico { flex: none; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: var(--blue-soft, #e8f1ff); color: var(--blue, #1265d8); }
+.rem-ico svg { width: 17px; height: 17px; }
+.rem-row.is-late { border-color: #f3c2c2; }
+.rem-row.is-late .rem-ico { background: #fde8e8; color: #b42318; }
+.rem-row.is-done strong { text-decoration: line-through; opacity: 0.6; }
+.rem-check input { width: 20px; height: 20px; accent-color: var(--blue, #1265d8); }
+.rem-row .actions { display: flex; gap: 4px; flex: none; }
+
+/* ---------- Graphiques ---------- */
+.viz-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4, 16px); margin-top: var(--space-5, 20px); position: relative; }
+.viz-grid .viz.wide { grid-column: 1 / -1; }
+@media (max-width: 860px) { .viz-grid { grid-template-columns: 1fr; } }
+
+.viz {
+  --v-surface: #fff; --v-ink: #082445; --v-text: #3c577c; --v-muted: #64748b; --v-grid: #e4ecf8;
+  --v-1: #1265d8;        /* série principale : bleu Kentra */
+  --v-paid: #1265d8; --v-due: #86b6ef; --v-late: #e34948;
+  margin: 0; padding: 18px 18px 14px; border: 1px solid var(--border, #e0eaf8); border-radius: 20px; background: var(--v-surface); color: var(--v-text);
+}
+[data-theme="dark"] .viz {
+  --v-surface: #0e1b2e; --v-ink: #f0f5ff; --v-text: #c3d3ea; --v-muted: #8aa0bf; --v-grid: #1d3253;
+  --v-1: #3987e5; --v-paid: #3987e5; --v-due: #6da7ec; --v-late: #e66767;
+}
+.viz figcaption { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 12px; margin-bottom: 8px; }
+.viz figcaption strong { color: var(--v-ink); font-size: 1rem; }
+.viz figcaption span { color: var(--v-muted); font-size: 0.8125rem; }
+.viz figcaption .text-link { margin-left: auto; font-size: 0.8125rem; }
+.viz svg { display: block; width: 100%; height: auto; overflow: visible; stroke: none; stroke-width: 0; fill: none; } /* annule le style « icône » du site (trait + remplissage) */
+.viz svg text { stroke: none; font-weight: 500; }
+.viz .gl { stroke: var(--v-grid); stroke-width: 1; }
+.viz svg rect[data-vtip] { fill: transparent; stroke: none; }
+.viz .ax { fill: var(--v-muted); font-size: 11px; font-family: inherit; }
+.viz .mk { fill: var(--v-1); transition: opacity 0.15s; }
+.viz .bar:hover .mk, .viz .bar:focus-within .mk { opacity: 0.8; }
+.viz .bar.is-now .mk { fill: var(--v-1); }
+.viz rect[data-vtip]:focus { outline: 2px solid var(--v-1); outline-offset: -2px; }
+.viz .seg { stroke: var(--v-1); stroke-width: 26; fill: none; transition: opacity 0.15s; }
+.viz .seg.paid { stroke: var(--v-paid); } .viz .seg.due { stroke: var(--v-due); } .viz .seg.late { stroke: var(--v-late); } .viz .seg.none { stroke: var(--v-grid); }
+.viz .seg:hover, .viz .seg:focus { opacity: 0.8; outline: none; }
+.viz .dc-v { fill: var(--v-ink); font-size: 22px; font-weight: 800; }
+.donut-row { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+.donut-row svg { width: 190px; flex: none; }
+.legend { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; flex: 1; min-width: 180px; }
+.legend li { display: flex; align-items: center; gap: 10px; font-size: 0.9rem; }
+.legend li span { display: inline-flex; align-items: center; gap: 5px; flex: 1; color: var(--v-text); }
+.legend li span svg { width: 14px; height: 14px; color: var(--v-late); }
+.legend li strong { color: var(--v-ink); }
+.legend .sw { flex: none; width: 12px; height: 12px; border-radius: 4px; background: var(--v-1); }
+.legend .sw.paid { background: var(--v-paid); } .legend .sw.due { background: var(--v-due); } .legend .sw.late { background: var(--v-late); }
+.hb-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.hb-list li { display: grid; grid-template-columns: minmax(70px, 28%) 1fr auto; align-items: center; gap: 10px; font-size: 0.9rem; }
+.hb-name { color: var(--v-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hb-track { display: block; height: 10px; border-radius: 99px; background: var(--v-grid); overflow: hidden; }
+.hb-bar { display: block; height: 100%; border-radius: 99px; background: var(--v-1); }
+.hb-bar.late { background: var(--v-late); }
+.hb-list li strong { color: var(--v-ink); }
+.viz-empty { margin: 12px 0; color: var(--v-muted); }
+.viz-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+.viz-table th, .viz-table td { padding: 7px 8px; border-bottom: 1px solid var(--v-grid); text-align: left; }
+.viz-table td:last-child, .viz-table th:last-child { text-align: right; }
+.viz-tip { position: absolute; z-index: 5; pointer-events: none; padding: 7px 11px; border-radius: 10px; background: #082445; color: #fff; font-size: 0.8125rem; font-weight: 600; white-space: nowrap; box-shadow: 0 10px 24px -8px rgba(8, 36, 69, 0.5); }
+.viz-tip[hidden] { display: none; }
+#stats-root { position: relative; }
+@media (prefers-reduced-motion: reduce) { .viz .mk, .viz .seg { transition: none; } }
+
+/* Montants des tuiles : longueur variable, jamais coupés */
+#stats-root .stat strong, #bill-root .stat strong { font-size: clamp(1.25rem, 2.1vw, 1.85rem); overflow-wrap: anywhere; }
+
+/* ---------- Cartes de factures (pas de tableau : lisible sur tous les écrans) ---------- */
+.inv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: var(--space-4, 16px); margin-top: var(--space-4, 16px); }
+.inv-card { display: grid; gap: 10px; padding: 16px; border: 1px solid var(--border, #e0eaf8); border-radius: 18px; background: var(--surface, #fff); }
+.inv-card.is-late { border-color: #f3c2c2; }
+.inv-card.is-off { opacity: 0.6; }
+.inv-card header { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+.inv-card header > div { display: grid; min-width: 0; }
+.inv-card header strong { color: var(--ink, #082445); font-size: 1.05rem; }
+.inv-card header span:not(.badge) { color: var(--muted, #64748b); font-size: var(--text-sm, 14px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.inv-client { display: flex; align-items: center; gap: 8px; margin: 0; font-size: var(--text-sm, 14px); color: var(--text, #172b46); }
+.inv-client svg { width: 16px; height: 16px; color: var(--blue, #1265d8); flex: none; }
+.inv-amounts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 0; padding: 10px 12px; border-radius: 14px; background: var(--blue-soft, #e8f1ff); }
+.inv-amounts dt { font-size: 0.72rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted, #64748b); }
+.inv-amounts dd { margin: 2px 0 0; font-weight: 700; color: var(--ink, #082445); overflow-wrap: anywhere; }
+.inv-amounts dd.amt-late { color: #b42318; }
+.inv-foot { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 0; font-size: 0.8125rem; color: var(--muted, #64748b); }
+.inv-card .actions { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 4px; border-top: 1px solid var(--border, #e0eaf8); }
+[data-theme="dark"] .inv-card { background: rgba(14, 27, 46, 0.72); }
+[data-theme="dark"] .inv-amounts { background: rgba(28, 119, 238, 0.14); }
+.viz .legend svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }

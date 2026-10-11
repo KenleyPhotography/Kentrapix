@@ -150,6 +150,48 @@ Si vous n'êtes pas à l'origine de cette demande, ignorez cet e-mail.`,
   };
 }
 
+const money = (n, currency) => {
+  try { return new Intl.NumberFormat('fr-FR', { style: 'currency', currency }).format(n); } catch { return `${n} ${currency}`; }
+};
+
+const invoiceBox = (inv) => `<div style="margin:18px 0;padding:16px 18px;border-radius:14px;background:#e8f1ff;color:#082445;font-size:14px;line-height:1.9">
+    Facture <strong>${esc(inv.number)}</strong> — ${esc(inv.title)}<br>
+    Total : <strong>${esc(money(inv.total, inv.currency))}</strong><br>
+    Déjà payé : ${esc(money(inv.paid, inv.currency))}<br>
+    Reste à payer : <strong style="color:#1265d8">${esc(money(inv.balance, inv.currency))}</strong>${inv.dueDate ? `<br>Échéance : ${esc(longDate(inv.dueDate))}` : ''}
+  </div>`;
+
+export function invoiceEmail({ name, studio = defaultStudio(), invoice, url }) {
+  const title = `Votre facture ${invoice.number}`;
+  return {
+    subject: `Facture ${invoice.number} — ${invoice.title}`,
+    html: layout({
+      studio,
+      preheader: `Reste à payer : ${money(invoice.balance, invoice.currency)}.`,
+      title,
+      body: `Bonjour ${esc(firstName(name))},<br><br>${esc(studio)} vous envoie sa facture.${invoiceBox(invoice)}Vous pouvez la consulter, l’imprimer ou l’enregistrer en PDF depuis le lien ci-dessous.`,
+      cta: { label: 'Voir la facture', url },
+    }),
+    text: `Bonjour ${firstName(name)},\n\n${studio} vous envoie sa facture ${invoice.number} (${invoice.title}).\nTotal : ${money(invoice.total, invoice.currency)}\nReste à payer : ${money(invoice.balance, invoice.currency)}\n\n${url}`,
+  };
+}
+
+export function paymentReminderEmail({ name, studio = defaultStudio(), invoice, url }) {
+  const title = 'Rappel de paiement';
+  const late = invoice.status === 'overdue';
+  return {
+    subject: `${late ? 'Facture en retard' : 'Rappel'} : ${invoice.number} — reste ${money(invoice.balance, invoice.currency)}`,
+    html: layout({
+      studio,
+      preheader: `Il reste ${money(invoice.balance, invoice.currency)} à payer.`,
+      title,
+      body: `Bonjour ${esc(firstName(name))},<br><br>Un petit rappel de la part de ${esc(studio)} : ${late ? 'cette facture est arrivée à échéance et n’est pas encore entièrement réglée' : 'il reste un solde à régler sur cette facture'}.${invoiceBox(invoice)}Si vous avez déjà payé, merci d’ignorer ce message. Pour toute question, répondez simplement à cet e-mail.`,
+      cta: { label: 'Voir la facture', url },
+    }),
+    text: `Bonjour ${firstName(name)},\n\nRappel de ${studio} : facture ${invoice.number} (${invoice.title}), reste à payer ${money(invoice.balance, invoice.currency)}.\n${url}`,
+  };
+}
+
 export function signupEmail({ name }) {
   return {
     subject: 'Bienvenue sur KentraPix',
