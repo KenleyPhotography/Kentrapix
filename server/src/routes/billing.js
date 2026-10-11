@@ -6,6 +6,7 @@ import { httpError } from '../lib/errors.js';
 import { uuid } from '../lib/data.js';
 import { audit } from '../lib/audit.js';
 import { sendMail } from '../lib/mailer.js';
+import { sendPrivate } from '../lib/storage.js';
 import { invoiceEmail, paymentReminderEmail } from '../lib/emails.js';
 import { accountScope, eventScope } from '../lib/scope.js';
 import {
@@ -216,7 +217,7 @@ invoiceApi.get('/:token', async (req, res) => {
     `${INVOICE_SELECT} WHERE i.public_token = ?`, [token],
   );
   if (!row) throw httpError(404, 'Facture introuvable.');
-  const [studio] = await query('SELECT name, sender_name, email, phone, whatsapp, website, address FROM users WHERE id = ?', [row.staff_id]);
+  const [studio] = await query('SELECT name, sender_name, email, phone, whatsapp, website, address, instagram, bio, avatar_key FROM users WHERE id = ?', [row.staff_id]);
   const payments = await query('SELECT * FROM payments WHERE invoice_id = ? ORDER BY paid_at, created_at', [row.id]);
   const inv = mapInvoice(row, payments);
   res.set('Cache-Control', 'no-store').json({
@@ -225,8 +226,18 @@ invoiceApi.get('/:token', async (req, res) => {
     client: { name: inv.client.name },
     payments: inv.payments.map((p) => ({ amount: p.amount, method: p.method, paidAt: p.paidAt })),
     studio: {
-      name: studio?.sender_name || studio?.name || 'KentraPix', email: studio?.email || '', phone: studio?.phone || '',
+      name: studio?.sender_name || studio?.name || 'KentraPix', person: studio?.name || '', email: studio?.email || '', phone: studio?.phone || '',
       whatsapp: studio?.whatsapp || studio?.phone || '', website: studio?.website || '', address: studio?.address || '',
+      instagram: studio?.instagram || '', bio: studio?.bio || '',
+      avatar: studio?.avatar_key ? `/api/invoice/${token}/avatar` : null,
     },
   });
+});
+
+// Logo / photo du photographe sur la facture (accessible seulement avec le lien secret de cette facture).
+invoiceApi.get('/:token/avatar', async (req, res) => {
+  const token = z.string().regex(/^[A-Za-z0-9_-]{32}$/, 'Lien invalide.').parse(req.params.token);
+  const [row] = await query('SELECT u.avatar_key FROM invoices i JOIN users u ON u.id = i.staff_id WHERE i.public_token = ?', [token]);
+  if (!row?.avatar_key) throw httpError(404, 'Image introuvable.');
+  await sendPrivate(res, row.avatar_key);
 });
