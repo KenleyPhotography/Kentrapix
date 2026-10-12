@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import crypto from 'node:crypto';
+import fs from 'node:fs/promises';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { query, transaction, toIso } from '../db.js';
@@ -742,6 +743,32 @@ async function deletePhotos(photos, { background = false } = {}) {
   if (background) files().catch((err) => console.error('Suppression des fichiers :', err.message));
   else await files();
 }
+
+// Remplace une photo par sa version retouchée : le fichier est gardé octet pour octet (aucune recompression),
+// c'est exactement ce que le client téléchargera. L'aperçu et la miniature sont refaits à partir du nouveau fichier.
+router.post('/photos/:id/original', upload.single('photo'), async (req, res) => {
+  if (!req.file) throw httpError(400, 'Choisissez l’image retouchée.');
+  let photo;
+  try { photo = await findPhoto(req, req.params.id); } catch (err) { await fs.rm(req.file.path, { force: true }); throw err; }
+  const stored = await storePhoto(req.file, { previewOnly: false });
+  const filename = Buffer.from(req.file.originalname, 'latin1').toString('utf8').slice(0, 255);
+  try {
+    const [oldThumb] = [photo.thumb_key];
+    await query(
+      `UPDATE photos SET original_key = ?, preview_key = ?, thumb_key = NULL, mime = ?, size_bytes = ?, preview_bytes = ?, width = ?, height = ?, filename = ? WHERE id = ?`,
+      [stored.originalKey, stored.previewKey, stored.mime, stored.sizeBytes, stored.previewBytes, stored.width, stored.height, filename, photo.id],
+    );
+    await query('UPDATE events SET cover_key = ? WHERE cover_key = ?', [stored.previewKey, photo.preview_key]);
+    await removeKeys([photo.original_key, photo.preview_key, oldThumb, `thumbs/${photo.id}.webp`, ...LOCK_LEVELS.map((l) => `locks/${photo.id}-b${Math.round(l * 10)}.webp`)].filter(Boolean));
+    await removeWatermarks(photo.id);
+  } catch (err) {
+    await removeKeys([stored.originalKey, stored.previewKey]);
+    throw err;
+  }
+  audit(req, 'photo.replace_original', { entity: 'photo', entityId: photo.id, details: { filename, eventId: photo.event_id } });
+  const [row] = await query('SELECT * FROM photos WHERE id = ?', [photo.id]);
+  res.json({ photo: mapPhoto(row) });
+});
 
 router.delete('/photos/:id', async (req, res) => {
   const photo = await findPhoto(req, req.params.id);
