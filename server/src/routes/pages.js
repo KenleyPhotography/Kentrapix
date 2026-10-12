@@ -8,7 +8,7 @@ import { config, frontendRoot } from '../config.js';
 const router = Router();
 const page = (file) => path.join(frontendRoot, file);
 const staff = (user) => ['owner', 'admin'].includes(user.role);
-const home = (user) => (staff(user) ? '/admin.html' : '/client.html');
+const home = (user) => (staff(user) ? '/admin' : '/client');
 
 // En développement : pas de cache, chaque modification est visible tout de suite.
 // CSS et JS : le navigateur revérifie à chaque fois (réponse 304 très légère si rien n'a changé), pour qu'une mise à jour
@@ -18,6 +18,14 @@ router.use('/css', express.static(path.join(frontendRoot, 'css'), assetCache));
 router.use('/logo', express.static(path.join(frontendRoot, 'logo'), { maxAge: '7d' }));
 router.use('/img', express.static(path.join(frontendRoot, 'img'), { maxAge: '7d' }));
 router.use('/js', express.static(path.join(frontendRoot, 'js'), assetCache));
+
+// Adresses propres : /admin, /client, /login… (jamais « .html » dans la barre d'adresse).
+// Les anciennes adresses en .html (liens déjà envoyés par e-mail, favoris) sont redirigées avec leurs paramètres.
+router.get(/^\/(?:(?:admin|client|gallery|login|share|facture|conditions|index)\.html|admin\/(?:index\.html)?)$/, (req, res) => {
+  const q = req.originalUrl.includes('?') ? req.originalUrl.slice(req.originalUrl.indexOf('?')) : '';
+  const clean = req.path.replace(/\/index\.html$/, '/').replace(/\.html$/, '').replace(/(.)\/$/, '$1');
+  res.redirect(301, (clean === '/index' ? '/' : clean) + q);
+});
 
 // Application installable (PWA) : manifeste + service worker à la racine du site.
 router.get('/manifest.webmanifest', (req, res) => {
@@ -34,36 +42,36 @@ router.get('/robots.txt', (req, res) => res.type('text').send([
   'Disallow: /api/',
   'Disallow: /media/',
   'Disallow: /admin',
-  'Disallow: /client.html',
-  'Disallow: /gallery.html',
-  'Disallow: /share.html',
-  'Disallow: /facture.html',
+  'Disallow: /client',
+  'Disallow: /gallery',
+  'Disallow: /share',
+  'Disallow: /facture',
   '',
   `Sitemap: ${config.appUrl}/sitemap.xml`,
   '',
 ].join('\n')));
 router.get('/sitemap.xml', (req, res) => res.type('application/xml').send(
-  `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n  <url><loc>${config.appUrl}/</loc><changefreq>monthly</changefreq><priority>1.0</priority></url>\n  <url><loc>${config.appUrl}/conditions.html</loc><changefreq>yearly</changefreq><priority>0.3</priority></url>\n</urlset>\n`,
+  `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n  <url><loc>${config.appUrl}/</loc><changefreq>monthly</changefreq><priority>1.0</priority></url>\n  <url><loc>${config.appUrl}/conditions</loc><changefreq>yearly</changefreq><priority>0.3</priority></url>\n</urlset>\n`,
 ));
 router.get('/favicon.ico', (req, res) => res.type('image/png').set('Cache-Control', 'public, max-age=86400').sendFile(page('logo/icon-192.png')));
 
 // Conditions d'utilisation : page publique (liée depuis la connexion et la barre latérale).
-router.get('/conditions.html', (req, res) => res.sendFile(page('conditions.html')));
+router.get('/conditions', (req, res) => res.sendFile(page('conditions.html')));
 
 // Lien de partage famille : page publique, le mot de passe est vérifié par l'API.
 // Facture : page publique ouverte avec le lien secret reçu par e-mail (les données viennent de /api/invoice/:token).
-router.get('/facture.html', (req, res) => {
+router.get('/facture', (req, res) => {
   res.set('Referrer-Policy', 'no-referrer').sendFile(page('facture.html'));
 });
 
-router.get('/share.html', (req, res) => {
+router.get('/share', (req, res) => {
   res.set('Referrer-Policy', 'no-referrer').sendFile(page('share.html'));
 });
 
 // Prêt = connecté, mot de passe définitif, et (client inscrit seul) code d'un photographe validé.
 const ready = (user) => user && !user.must_change_password && !(user.role === 'client' && !user.access_granted);
 
-router.get('/login.html', (req, res) => {
+router.get('/login', (req, res) => {
   if (ready(req.user)) return res.redirect(home(req.user));
   res.set({ 'Cache-Control': 'no-cache', Vary: 'Cookie' }).sendFile(page('login.html'));
 });
@@ -71,22 +79,22 @@ router.get('/login.html', (req, res) => {
 // Espace client : connexion obligatoire ; un admin est envoyé vers le studio.
 // L'équipe arrive sur le studio depuis « / », mais peut ouvrir client.html pour ses propres
 // photos (« Mes photos ») ou l'aperçu d'un client (?preview=<id>).
-router.get(['/', '/index.html', '/client.html', '/gallery.html'], (req, res) => {
+router.get(['/', '/client', '/gallery'], (req, res) => {
   // Visiteur (et Google) sur « / » : la page de connexion directement, sans redirection,
   // pour que l'adresse principale du site soit celle qui est indexée.
   if (!ready(req.user) && req.path === '/') return res.set({ 'Cache-Control': 'no-cache', Vary: 'Cookie' }).sendFile(page('login.html'));
-  if (!ready(req.user)) return res.redirect('/login.html');
-  if (staff(req.user) && ['/', '/index.html'].includes(req.path)) return res.redirect('/admin.html');
-  res.sendFile(page(req.path === '/' ? 'index.html' : req.path.slice(1)));
+  if (!ready(req.user)) return res.redirect('/login');
+  if (staff(req.user) && req.path === '/') return res.redirect('/admin');
+  res.sendFile(page(req.path === '/' ? 'index.html' : `${req.path.slice(1)}.html`));
 });
 
 // Studio : invisible pour tout le monde sauf l'équipe connectée (propriétaire + admins).
-router.get(['/admin.html', '/admin/', '/admin/index.html'], (req, res) => {
-  // Express ne distingue pas /admin et /admin/ : sans « / » final, les liens ../css de la page casseraient.
-  if (!req.originalUrl.split('?')[0].match(/\.html$|\/$/)) return res.redirect('/admin/');
-  if (!ready(req.user)) return res.redirect('/login.html');
-  if (!staff(req.user)) return res.redirect('/client.html');
-  res.sendFile(page(req.path === '/admin.html' ? 'admin.html' : 'admin/index.html'));
+router.get('/admin', (req, res) => {
+  // « /admin/ » (avec barre finale) fausserait les liens relatifs css/… de la page : on revient à « /admin ».
+  if (req.originalUrl.split('?')[0].endsWith('/')) return res.redirect(301, '/admin');
+  if (!ready(req.user)) return res.redirect('/login');
+  if (!staff(req.user)) return res.redirect('/client');
+  res.sendFile(page('admin.html'));
 });
 
 export default router;

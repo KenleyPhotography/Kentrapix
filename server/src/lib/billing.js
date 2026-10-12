@@ -18,7 +18,7 @@ export function invoiceStatus(i, day = today()) {
   return Number(i.paid) > 0 ? 'partial' : 'unpaid';
 }
 
-export const invoiceUrl = (token) => `${config.appUrl}/facture.html?t=${token}`;
+export const invoiceUrl = (token) => `${config.appUrl}/facture?t=${token}`;
 
 export const INVOICE_SELECT = `SELECT i.*, u.name AS client_name, u.email AS client_email, u.phone AS client_phone, u.whatsapp AS client_whatsapp,
     e.name AS event_name,

@@ -83,7 +83,7 @@ router.get('/thumb/:id', async (req, res) => {
 });
 
 router.get('/cover/:id', async (req, res) => {
-  const [event] = await query('SELECT e.id, e.cover_key, e.client_id, (SELECT STRING_AGG(ec.client_id, ',') FROM event_clients ec WHERE ec.event_id = e.id) AS extra_client_ids, e.created_by, e.expires_at, e.published, e.archived, e.selection_mode FROM events e WHERE e.id = ?', [
+  const [event] = await query(`SELECT e.id, e.cover_key, e.client_id, (SELECT STRING_AGG(ec.client_id, ',') FROM event_clients ec WHERE ec.event_id = e.id) AS extra_client_ids, e.created_by, e.expires_at, e.published, e.archived, e.selection_mode FROM events e WHERE e.id = ?`, [
     uuid.parse(req.params.id),
   ]);
   if (!event?.cover_key || !canSeeEvent(req.user, event)) throw httpError(404, 'Image introuvable.');
@@ -96,7 +96,7 @@ router.get('/cover/:id', async (req, res) => {
 
 // Musique du diaporama d'une galerie.
 router.get('/music/:id', async (req, res) => {
-  const [event] = await query('SELECT e.id, e.music_key, e.client_id, (SELECT STRING_AGG(ec.client_id, ',') FROM event_clients ec WHERE ec.event_id = e.id) AS extra_client_ids, e.created_by, e.expires_at, e.published, e.archived FROM events e WHERE e.id = ?', [
+  const [event] = await query(`SELECT e.id, e.music_key, e.client_id, (SELECT STRING_AGG(ec.client_id, ',') FROM event_clients ec WHERE ec.event_id = e.id) AS extra_client_ids, e.created_by, e.expires_at, e.published, e.archived FROM events e WHERE e.id = ?`, [
     uuid.parse(req.params.id),
   ]);
   if (!event?.music_key || !canSeeEvent(req.user, event)) throw httpError(404, 'Musique introuvable.');

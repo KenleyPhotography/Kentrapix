@@ -5,7 +5,7 @@ import { config } from '../config.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const firstName = (name) => String(name || '').trim().split(/\s+/)[0] || '';
-const loginUrl = () => `${config.appUrl}/login.html`;
+const loginUrl = () => `${config.appUrl}/login`;
 /** Nom du studio par défaut : celui de MAIL_FROM (« Kenley Photography <…> »). */
 const defaultStudio = () => config.mail.from.replace(/\s*<.*$/, '').replace(/"/g, '').trim() || 'KentraPix';
 
@@ -59,7 +59,7 @@ export function welcomeEmail({ name, email, password, studio = defaultStudio() }
 
 export function galleryReadyEmail({ name, eventName, count, studio = defaultStudio() }) {
   const title = 'Vos photos sont prêtes';
-  const url = `${config.appUrl}/client.html`;
+  const url = `${config.appUrl}/client`;
   return {
     subject: `Vos photos « ${eventName} » sont prêtes`,
     html: layout({
@@ -77,7 +77,7 @@ const longDate = (iso) => new Date(`${String(iso).slice(0, 10)}T12:00:00Z`).toLo
 
 export function expiryEmail({ name, eventName, expiresAt, daysLeft, studio = defaultStudio() }) {
   const when = daysLeft <= 0 ? 'aujourd’hui' : daysLeft === 1 ? 'demain' : `dans ${daysLeft} jours`;
-  const url = `${config.appUrl}/client.html`;
+  const url = `${config.appUrl}/client`;
   return {
     subject: `Votre galerie « ${eventName} » ferme ${when}`,
     html: layout({
@@ -113,9 +113,9 @@ export function adminInviteEmail({ name, email, password, studio = defaultStudio
       preheader: 'Vous avez maintenant accès au studio.',
       title: `Bienvenue dans l’équipe, ${firstName(name)} !`,
       body: `Vous avez maintenant accès au studio KentraPix : clients, galeries et photos.${password ? credentials(email, password) : '<br><br>Connectez-vous avec votre mot de passe habituel.'}`,
-      cta: { label: 'Ouvrir le studio', url: `${config.appUrl}/admin.html` },
+      cta: { label: 'Ouvrir le studio', url: `${config.appUrl}/admin` },
     }),
-    text: `Bienvenue dans l'équipe KentraPix.\n${password ? `E-mail : ${email}\nMot de passe temporaire : ${password}\n` : ''}\n${config.appUrl}/admin.html`,
+    text: `Bienvenue dans l'équipe KentraPix.\n${password ? `E-mail : ${email}\nMot de passe temporaire : ${password}\n` : ''}\n${config.appUrl}/admin`,
   };
 }
 
@@ -199,9 +199,9 @@ export function signupEmail({ name }) {
       preheader: 'Votre compte est créé.',
       title: `Bienvenue ${firstName(name)} !`,
       body: 'Votre compte KentraPix est prêt. Vos galeries apparaîtront ici dès que votre photographe les aura publiées.',
-      cta: { label: 'Ouvrir mon espace', url: `${config.appUrl}/client.html` },
+      cta: { label: 'Ouvrir mon espace', url: `${config.appUrl}/client` },
     }),
-    text: `Bienvenue ${firstName(name)} !\n\nVotre compte KentraPix est prêt.\n${config.appUrl}/client.html`,
+    text: `Bienvenue ${firstName(name)} !\n\nVotre compte KentraPix est prêt.\n${config.appUrl}/client`,
   };
 }
 
@@ -215,7 +215,7 @@ export function selectionEmail({ clientName, eventName, numbers, note }) {
       body: `<strong style="color:#082445">${esc(clientName)}</strong> a choisi <strong style="color:#1265d8">${numbers.length} photo${numbers.length > 1 ? 's' : ''}</strong> dans « ${esc(eventName)} » :
         <div style="margin:16px 0;padding:16px 18px;border-radius:14px;background:#e8f1ff;color:#082445;font-size:15px;line-height:1.7;font-weight:700">N° ${esc(list)}</div>
         ${note ? `Message du client :<br><em>« ${esc(note).replace(/\r?\n/g, '<br>')} »</em>` : ''}`,
-      cta: { label: 'Ouvrir le studio', url: `${config.appUrl}/admin.html` },
+      cta: { label: 'Ouvrir le studio', url: `${config.appUrl}/admin` },
     }),
     text: `${clientName} a choisi ${numbers.length} photo(s) dans « ${eventName} » : N° ${list}${note ? `\n\nMessage : ${note}` : ''}`,
   };
@@ -223,7 +223,7 @@ export function selectionEmail({ clientName, eventName, numbers, note }) {
 
 /** Notification écrite dans le studio (page « Notifications »), avec la galerie liée s'il y en a une. */
 export function announcementEmail({ name, title, body, eventName = null, studio = defaultStudio() }) {
-  const url = `${config.appUrl}/client.html`;
+  const url = `${config.appUrl}/client`;
   return {
     subject: title,
     html: layout({
@@ -245,8 +245,8 @@ export function messageEmail({ name, subject, message, studio = defaultStudio() 
       preheader: message.slice(0, 90),
       title: subject,
       body: `Bonjour ${esc(firstName(name))},<br><br>${esc(message).replace(/\r?\n/g, '<br>')}`,
-      cta: { label: 'Ouvrir mon espace', url: `${config.appUrl}/client.html` },
+      cta: { label: 'Ouvrir mon espace', url: `${config.appUrl}/client` },
     }),
-    text: `Bonjour ${firstName(name)},\n\n${message}\n\n${config.appUrl}/client.html`,
+    text: `Bonjour ${firstName(name)},\n\n${message}\n\n${config.appUrl}/client`,
   };
 }

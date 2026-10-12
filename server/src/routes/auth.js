@@ -213,7 +213,7 @@ router.post('/forgot', resetLimiter, async (req, res) => {
     audit(req, 'auth.reset_request', { userId: user.id });
     await sendMail({
       to: user.email, userId: user.id, kind: 'password_reset',
-      ...resetLinkEmail({ name: user.name, url: `${config.appUrl}/login.html?reset=${token}` }),
+      ...resetLinkEmail({ name: user.name, url: `${config.appUrl}/login?reset=${token}` }),
     });
   }
   res.json({ ok: true, message: 'Si un compte existe avec cet e-mail, un lien vient de lui être envoyé.' });
@@ -251,7 +251,7 @@ router.post('/studio/forgot', requireStaff, resetLimiter, async (req, res) => {
     [crypto.randomUUID(), req.user.id, sha256(token), utcStamp(new Date(Date.now() + RESET_MINUTES * 60000))],
   );
   audit(req, 'studio.reset_request');
-  const url = `${config.appUrl}/admin.html?studio-reset=${token}`;
+  const url = `${config.appUrl}/admin?studio-reset=${token}`;
   const mail = await sendMail({ to: req.user.email, userId: req.user.id, kind: 'studio_reset', ...studioResetEmail({ name: req.user.name, url }) });
   if (!mailConfigured() && !config.isProd) console.log(`[dev] Lien mot de passe studio pour ${req.user.email} : ${url}`);
   res.json({ ok: true, sent: mail.status === 'sent', email: maskEmail(req.user.email) });

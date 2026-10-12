@@ -19,7 +19,7 @@ export const SHARE_SELECT = `SELECT l.*, s.name AS created_by_name,
 export const mapShare = (l) => ({
   id: l.id,
   label: l.label || '',
-  url: `${config.appUrl}/share.html?t=${l.token}`,
+  url: `${config.appUrl}/share?t=${l.token}`,
   allowDownload: !!l.allow_download,
   allowComments: !!l.allow_comments,
   photoNumbers: l.photo_numbers || null, // null : toutes les photos ouvertes au client

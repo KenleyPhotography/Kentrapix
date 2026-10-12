@@ -5,7 +5,7 @@ const app=document.getElementById('app');
 const token=new URLSearchParams(location.search).get('t')||'';
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const toast=m=>{const t=document.getElementById('toast');t.textContent=m;t.style.display='block';clearTimeout(toast.t);toast.t=setTimeout(()=>t.style.display='none',3600)};
-const brand=`<a class="share-brand" href="/login.html" aria-label="KentraPix"><img src="/logo/kentrapix-icon.svg" alt="" width="34" height="34"><span>Kentra<b>Pix</b></span></a>`;
+const brand=`<a class="share-brand" href="/login" aria-label="KentraPix"><img src="/logo/kentrapix-icon.svg" alt="" width="34" height="34"><span>Kentra<b>Pix</b></span></a>`;
 const date=d=>d?new Date(String(d).slice(0,10)+'T12:00:00Z').toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric',timeZone:'UTC'}):'';
 async function call(path,opts={}){const res=await fetch(path,{credentials:'same-origin',headers:{Accept:'application/json','Content-Type':'application/json'},...opts});if(res.status===204)return null;const body=await res.json().catch(()=>({}));if(!res.ok)throw Object.assign(Error(body.error||'Erreur, réessayez.'),{status:res.status});return body}
 
