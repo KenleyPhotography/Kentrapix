@@ -2362,3 +2362,23 @@ td.actions .btn.icon-btn + .btn.icon-btn { margin-left: 6px; }
 /* En-tête de facture (fond bleu) */
 .brand b { color: #fff; font-size: 1.6rem; }
 .brand b span { background: linear-gradient(120deg, #bfe0ff, #8fc4ff); -webkit-background-clip: text; background-clip: text; }
+
+/* ---------- Titres (Connexion, Bonjour…, galeries) : Sora, plus vivant et plus lisible que le serif léger ---------- */
+:root { --font-display: "Sora", var(--font-sans); }
+h1, h2, .share-card h1, .share-head h1, .sc-head h2, .ss-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-variation-settings: normal;
+  letter-spacing: -0.035em;
+  line-height: 1.12;
+  -webkit-font-smoothing: antialiased;
+}
+h1 em, h2 em, .editorial-heading em, .login-caption h1 em {
+  font-style: normal;
+  font-weight: 700;
+  background: linear-gradient(120deg, #1265d8 10%, #3d94ff 90%);
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent; color: transparent;
+}
+[data-theme="dark"] h1 em, [data-theme="dark"] h2 em { background: linear-gradient(120deg, #7ab8ff, #b6dbff); -webkit-background-clip: text; background-clip: text; }
+.login-panel h1 { font-size: clamp(2rem, 1.6rem + 1.6vw, 2.6rem); }
