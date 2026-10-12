@@ -120,8 +120,9 @@ export async function clientBootstrap(id, onlyBy = null) {
     photographers: photographers.map(mapPhotographer),
     events: events.map((e) => {
       const m = mapEvent(e);
-      // Première photo verrouillée : elle ne peut pas servir de couverture.
-      return { ...m, cover: !e.cover_key && isLockedFor(e, 1) ? null : m.cover, photographer: names[e.created_by] || '', totalPhotos: totals[e.id] || 0, openPhotos: opened[e.id] || 0 };
+      // Pas de couverture choisie : la première photo ouverte au client sert de couverture (jamais une photo verrouillée).
+      const firstOpen = !e.cover_key && photos.find((p) => p.event_id === e.id && !p.__locked);
+      return { ...m, cover: e.cover_key ? m.cover : firstOpen ? `/media/preview/${firstOpen.id}` : null, photographer: names[e.created_by] || '', totalPhotos: totals[e.id] || 0, openPhotos: opened[e.id] || 0 };
     }),
     photos: photos.map(mapPhoto),
     notifications: await clientNotifications(id, events),

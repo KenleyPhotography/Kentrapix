@@ -4,6 +4,8 @@ const isStaff=u=>['owner','admin'].includes(u?.role);
 const app=document.getElementById('app');const admin=location.pathname.includes('admin');let page=admin?'Overview':'Photos',eventId=null,album=null,only='',person=null,filter='Tous',query='';
 // ----- Retour là où l'on était : sur téléphone le navigateur recharge souvent l'onglet (retour d'une autre appli, mémoire pleine…).
 // La page, la galerie ouverte, le filtre, la recherche et la position de défilement sont gardés et rétablis. -----
+// Couverture qui ne s'affiche pas (fichier manquant, accès refusé…) : on retire l'image cassée, le fond bleu Kentra reste.
+document.addEventListener('error',e=>{const i=e.target;if(i&&i.tagName==='IMG'&&i.closest('.event-cover,.hero-image,.cover-thumb')){const box=i.closest('.event-cover,.hero-image,.cover-thumb');box.classList.add('no-cover');i.remove()}},true);
 const navKey=()=>`kp-nav:${admin?'a':'c'}:${auth.session()?.id||''}`;
 let navRestored=false,navScroll=0;
 function saveNav(){if(preview||!auth.session())return;try{localStorage.setItem(navKey(),JSON.stringify({t:Date.now(),page,eventId,album,only,filter,query,y:Math.round(window.scrollY)}))}catch{}}

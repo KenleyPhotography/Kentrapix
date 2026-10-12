@@ -2329,3 +2329,9 @@ td.actions .btn.icon-btn + .btn.icon-btn { margin-left: 6px; }
 .share-form #sp-some[hidden] { display: none; }
 .share-form #sp-open { width: 100%; justify-content: center; }
 .share-form .up-tools { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; margin-bottom: 8px; }
+
+/* Couverture absente ou illisible : fond bleu Kentra + appareil photo, jamais d'image cassée */
+.event-cover, .hero-image { background: linear-gradient(135deg, #1265d8, #0a3a85); }
+.event-cover.no-cover::before, .hero-image.no-cover::before { content: ""; position: absolute; inset: 0; margin: auto; width: 56px; height: 56px; opacity: 0.55;
+  background: center / contain no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 8h3l2-3h6l2 3h3v11H4z'/%3E%3Ccircle cx='12' cy='13' r='3.5'/%3E%3C/svg%3E"); }
+.event-cover, .hero-image { position: relative; }
