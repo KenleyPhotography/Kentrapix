@@ -224,9 +224,9 @@ export async function bindBilling(c) {
       <label>Notes <span class="optional">(visibles sur la facture)</span><input name="notes" maxlength="1000" placeholder="Ex. Acompte de 50 % à la réservation"></label>`,
     async (v) => {
       const res = await api('/api/admin/invoices', { method: 'POST', body: { clientId: v.clientId, eventId: v.eventId || '', title: v.title, amount: v.amount, currency: v.currency, dueDate: v.dueDate || '', notes: v.notes || '', paymentType: v.paymentType, advance: v.paymentType === 'credit' ? (v.advance || '') : '', advanceMethod: v.advanceMethod } });
-      await refreshAll();
+      bill.invoices.unshift(res.invoice); redraw(); refreshAll().catch(() => {});
       ctx.toast(`Facture ${res.invoice.number} créée.`);
-    }, { submit: 'Créer la facture' });
+    }, { submit: 'Créer la facture', draft: 'invoice' });
     const sel = document.getElementById('inv-client'), ev = document.getElementById('inv-event');
     const filter = () => { ev.querySelectorAll('option[data-c]').forEach((o) => { o.hidden = o.dataset.c !== sel.value; o.disabled = o.hidden; }); if (ev.selectedOptions[0]?.disabled) ev.value = ''; };
     sel?.addEventListener('change', filter); filter();
@@ -243,9 +243,10 @@ export async function bindBilling(c) {
       <label>Date<input name="paidAt" type="date" value="${bill.today}"></label>
       <label>Note <span class="optional">(facultatif)</span><input name="note" maxlength="200" placeholder="Ex. Reçu en main propre"></label>`,
     async (v) => {
-      await api(`/api/admin/invoices/${inv.id}/payments`, { method: 'POST', body: { amount: v.amount, method: v.method, paidAt: v.paidAt, note: v.note || '' } });
-      await refreshAll(); ctx.toast('Paiement enregistré.');
-    }, { submit: 'Enregistrer le paiement' });
+      const rr = await api(`/api/admin/invoices/${inv.id}/payments`, { method: 'POST', body: { amount: v.amount, method: v.method, paidAt: v.paidAt, note: v.note || '' } });
+      const at = bill.invoices.findIndex((x) => x.id === inv.id); if (at >= 0 && rr.invoice) { bill.invoices[at] = rr.invoice; redraw(); }
+      refreshAll().catch(() => {}); ctx.toast('Paiement enregistré.');
+    }, { submit: 'Enregistrer le paiement', draft: 'pay', draftArgs: { invoiceId: inv.id } });
   }
   function manageModal(inv) {
     const pays = inv.payments.length
@@ -272,10 +273,17 @@ export async function bindBilling(c) {
       <label>Rappel<input name="title" required maxlength="200" placeholder="Ex. Relancer Marie pour l’album"></label>
       <label>Date<input name="dueAt" type="date" value="${bill.today}" required></label>
       <label>Client <span class="optional">(facultatif)</span><select name="clientId"><option value="">Aucun</option>${clientOptions('')}</select></label>`,
-    async (v) => { await api('/api/admin/reminders', { method: 'POST', body: { title: v.title, dueAt: v.dueAt, clientId: v.clientId || '' } }); await refreshAll(); ctx.toast('Rappel ajouté.'); }, { submit: 'Ajouter' });
+    async (v) => { const r = await api('/api/admin/reminders', { method: 'POST', body: { title: v.title, dueAt: v.dueAt, clientId: v.clientId || '' } }); bill.reminders.push({ id: r.id, title: v.title, dueAt: v.dueAt, done: false, clientId: v.clientId || null, clientName: clients().find((c) => c.id === v.clientId)?.name || '', invoiceId: null }); redraw(); refreshAll().catch(() => {}); ctx.toast('Rappel ajouté.'); }, { submit: 'Ajouter', draft: 'reminder' });
   }
 
   document.getElementById('bill-new-invoice').onclick = () => invoiceModal('');
+  // Retour là où l'on était : si la page a été rechargée pendant qu'une fenêtre était ouverte, on la rouvre avec ce qui était tapé.
+  setTimeout(() => {
+    const d = window.__kpDraft?.read(); if (!d || document.querySelector('#overlays .modal')) return;
+    if (d.id === 'invoice') invoiceModal('');
+    else if (d.id === 'reminder') reminderModal();
+    else if (d.id === 'pay') { const inv = find(d.args?.invoiceId); if (inv) payModal(inv); }
+  }, 0);
   document.getElementById('bill-new-reminder').onclick = reminderModal;
   document.querySelectorAll('.page-actions [data-nav]').forEach((b) => { b.onclick = () => ctx.navigate(b.dataset.nav); });
   redraw();
