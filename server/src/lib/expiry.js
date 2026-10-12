@@ -38,8 +38,17 @@ export async function sendExpiryReminders() {
   return events.length;
 }
 
+/** Galerie dont la date d'expiration est passée : archivée automatiquement. Rien n'est supprimé (photos et fichiers gardés). */
+export async function archiveExpired() {
+  const res = await query('UPDATE events SET archived = 1 WHERE archived = 0 AND expires_at IS NOT NULL AND expires_at < CURRENT_DATE');
+  return res.affectedRows || 0;
+}
+
 export function startExpiryReminders() {
-  const run = () => sendExpiryReminders().catch((err) => console.error('Rappels d’expiration :', err.message));
+  const run = () => {
+    sendExpiryReminders().catch((err) => console.error('Rappels d’expiration :', err.message));
+    archiveExpired().then((n) => { if (n) console.log(`Galeries expirées archivées : ${n}`); }).catch((err) => console.error('Archivage des galeries expirées :', err.message));
+  };
   run();
   setInterval(run, EVERY).unref();
 }

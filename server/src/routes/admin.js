@@ -457,7 +457,10 @@ router.patch('/events/:id', upload.single('coverFile'), async (req, res) => {
   for (const cid of ids || (data.clientId ? [data.clientId] : [])) await findAccount(req, cid);
   const coverKey = req.file ? await storeCover(req.file) : event.cover_key;
   const published = !!keep(data, event, 'published');
-  const archived = !!keep(data, event, 'archived');
+  let archived = !!keep(data, event, 'archived');
+  // Galerie archivée automatiquement à son expiration : une nouvelle date (ou plus de date) la rouvre.
+  const wasExpired = event.archived && event.expires_at && String(event.expires_at).slice(0, 10) < new Date().toISOString().slice(0, 10);
+  if (wasExpired && data.expiresAt !== undefined && (data.expiresAt === null || data.expiresAt >= new Date().toISOString().slice(0, 10))) archived = false;
   // Règle des photos débloquées : une seule des trois formes à la fois (numéros, N premières, toutes).
   let unlock = { limit: event.unlock_limit, numbers: event.unlock_numbers };
   if (data.unlockMode === 'all') unlock = { limit: null, numbers: null };
