@@ -11,7 +11,7 @@ body{margin:0;padding:28px 12px 56px;font-family:Inter,system-ui,'Segoe UI',sans
 .band{display:flex;justify-content:space-between;align-items:center;gap:20px;flex-wrap:wrap;padding:26px clamp(20px,5vw,44px);color:#fff;background:linear-gradient(120deg,var(--blue-d),var(--blue) 60%,#1c77ee)}
 .brand{display:flex;align-items:center;gap:12px}
 .brand img{width:46px;height:46px;border-radius:12px;box-shadow:0 8px 18px rgba(0,20,70,.35)}
-.brand b{font-size:24px;font-weight:800;letter-spacing:-.02em}.brand b span{color:#9cc6ff}
+.brand b{font-family:"Sora","Segoe UI",sans-serif;font-size:26px;font-weight:700;letter-spacing:-.03em}.brand b span{color:#9cc6ff}
 .brand small{display:block;font-size:12px;letter-spacing:.14em;text-transform:uppercase;opacity:.8;font-weight:600}
 .docmeta{text-align:right}
 .docmeta h1 .fiche{display:inline-grid;vertical-align:middle;margin-right:10px;padding:8px;border-radius:12px;background:rgba(255,255,255,.16)}

@@ -2335,3 +2335,30 @@ td.actions .btn.icon-btn + .btn.icon-btn { margin-left: 6px; }
 .event-cover.no-cover::before, .hero-image.no-cover::before { content: ""; position: absolute; inset: 0; margin: auto; width: 56px; height: 56px; opacity: 0.55;
   background: center / contain no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 8h3l2-3h6l2 3h3v11H4z'/%3E%3Ccircle cx='12' cy='13' r='3.5'/%3E%3C/svg%3E"); }
 .event-cover, .hero-image { position: relative; }
+
+/* ---------- Nom « KentraPix » : lettres nettes et élégantes (Sora), « Pix » en dégradé bleu Kentra ---------- */
+:root { --font-brand: "Sora", var(--font-sans); }
+.brand strong, .share-brand, .brand b {
+  font-family: var(--font-brand);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: geometricPrecision;
+}
+.brand strong { font-size: 1.6rem; color: #082445; }
+.brand strong span, .share-brand b, .brand b span {
+  font-weight: 800;
+  background: linear-gradient(120deg, #1265d8 10%, #3d94ff 90%);
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent; color: transparent;
+}
+.share-brand { font-size: 1.35rem; }
+/* Sur la barre latérale bleue : texte blanc, « Pix » bleu clair bien lisible */
+.sidebar .brand strong { color: #fff; }
+.sidebar .brand strong span { background: linear-gradient(120deg, #9fd0ff, #6fb0ff); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent !important; }
+[data-theme="dark"] .brand strong { color: #fff; }
+[data-theme="dark"] .brand strong span, [data-theme="dark"] .share-brand b { background: linear-gradient(120deg, #7ab8ff, #a9d3ff); -webkit-background-clip: text; background-clip: text; }
+/* En-tête de facture (fond bleu) */
+.brand b { color: #fff; font-size: 1.6rem; }
+.brand b span { background: linear-gradient(120deg, #bfe0ff, #8fc4ff); -webkit-background-clip: text; background-clip: text; }
