@@ -164,6 +164,19 @@ export async function bindBilling(c) {
   const act = (fn) => async (...a) => { try { await fn(...a); } catch (e) { ctx.toast(e.message); } };
   const refreshAll = async () => { await load(); redraw(); };
   const find = (id) => bill.invoices.find((i) => i.id === id);
+  // Enregistrement instantané : l'écran change tout de suite, le serveur suit en arrière-plan.
+  const logLocal = (inv, channel, status = 'sent') => {
+    const now = new Date().toISOString();
+    (bill.reminderLog ||= []).unshift({ id: `tmp-${Date.now()}`, invoiceId: inv.id, channel, status, at: now });
+    if (status === 'sent') inv.remindedAt = now;
+    redraw();
+  };
+  // Synchronisation téléphone ↔ ordinateur : on relit les données au retour sur l'onglet et toutes les 20 s.
+  if (!window.__billSync) {
+    window.__billSync = true;
+    const sync = () => { if (document.hidden || !document.getElementById('bill-root') || document.querySelector('#overlays .modal')) return; load().then(() => { const r = document.getElementById('bill-root'); if (r && !document.querySelector('#overlays .modal')) { r.innerHTML = billingHtml(); wire(); } }).catch(() => {}); };
+    document.addEventListener('visibilitychange', sync); window.addEventListener('focus', sync); setInterval(sync, 20000);
+  }
   const mailResult = (r, ok) => ctx.toast(r.email.status === 'sent' ? ok : r.email.status === 'skipped' ? 'E-mail non envoyé : l’envoi d’e-mails n’est pas actif sur ce serveur.' : `E-mail non envoyé : ${r.email.error || 'erreur'}`);
 
   function wire() {
@@ -182,9 +195,9 @@ export async function bindBilling(c) {
     r.querySelectorAll('[data-remind]').forEach((b) => { b.onclick = act(async () => {
       const inv = find(b.dataset.remind);
       if (!confirm(`Envoyer un rappel de paiement à ${inv.client.name} (reste ${money(inv.balance, inv.currency)}) ?`)) return;
-      b.disabled = true; const res = await api(`/api/admin/invoices/${inv.id}/remind`, { method: 'POST' }); mailResult(res, 'Rappel envoyé par e-mail.'); await refreshAll();
+      b.disabled = true; const res = await api(`/api/admin/invoices/${inv.id}/remind`, { method: 'POST' }); mailResult(res, 'Rappel envoyé par e-mail.'); logLocal(inv, 'email', res.email.status === 'sent' ? 'sent' : 'failed'); refreshAll().catch(() => {});
     }); });
-    r.querySelectorAll('[data-wa-log]').forEach((a) => { a.addEventListener('click', () => { api(`/api/admin/invoices/${a.dataset.waLog}/reminded`, { method: 'POST', body: { channel: 'whatsapp' } }).then(refreshAll).catch(() => {}); }); });
+    r.querySelectorAll('[data-wa-log]').forEach((a) => { a.addEventListener('click', () => { const inv = find(a.dataset.waLog); if (!inv) return; ctx.toast('Rappel WhatsApp enregistré.'); setTimeout(() => logLocal(inv, 'whatsapp'), 0); api(`/api/admin/invoices/${inv.id}/reminded`, { method: 'POST', body: { channel: 'whatsapp' } }).catch((e) => ctx.toast(e.message)); }); });
     r.querySelectorAll('[data-new-invoice-for]').forEach((b) => { b.onclick = () => invoiceModal(b.dataset.newInvoiceFor); });
     r.querySelectorAll('[data-rem-done]').forEach((b) => { b.onchange = act(async () => { await api(`/api/admin/reminders/${b.dataset.remDone}`, { method: 'PATCH', body: { done: b.checked } }); await refreshAll(); }); });
     r.querySelectorAll('[data-rem-del]').forEach((b) => { b.onclick = act(async () => { await api(`/api/admin/reminders/${b.dataset.remDel}`, { method: 'DELETE' }); await refreshAll(); }); });
