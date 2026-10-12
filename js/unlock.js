@@ -123,9 +123,8 @@ export function photoPickerHtml(photos) {
       <label class="opt"><input type="radio" name="shareMode" value="some"><span>Seulement certaines</span></label>
     </div>
     <div id="sp-some" hidden>
-      <label>Numéros à partager
+      <label>Numéros
         <input name="shareNumbers" id="sp-nums" placeholder="Ex. 1-10, 15, 20-25" autocomplete="off" inputmode="numeric">
-        <small class="field-hint">Séparez par des virgules ; un tiret pour une série (1-10).</small>
       </label>
       <button type="button" class="btn sm" id="sp-open" ${photos.length ? '' : 'disabled'}>Choisir dans la liste (${photos.length})</button>
       <div id="sp-pick" hidden>

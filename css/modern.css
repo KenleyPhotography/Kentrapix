@@ -2314,3 +2314,18 @@ td.actions .btn.icon-btn + .btn.icon-btn { margin-left: 6px; }
 .modal .cpick-row strong { color: var(--ink, #082445); }
 .modal .cpick-list .cpick-row { border: 0 !important; border-radius: 10px; padding: 10px 8px !important; background: transparent !important; }
 .modal .cpick-list .cpick-row:hover { background: color-mix(in srgb, var(--blue) 8%, transparent) !important; }
+
+/* Fenêtre « Partager » : sobre, sans sous-titres, bien alignée */
+.share-form > .acc { grid-column: 1 / -1; margin: 0; }
+.share-form .share-toggle { padding: 10px 12px; }
+.share-form .share-toggle small, .share-form .acc > summary small:not(#sp-sum) { display: none; }
+.share-form { margin: 12px 0 16px; }
+.share-created textarea { margin: 8px 0; }
+.share-form .opt-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+.share-form .opt { display: flex !important; flex-direction: row !important; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 8px 12px; border-radius: 12px; text-align: center; }
+.share-form .opt input[type="radio"] { width: 18px; height: 18px; flex: none; margin: 0; }
+.share-form .opt span { font-size: 0.92rem; font-weight: 600; }
+.share-form #sp-some { display: grid; gap: 12px; }
+.share-form #sp-some[hidden] { display: none; }
+.share-form #sp-open { width: 100%; justify-content: center; }
+.share-form .up-tools { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; margin-bottom: 8px; }
