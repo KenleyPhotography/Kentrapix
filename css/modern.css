@@ -2280,3 +2280,12 @@ td.actions .btn.icon-btn + .btn.icon-btn { margin-left: 6px; }
 .ud-pct { position: absolute; right: -4px; bottom: -3px; padding: 0 5px; min-width: 24px; text-align: center; border-radius: 99px; background: var(--ink, #082445); color: #fff; font-size: 0.64rem; font-weight: 700; line-height: 17px; }
 .upload-row.is-done .ud-pct { background: #13804b; }
 [data-theme="dark"] .ud-ring .trk { stroke: #1d3253; }
+
+/* Galerie sans photos : pas encore prêtes / en mise à jour (toujours dans le bleu Kentra) */
+.badge.is-soon { gap: 4px; background: #fff; color: var(--blue); }
+.badge.is-soon svg { width: 12px; height: 12px; }
+.empty.not-ready { border: 1px dashed var(--blue); background: color-mix(in srgb, var(--blue) 6%, transparent); border-radius: 16px; padding: 36px 20px; }
+.empty.not-ready > svg { color: var(--blue); }
+.empty.not-ready h2 { color: var(--blue); }
+.not-ready-note { display: flex; align-items: center; gap: 8px; margin: 0 0 16px; padding: 10px 14px; border-radius: 12px; background: color-mix(in srgb, var(--blue) 8%, transparent); color: var(--blue); }
+.not-ready-note svg { width: 16px; height: 16px; flex: none; }
