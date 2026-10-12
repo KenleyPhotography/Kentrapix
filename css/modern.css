@@ -2289,3 +2289,28 @@ td.actions .btn.icon-btn + .btn.icon-btn { margin-left: 6px; }
 .empty.not-ready h2 { color: var(--blue); }
 .not-ready-note { display: flex; align-items: center; gap: 8px; margin: 0 0 16px; padding: 10px 14px; border-radius: 12px; background: color-mix(in srgb, var(--blue) 8%, transparent); color: var(--blue); }
 .not-ready-note svg { width: 16px; height: 16px; flex: none; }
+
+/* Menu déroulant à cocher : galerie pour plusieurs clients */
+.cpick { display: grid; gap: 6px; margin-bottom: 4px; }
+.cpick-label { font-weight: 600; font-size: 0.9rem; }
+.cpick-box { border: 1px solid var(--line, #d7e3f5); border-radius: 12px; background: var(--surface, #fff); }
+.cpick-box > summary { list-style: none; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 14px; cursor: pointer; font-weight: 600; color: var(--blue); }
+.cpick-box > summary::-webkit-details-marker { display: none; }
+.cpick-chev { width: 8px; height: 8px; border-right: 2px solid var(--blue); border-bottom: 2px solid var(--blue); transform: rotate(45deg); transition: transform 0.2s; margin-right: 4px; }
+.cpick-box[open] .cpick-chev { transform: rotate(-135deg); }
+.cpick-body { padding: 0 12px 12px; display: grid; gap: 8px; }
+.cpick-search { width: 100%; }
+.cpick-actions { display: flex; gap: 16px; font-size: 0.85rem; }
+.cpick-list { display: grid; gap: 2px; max-height: 240px; overflow: auto; }
+.cpick-row { display: flex !important; align-items: center; gap: 10px; padding: 8px; border-radius: 10px; cursor: pointer; flex-direction: row !important; }
+.cpick-row:hover { background: color-mix(in srgb, var(--blue) 8%, transparent); }
+.cpick-row[hidden] { display: none !important; }
+.cpick-row input[type="checkbox"] { appearance: auto; -webkit-appearance: checkbox; width: 18px; height: 18px; flex: none; accent-color: var(--blue); margin: 0; }
+.cpick-row span { display: grid; min-width: 0; }
+.cpick-row small { color: var(--muted, #5a6b85); overflow: hidden; text-overflow: ellipsis; }
+.modal .cpick-row { justify-content: flex-start; border: 0; background: transparent; box-shadow: none; padding: 8px; min-height: 0; text-align: left; }
+.modal .cpick-row:hover { background: color-mix(in srgb, var(--blue) 8%, transparent); }
+.modal .cpick-row span { text-align: left; justify-items: start; flex: 1; }
+.modal .cpick-row strong { color: var(--ink, #082445); }
+.modal .cpick-list .cpick-row { border: 0 !important; border-radius: 10px; padding: 10px 8px !important; background: transparent !important; }
+.modal .cpick-list .cpick-row:hover { background: color-mix(in srgb, var(--blue) 8%, transparent) !important; }

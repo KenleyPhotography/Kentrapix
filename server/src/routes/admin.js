@@ -204,6 +204,12 @@ router.delete('/clients/:id', async (req, res) => {
   const { galleries } = z.object({ galleries: z.enum(['delete', 'keep']) }).parse(req.body ?? {});
   // Client suivi par d'autres photographes : on ne retire que SES galeries et son lien, le compte reste.
   const others = await query('SELECT staff_id FROM client_photographers WHERE client_id = ? AND staff_id <> ?', [client.id, req.user.id]);
+  // Galerie partagée avec d'autres clients : elle reste, un autre client devient le principal.
+  for (const s of await query('SELECT e.id, (SELECT ec.client_id FROM event_clients ec WHERE ec.event_id = e.id AND ec.client_id <> e.client_id LIMIT 1) AS other FROM events e WHERE e.client_id = ?', [client.id])) {
+    if (!s.other) continue;
+    await query('UPDATE events SET client_id = ? WHERE id = ?', [s.other, s.id]);
+    await query('DELETE FROM event_clients WHERE event_id = ? AND client_id = ?', [s.id, s.other]);
+  }
   const events = others.length
     ? await query('SELECT id, cover_key, music_key FROM events WHERE client_id = ? AND created_by = ?', [client.id, req.user.id])
     : await query('SELECT id, cover_key, music_key FROM events WHERE client_id = ?', [client.id]);
@@ -368,18 +374,36 @@ async function findEvent(req, id) {
 
 /** E-mail « Vos photos sont prêtes » au propriétaire de la galerie. */
 async function notifyGallery(req, event) {
-  const owner = await findAccount(req, event.client_id);
   const [{ count }] = await query('SELECT COUNT(*) AS count FROM photos WHERE event_id = ?', [event.id]);
-  const result = await mailTo(req, owner, galleryReadyEmail({ name: owner.name, eventName: event.name, count: Number(count), studio: studioName(req) }), {
-    kind: 'gallery_ready', eventId: event.id,
-  });
+  let result;
+  for (const cid of [event.client_id, ...String(event.extra_client_ids || '').split(',').filter(Boolean)]) {
+    const owner = await findAccount(req, cid);
+    const r = await mailTo(req, owner, galleryReadyEmail({ name: owner.name, eventName: event.name, count: Number(count), studio: studioName(req) }), {
+      kind: 'gallery_ready', eventId: event.id,
+    });
+    if (!result || r.status === 'sent') result = r;
+  }
   if (result.status === 'sent') await query('UPDATE events SET notified_at = CURRENT_TIMESTAMP WHERE id = ?', [event.id]);
   return result;
 }
 
 // Une galerie peut appartenir à n'importe quel compte actif : client, admin ou propriétaire.
+// Plusieurs clients cochés : « id,id,id » (le premier est le client principal de la galerie).
+const clientIdsField = z.string().trim().max(2000).optional();
+function clientsOf(body) {
+  if (!body || body.clientIds === undefined) return null;
+  const ids = [...new Set(String(body.clientIds).split(',').map((s) => s.trim()).filter(Boolean))];
+  if (!ids.length) throw httpError(400, 'Choisissez au moins un client.');
+  if (ids.length > 50) throw httpError(400, 'Cinquante clients au maximum par galerie.');
+  return ids.map((id) => uuid.parse(id));
+}
+async function saveExtraClients(eventId, ids) {
+  await query('DELETE FROM event_clients WHERE event_id = ?', [eventId]);
+  for (const id of ids.slice(1)) await query('INSERT INTO event_clients (event_id, client_id) VALUES (?, ?) ON CONFLICT DO NOTHING', [eventId, id]);
+}
 const eventSchema = z.object({
   clientId: uuid,
+  clientIds: clientIdsField,
   name: text(160, 'Le nom est obligatoire.'),
   type: text(80, 'Le type est obligatoire.'),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date invalide.'),
@@ -390,8 +414,9 @@ const eventSchema = z.object({
 router.post('/events', upload.single('coverFile'), async (req, res) => {
   let coverKey = null;
   try {
-    const data = eventSchema.parse(req.body);
-    await findAccount(req, data.clientId);
+    const ids = clientsOf(req.body);
+    const data = eventSchema.parse(ids ? { ...req.body, clientId: ids[0] } : req.body);
+    for (const cid of ids || [data.clientId]) await findAccount(req, cid);
     if (req.file) coverKey = await storeCover(req.file);
     const id = crypto.randomUUID();
     await query(
@@ -399,6 +424,7 @@ router.post('/events', upload.single('coverFile'), async (req, res) => {
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [id, data.clientId, req.user.id, data.name, data.type, data.date, data.location, data.description, coverKey],
     );
+    if (ids && ids.length > 1) await saveExtraClients(id, ids);
     audit(req, 'event.create', { entity: 'event', entityId: id, details: { name: data.name } });
     res.status(201).json({ event: mapEvent(await findEvent(req, id)) });
   } catch (err) {
@@ -426,8 +452,9 @@ const eventPatchSchema = eventSchema
 
 router.patch('/events/:id', upload.single('coverFile'), async (req, res) => {
   const event = await findEvent(req, req.params.id);
-  const data = eventPatchSchema.parse(req.body);
-  if (data.clientId) await findAccount(req, data.clientId);
+  const ids = clientsOf(req.body);
+  const data = eventPatchSchema.parse(ids ? { ...req.body, clientId: ids[0] } : req.body);
+  for (const cid of ids || (data.clientId ? [data.clientId] : [])) await findAccount(req, cid);
   const coverKey = req.file ? await storeCover(req.file) : event.cover_key;
   const published = !!keep(data, event, 'published');
   const archived = !!keep(data, event, 'archived');
@@ -462,6 +489,7 @@ router.patch('/events/:id', upload.single('coverFile'), async (req, res) => {
       event.id,
     ],
   );
+  if (ids) await saveExtraClients(event.id, ids);
   if (req.file) await removeKeys([ownCover(event.cover_key)]);
   const { notify, ...changes } = data;
   audit(req, 'event.update', { entity: 'event', entityId: event.id, details: { ...changes, cover: !!req.file } });

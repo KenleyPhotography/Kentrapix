@@ -13,7 +13,7 @@ router.use(requireAuth, blockPending);
 /** Photo visible par l'utilisateur (droits vérifiés), avec son numéro dans la galerie. */
 async function visiblePhoto(req) {
   const [photo] = await query(
-    `SELECT p.id, p.preview_key, p.thumb_key, p.event_id, e.client_id, e.created_by, e.expires_at, e.published, e.archived, e.selection_mode, e.unlock_limit, e.unlock_numbers, e.lock_reason,
+    `SELECT p.id, p.preview_key, p.thumb_key, p.event_id, e.client_id, (SELECT STRING_AGG(ec.client_id, ',') FROM event_clients ec WHERE ec.event_id = e.id) AS extra_client_ids, e.created_by, e.expires_at, e.published, e.archived, e.selection_mode, e.unlock_limit, e.unlock_numbers, e.lock_reason,
        (SELECT COUNT(*) FROM photos q WHERE q.event_id = p.event_id
           AND (q.position < p.position OR (q.position = p.position AND q.created_at <= p.created_at))) AS number
      FROM photos p JOIN events e ON e.id = p.event_id WHERE p.id = ?`,
@@ -31,7 +31,7 @@ async function visiblePhoto(req) {
  */
 router.get('/lockthumb/:id', async (req, res) => {
   const [photo] = await query(
-    `SELECT p.id, p.preview_key, p.thumb_key, p.event_id, e.client_id, e.created_by, e.expires_at, e.published, e.archived, e.lock_mode, e.lock_blur, e.unlock_limit, e.unlock_numbers,
+    `SELECT p.id, p.preview_key, p.thumb_key, p.event_id, e.client_id, (SELECT STRING_AGG(ec.client_id, ',') FROM event_clients ec WHERE ec.event_id = e.id) AS extra_client_ids, e.created_by, e.expires_at, e.published, e.archived, e.lock_mode, e.lock_blur, e.unlock_limit, e.unlock_numbers,
        (SELECT COUNT(*) FROM photos q WHERE q.event_id = p.event_id
           AND (q.position < p.position OR (q.position = p.position AND q.created_at <= p.created_at))) AS number
      FROM photos p JOIN events e ON e.id = p.event_id WHERE p.id = ?`,
@@ -83,7 +83,7 @@ router.get('/thumb/:id', async (req, res) => {
 });
 
 router.get('/cover/:id', async (req, res) => {
-  const [event] = await query('SELECT id, cover_key, client_id, created_by, expires_at, published, archived, selection_mode FROM events WHERE id = ?', [
+  const [event] = await query('SELECT e.id, e.cover_key, e.client_id, (SELECT STRING_AGG(ec.client_id, ',') FROM event_clients ec WHERE ec.event_id = e.id) AS extra_client_ids, e.created_by, e.expires_at, e.published, e.archived, e.selection_mode FROM events e WHERE e.id = ?', [
     uuid.parse(req.params.id),
   ]);
   if (!event?.cover_key || !canSeeEvent(req.user, event)) throw httpError(404, 'Image introuvable.');
@@ -96,7 +96,7 @@ router.get('/cover/:id', async (req, res) => {
 
 // Musique du diaporama d'une galerie.
 router.get('/music/:id', async (req, res) => {
-  const [event] = await query('SELECT id, music_key, client_id, created_by, expires_at, published, archived FROM events WHERE id = ?', [
+  const [event] = await query('SELECT e.id, e.music_key, e.client_id, (SELECT STRING_AGG(ec.client_id, ',') FROM event_clients ec WHERE ec.event_id = e.id) AS extra_client_ids, e.created_by, e.expires_at, e.published, e.archived FROM events e WHERE e.id = ?', [
     uuid.parse(req.params.id),
   ]);
   if (!event?.music_key || !canSeeEvent(req.user, event)) throw httpError(404, 'Musique introuvable.');

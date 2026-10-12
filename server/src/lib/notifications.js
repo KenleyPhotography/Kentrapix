@@ -1,5 +1,5 @@
 import { query, toIso } from '../db.js';
-import { NOT_EXPIRED, daysUntil } from './data.js';
+import { NOT_EXPIRED, CLIENT_HAS, daysUntil } from './data.js';
 import { EXPIRY_NOTICE_DAYS } from './expiry.js';
 
 // Cloche : ce qui s'est passé ces 60 derniers jours. Rien n'est stocké : la liste est recalculée,
@@ -27,7 +27,7 @@ export async function clientNotifications(userId, events) {
     eventId: events.some((e) => e.id === a.event_id) ? a.event_id : null,
   }));
   if (!events.length) return sortRecent(studioItems);
-  const visible = `e.client_id = ? AND e.published = 1 AND e.archived = 0 AND ${NOT_EXPIRED}`;
+  const visible = `${CLIENT_HAS()} AND e.published = 1 AND e.archived = 0 AND ${NOT_EXPIRED}`;
   const [added, replies, family] = await Promise.all([
     // Photos ajoutées après la publication (un envoi = une notification par galerie).
     query(

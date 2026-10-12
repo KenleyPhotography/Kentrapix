@@ -10,6 +10,7 @@ import { fileExists, sendPrivate, zipOriginals, downloadName } from '../lib/stor
 import {
   uuid, mapEvent, mapPhoto, isLockedFor, LOCK_DEFAULT_REASON, mapPhotographer, mapDownload, mapComment, getPermissions, EVENT_COLUMNS, PHOTO_COLUMNS, COMMENT_SELECT,
   NOT_EXPIRED,
+  CLIENT_HAS,
 } from '../lib/data.js';
 import { audit } from '../lib/audit.js';
 import { sendMail } from '../lib/mailer.js';
@@ -27,7 +28,7 @@ const router = Router();
 router.use(requireRole());
 
 // Une galerie expirée disparaît de l'espace du client (le studio la garde).
-const VISIBLE = `e.client_id = ? AND e.published = 1 AND e.archived = 0 AND ${NOT_EXPIRED}`;
+const VISIBLE = `${CLIENT_HAS()} AND e.published = 1 AND e.archived = 0 AND ${NOT_EXPIRED}`;
 const DOWNLOAD_LINK_MINUTES = 10;
 
 /** Tout ce dont l'espace client a besoin, en un seul appel. */
@@ -44,7 +45,7 @@ async function photographersOf(clientId) {
     `SELECT s.* FROM (
        SELECT staff_id AS sid, created_at AS since FROM client_photographers WHERE client_id = ?
        UNION ALL SELECT created_by, created_at FROM users WHERE id = ? AND created_by IS NOT NULL
-       UNION ALL SELECT created_by, created_at FROM events WHERE client_id = ? AND published = 1 AND archived = 0 AND created_by IS NOT NULL
+       UNION ALL SELECT e.created_by, e.created_at FROM events e WHERE ${CLIENT_HAS()} AND e.published = 1 AND e.archived = 0 AND e.created_by IS NOT NULL
      ) x JOIN users s ON s.id = x.sid
      WHERE s.role IN ('owner', 'admin') AND s.active = 1
      GROUP BY s.id ORDER BY MIN(x.since)`,

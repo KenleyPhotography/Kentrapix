@@ -61,6 +61,7 @@ export const mapClient = (u) => ({
 export const mapEvent = (e) => ({
   id: e.id,
   clientId: e.client_id,
+  clientIds: [e.client_id, ...String(e.extra_client_ids || '').split(',').filter(Boolean)],
   name: e.name,
   type: e.type,
   date: e.event_date,
@@ -144,7 +145,11 @@ export const mapDownload = (d) => ({
   ...(d.client_name ? { client: d.client_name } : {}),
 });
 
-export const EVENT_COLUMNS = `e.*, (SELECT p.id FROM photos p WHERE p.event_id = e.id ORDER BY p.position, p.created_at LIMIT 1) AS first_photo_id`;
+// Autres clients cochés pour la galerie (le client principal reste events.client_id), en texte « id,id ».
+export const EXTRA_CLIENTS = `(SELECT STRING_AGG(ec.client_id, ',') FROM event_clients ec WHERE ec.event_id = e.id) AS extra_client_ids`;
+/** Condition SQL (un seul « ? » = id du client) : cette galerie (alias `a`) est l'une des siennes. */
+export const CLIENT_HAS = (a = 'e') => `? IN (SELECT ${a}.client_id UNION SELECT ec.client_id FROM event_clients ec WHERE ec.event_id = ${a}.id)`;
+export const EVENT_COLUMNS = `e.*, (SELECT p.id FROM photos p WHERE p.event_id = e.id ORDER BY p.position, p.created_at LIMIT 1) AS first_photo_id, ${EXTRA_CLIENTS}`;
 
 // ---------- Autorisations globales ----------
 export const PERMISSION_KEYS = ['individual', 'selection', 'event', 'favorites', 'comments', 'signup', 'sharing', 'share_download'];
@@ -161,4 +166,4 @@ export const canSeeEvent = (user, e) =>
   // Chaque photographe (propriétaire compris) ne voit que les galeries de ses propres clients.
   (user.role === 'owner' && (e.created_by === user.id || e.created_by == null)) ||
   (user.role === 'admin' && e.created_by === user.id) ||
-  (e.client_id === user.id && !!e.published && !e.archived && !isExpired(e));
+  ((e.client_id === user.id || String(e.extra_client_ids || '').includes(user.id)) && !!e.published && !e.archived && !isExpired(e));

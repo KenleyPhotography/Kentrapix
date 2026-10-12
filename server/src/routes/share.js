@@ -28,7 +28,7 @@ async function findShare(rawToken) {
     `SELECT l.*, e.name AS event_name, e.type, e.event_date, e.location, e.selection_mode, e.music_key, e.allow_download AS event_download, e.unlock_limit, e.unlock_numbers,
        COALESCE(s.sender_name, s.name) AS studio
      FROM share_links l
-     JOIN events e ON e.id = l.event_id AND e.client_id = l.user_id
+     JOIN events e ON e.id = l.event_id AND (e.client_id = l.user_id OR EXISTS (SELECT 1 FROM event_clients ec WHERE ec.event_id = e.id AND ec.client_id = l.user_id))
      JOIN users u ON u.id = l.user_id AND u.active = 1
      LEFT JOIN users s ON s.id = e.created_by
      WHERE l.token = ? AND e.published = 1 AND e.archived = 0 AND ${NOT_EXPIRED}`,
