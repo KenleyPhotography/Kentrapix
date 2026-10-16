@@ -2571,3 +2571,15 @@ h1 em, h2 em, .editorial-heading em, .login-caption h1 em {
   }
   .workspace { padding-left: 80px; }
 }
+
+/* Barre mobile : pilule courte (la hauteur des onglets seulement), centrée verticalement sans transform (le retrait latéral reste libre). */
+@media (max-width: 800px) {
+  .bottomnav, [data-theme="dark"] .bottomnav {
+    inset: 0 auto 0 calc(8px + env(safe-area-inset-left));
+    margin-block: auto;
+    height: fit-content;
+    max-height: calc(100dvh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    justify-content: flex-start;
+    padding: 12px 5px;
+  }
+}
