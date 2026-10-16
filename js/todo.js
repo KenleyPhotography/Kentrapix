@@ -1,4 +1,4 @@
-// « Sa k pou fè » : tout ce qui attend le photographe, en haut de l'aperçu (contrats, factures en retard, sélections, rendez-vous, commandes, avis).
+// « À faire » : tout ce qui attend le photographe, en haut de l'aperçu (contrats, factures en retard, sélections, rendez-vous, commandes, avis).
 import { api, escape } from './service.js';
 import { icon } from './icons.js';
 
@@ -24,8 +24,8 @@ export async function bindTodo({ navigate }) {
     { nav: 'Reviews', ico: 'star', title: 'Avis à lire', rows: t.reviews.map((r) => [r.client, '★'.repeat(r.rating)]) },
   ].filter((g) => g.rows.length);
   root.hidden = false;
-  if (!groups.length) { root.innerHTML = `<h2>Sa k pou fè</h2><div class="empty small"><p>${icon('check')} Tout est à jour. Rien n’attend pour le moment.</p></div>`; return; }
-  root.innerHTML = `<h2>Sa k pou fè <span class="badge is-late">${groups.reduce((n, g) => n + g.rows.length, 0)}</span></h2>
+  if (!groups.length) { root.innerHTML = `<h2>À faire</h2><div class="empty small"><p>${icon('check')} Tout est à jour. Rien n’attend pour le moment.</p></div>`; return; }
+  root.innerHTML = `<h2>À faire <span class="badge is-late">${groups.reduce((n, g) => n + g.rows.length, 0)}</span></h2>
     <div class="todo-grid">${groups.map((g, i) => `<article class="todo-card ${g.late ? 'is-late' : ''}">
       <header><span class="rem-ico">${icon(g.ico)}</span><strong>${escape(g.title)}</strong><span class="badge ${g.late ? 'is-late' : 'is-draft'}">${g.rows.length}</span></header>
       <ul>${g.rows.slice(0, 4).map(([a, b]) => `<li><strong>${escape(a)}</strong><span>${escape(b)}</span></li>`).join('')}</ul>

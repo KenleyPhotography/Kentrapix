@@ -5,7 +5,7 @@ import { unsignedBookings, CONTRACT_SELECT, mapContract } from '../lib/contracts
 import { INVOICE_SELECT, mapInvoice } from '../lib/billing.js';
 import { eventScope } from '../lib/scope.js';
 
-// « Sa k pou fè » : tout ce qui attend le photographe, au même endroit (une poignée de requêtes légères).
+// « À faire » : tout ce qui attend le photographe, au même endroit (une poignée de requêtes légères).
 export const staffTodo = Router();
 
 const iso = (v) => (v ? `${String(v).replace(' ', 'T').replace(/Z$/, '')}Z` : null);

@@ -79,7 +79,7 @@
         pays +
         payBox(f) +
         (f.notes ? '<div class="notes">' + esc(f.notes) + '</div>' : '') +
-        '<div class="sign"><div><strong>Le photographe</strong><span>' + esc(person || s.name) + '</span><em>Date et signature</em></div></div>' +
+        '<div class="sign"><div><strong>Le photographe</strong><span>' + esc(person || s.name) + '</span></div></div>' +
       '</div>';
   }
 })();

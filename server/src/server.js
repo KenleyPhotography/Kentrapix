@@ -6,6 +6,7 @@ import { createApp } from './app.js';
 import { startExpiryReminders } from './lib/expiry.js';
 import { startAnnouncements } from './lib/announcements.js';
 import { startAutoReminders } from './lib/autoremind.js';
+import { startKeepAlive } from './lib/keepalive.js';
 import { startBackups } from './lib/backup.js';
 import { startBookingReminders } from './lib/bookingReminders.js';
 
@@ -30,6 +31,8 @@ const server = createApp().listen(config.port, config.host, () => {
   startBackups();
   // Rappel la veille de chaque rendez-vous confirmé.
   startBookingReminders();
+  // Garde le site éveillé sur Render gratuit (ping toutes les 10 minutes).
+  startKeepAlive();
 });
 
 // Arrêt propre : termine les requêtes en cours puis ferme la base.
