@@ -66,6 +66,7 @@ router.get('/facture', (req, res) => {
 
 // Contrat : page publique de lecture et de signature (lien secret reçu par e-mail).
 router.get('/contrat', (req, res) => {
+  if (!ready(req.user)) return res.redirect('/login'); // le contrat n'est lisible que connecté avec le compte du destinataire
   res.set('Referrer-Policy', 'no-referrer').sendFile(page('contrat.html'));
 });
 

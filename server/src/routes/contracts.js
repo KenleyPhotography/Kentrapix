@@ -132,14 +132,22 @@ staffContracts.post('/:id/send', async (req, res) => {
 export const contractApi = Router();
 const tokenOf = (req) => z.string().regex(/^[A-Za-z0-9_-]{32}$/, 'Lien invalide.').parse(req.params.token);
 
+// Le lien seul ne suffit pas : il faut être connecté avec le compte du client destinataire (ou celui du photographe auteur).
+// Un client qui transmet le lien à un proche ne lui donne donc aucun accès, et personne d'autre ne peut signer à sa place.
+function guard(req, row) {
+  if (!req.user) throw httpError(401, 'Connectez-vous avec votre compte pour ouvrir ce contrat.');
+  if (req.user.id !== row.client_id && req.user.id !== row.staff_id) throw httpError(403, 'Ce contrat est réservé à son destinataire. Connectez-vous avec le compte à qui il a été envoyé.');
+}
+
 contractApi.get('/:token', async (req, res) => {
   const token = tokenOf(req);
   const [row] = await query(`${CONTRACT_SELECT} WHERE c.public_token = ?`, [token]);
   if (!row || row.status === 'cancelled') throw httpError(404, 'Contrat introuvable ou annulé.');
+  guard(req, row);
   const [studio] = await query('SELECT name, sender_name, email, phone, whatsapp, website, address, instagram, avatar_key FROM users WHERE id = ?', [row.staff_id]);
   const c = mapContract(row);
   res.set('Cache-Control', 'no-store').json({
-    title: row.title, body: row.body, status: row.status, clientName: row.client_name,
+    title: row.title, body: row.body, status: row.status, clientName: row.client_name, canSign: req.user.id === row.client_id,
     createdAt: c.createdAt, signedAt: c.signedAt, signedName: c.signedName,
     signature: row.status === 'signed' ? row.signature : null,
     staffSignature: row.staff_signature || null, staffSignedAt: mapContract({ ...row, signed_at: row.staff_signed_at }).signedAt,
@@ -153,8 +161,10 @@ contractApi.get('/:token', async (req, res) => {
 });
 
 contractApi.get('/:token/avatar', async (req, res) => {
-  const [row] = await query('SELECT u.avatar_key FROM contracts c JOIN users u ON u.id = c.staff_id WHERE c.public_token = ?', [tokenOf(req)]);
-  if (!row?.avatar_key) throw httpError(404, 'Image introuvable.');
+  const [row] = await query('SELECT u.avatar_key, c.client_id, c.staff_id FROM contracts c JOIN users u ON u.id = c.staff_id WHERE c.public_token = ?', [tokenOf(req)]);
+  if (!row) throw httpError(404, 'Image introuvable.');
+  guard(req, row);
+  if (!row.avatar_key) throw httpError(404, 'Image introuvable.');
   await sendPrivate(res, row.avatar_key);
 });
 
@@ -169,6 +179,8 @@ contractApi.post('/:token/sign', async (req, res) => {
   const data = signSchema.parse(req.body);
   const [row] = await query('SELECT * FROM contracts WHERE public_token = ?', [token]);
   if (!row || row.status === 'cancelled') throw httpError(404, 'Contrat introuvable ou annulé.');
+  guard(req, row);
+  if (req.user.id !== row.client_id) throw httpError(403, 'Seul le client destinataire peut signer ce contrat.');
   if (row.status === 'signed') throw httpError(409, 'Ce contrat est déjà signé.');
   const signedAt = new Date().toISOString().slice(0, 19).replace('T', ' ');
   const done = await query(

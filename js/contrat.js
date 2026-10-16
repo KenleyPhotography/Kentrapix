@@ -16,7 +16,7 @@
     return fetch('/api/contract/' + encodeURIComponent(token), { headers: { Accept: 'application/json' }, cache: 'no-store' })
       .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || 'Contrat introuvable.'); return j; }); })
       .then(draw)
-      .catch(function (e) { sheet.innerHTML = '<p class="error">' + esc(e.message) + '</p>'; });
+      .catch(function (e) { sheet.innerHTML = '<p class="error">' + esc(e.message) + '</p>' + (/Connectez-vous|destinataire/.test(e.message) ? '<p style="text-align:center"><a href="/login" style="color:#1265d8;font-weight:700">Se connecter</a></p>' : ''); });
   }
   load();
 
@@ -30,6 +30,8 @@
 
     var clientSign = signed
       ? '<div class="sig-area"><img src="' + esc(c.signature) + '" alt="Signature de ' + esc(c.signedName) + '"></div><p class="sig-name">' + esc(c.signedName) + '</p><p class="sig-date">Signé le ' + esc(stamp(c.signedAt)) + '</p>'
+      : !c.canSign
+      ? '<div class="sig-area"><span class="sig-empty">En attente de la signature du client</span></div><p class="sig-name">' + esc(c.clientName) + '</p><p class="sig-date"></p>'
       : '<form id="sign-form" novalidate><div class="sig-area pad-wrap" id="pad-wrap"><canvas id="pad" aria-label="Zone de signature"></canvas><span class="pad-hint">Signez ici avec le doigt ou la souris</span></div>' +
         '<div class="pad-tools"><button type="button" id="pad-clear">Effacer</button></div>' +
         '<label class="field">Votre nom complet<input type="text" id="sg-name" autocomplete="name" maxlength="120" placeholder="Prénom et nom" value="' + esc(c.clientName) + '"></label></form>';
@@ -49,11 +51,12 @@
         '</div>' +
         (signed
           ? '<p class="hash">✓ Contrat signé électroniquement par les deux parties.<br>Empreinte SHA-256 : ' + esc(c.hash) + '</p>'
+          : !c.canSign ? ''
           : '<div class="signbox"><label class="agree"><input type="checkbox" id="sg-agree"><span>J’ai lu le contrat ci-dessus et je l’accepte. Je reconnais que ma signature électronique a la même valeur qu’une signature sur papier.</span></label>' +
             '<button class="sign-btn" type="button" id="sg-go">Signer le contrat</button><p class="sign-error" id="sg-err" role="alert" hidden></p></div>') +
         '<p class="powered">Contrat établi avec KentraPix</p>' +
       '</div>';
-    if (!signed) bindForm();
+    if (!signed && c.canSign) bindForm();
   }
 
   function bindForm() {

@@ -40,8 +40,14 @@ export const shareCreateSchema = z.object({
 });
 
 export const shareUpdateSchema = z
-  .object({ allowDownload: z.boolean().optional(), allowComments: z.boolean().optional(), photoNumbers: z.string().trim().max(2000).optional() })
-  .refine((d) => d.allowDownload !== undefined || d.allowComments !== undefined || d.photoNumbers !== undefined, 'Rien à modifier.');
+  .object({
+    label: z.string().trim().max(120).optional(),
+    password: z.string().min(6, 'Mot de passe : 6 caractères minimum.').max(100).optional(), // absent = on garde l'ancien
+    allowDownload: z.boolean().optional(),
+    allowComments: z.boolean().optional(),
+    photoNumbers: z.string().trim().max(2000).optional(),
+  })
+  .refine((d) => Object.values(d).some((v) => v !== undefined), 'Rien à modifier.');
 
 /** Crée un lien pour la galerie (appartenant toujours au client : ownerId), noté « créé par le studio » si createdBy. */
 export async function createShare({ eventId, ownerId, createdBy = null, data, bcryptCost }) {
@@ -63,9 +69,11 @@ export async function createShare({ eventId, ownerId, createdBy = null, data, bc
 }
 
 /** Modifie un lien déjà vérifié (téléchargement et/ou commentaires). */
-export async function updateShare(id, data) {
+export async function updateShare(id, data, bcryptCost = 10) {
   const sets = [];
   const params = [];
+  if (data.label !== undefined) { sets.push('label = ?'); params.push(data.label || null); }
+  if (data.password !== undefined) { sets.push('password_hash = ?'); params.push(await bcrypt.hash(data.password, bcryptCost)); }
   if (data.allowDownload !== undefined) { sets.push('allow_download = ?'); params.push(data.allowDownload ? 1 : 0); }
   if (data.allowComments !== undefined) { sets.push('allow_comments = ?'); params.push(data.allowComments ? 1 : 0); }
   if (data.photoNumbers !== undefined) {

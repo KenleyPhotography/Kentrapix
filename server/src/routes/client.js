@@ -452,8 +452,10 @@ router.get('/downloads/:id/file', async (req, res) => {
 // la famille regarde, télécharge si c'est permis, et commente si le lien l'autorise.
 async function shareableEvent(req, id) {
   if (!(await getPermissions()).sharing) throw httpError(403, 'Le partage est désactivé.');
-  const [event] = await query(`SELECT e.id FROM events e WHERE e.id = ? AND ${VISIBLE}`, [uuid.parse(id), req.user.id]);
+  const [event] = await query(`SELECT e.id, e.selection_mode FROM events e WHERE e.id = ? AND ${VISIBLE}`, [uuid.parse(id), req.user.id]);
   if (!event) throw httpError(404, 'Galerie introuvable.');
+  // Galerie envoyée pour choisir les photos : le client ne la partage pas (seul le photographe décide qui la voit).
+  if (event.selection_mode) throw httpError(403, 'Cette galerie sert à choisir vos photos : elle ne peut pas être partagée.');
   return event;
 }
 
@@ -475,7 +477,7 @@ router.patch('/shares/:id', async (req, res) => {
   const data = shareUpdateSchema.parse(req.body);
   const [link] = await query('SELECT id FROM share_links WHERE id = ? AND user_id = ?', [uuid.parse(req.params.id), req.user.id]);
   if (!link) throw httpError(404, 'Lien introuvable.');
-  res.json({ share: await updateShare(link.id, data) });
+  res.json({ share: await updateShare(link.id, data, BCRYPT_COST) });
 });
 
 router.delete('/shares/:id', async (req, res) => {

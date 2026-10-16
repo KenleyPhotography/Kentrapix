@@ -548,7 +548,7 @@ async function findShareLink(req, id) {
 
 router.patch('/shares/:id', async (req, res) => {
   const link = await findShareLink(req, req.params.id);
-  res.json({ share: await updateShare(link.id, shareUpdateSchema.parse(req.body)) });
+  res.json({ share: await updateShare(link.id, shareUpdateSchema.parse(req.body), BCRYPT_COST) });
 });
 
 router.delete('/shares/:id', async (req, res) => {

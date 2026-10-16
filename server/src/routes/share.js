@@ -35,6 +35,8 @@ async function findShare(rawToken) {
     [token.parse(rawToken)],
   );
   if (!link || !(await getPermissions()).sharing) throw httpError(404, 'Ce lien n’existe pas ou n’est plus disponible.');
+  // Galerie de sélection : un lien créé par le client lui-même (ancien ou non) ne donne plus accès ; seuls ceux du studio fonctionnent.
+  if (link.selection_mode && !link.created_by) throw httpError(404, 'Ce lien n’existe pas ou n’est plus disponible.');
   return link;
 }
 

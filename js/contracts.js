@@ -54,7 +54,7 @@ export async function bindAdminContracts({ toast, modal, clients }) {
   const pill = (s) => `<span class="badge ${STATUS[s][1]}">${STATUS[s][0]}</span>`;
 
   const card = (c) => {
-    const text = `Bonjour ${firstName(c.client.name)}, c’est ${studioName()}. Voici le contrat « ${c.title} » à lire et signer en ligne (1 minute) : ${c.url}`;
+    const text = `Bonjour ${firstName(c.client.name)}, c’est ${studioName()}. Voici le contrat « ${c.title} » à lire et signer en ligne (1 minute). Connectez-vous d’abord à votre compte KentraPix : ${c.url}`;
     const wa = waLink(c.client.whatsapp, text);
     return `<article class="inv-card ${c.status === 'cancelled' ? 'is-off' : ''}">
       <header><span class="inv-ico">${icon('file')}</span><div><strong>${escape(c.title)}</strong><span>${escape(c.client.name)}${c.bookingDay ? ` · séance du ${escape(fday(c.bookingDay))}` : ''}</span></div>${pill(c.status)}</header>
