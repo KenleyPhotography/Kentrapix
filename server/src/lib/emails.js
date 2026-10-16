@@ -251,3 +251,59 @@ export function messageEmail({ name, subject, message, studio = defaultStudio() 
     text: `Bonjour ${firstName(name)},\n\n${message}\n\n${config.appUrl}/client`,
   };
 }
+
+// ---------- Rendez-vous ----------
+const frDay = (day) => new Date(`${day}T12:00:00Z`).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
+const bookingBox = (b) => `<div style="margin:16px 0;padding:16px 18px;border-radius:14px;background:#e8f1ff;color:#082445;font-size:15px;line-height:1.7">
+  <strong style="font-size:17px;text-transform:capitalize">${esc(frDay(b.day))}</strong><br>
+  ${esc(b.start)} – ${esc(b.end)}${b.sessionType ? `<br>Séance : ${esc(b.sessionType)}` : ''}${b.note ? `<br><em>« ${esc(b.note)} »</em>` : ''}</div>`;
+
+/** Au photographe : un client demande un rendez-vous. */
+export function bookingRequestEmail({ staffName, clientName, booking, auto }) {
+  return {
+    subject: `${auto ? 'Rendez-vous confirmé' : 'Nouvelle demande de rendez-vous'} : ${clientName} — ${frDay(booking.day)}`,
+    html: layout({
+      preheader: `${clientName} · ${booking.start}`,
+      title: auto ? 'Nouveau rendez-vous' : 'Demande de rendez-vous',
+      body: `Bonjour ${esc(firstName(staffName))},<br><br><strong style="color:#082445">${esc(clientName)}</strong> ${auto ? 'a réservé' : 'demande'} un rendez-vous :${bookingBox(booking)}${auto ? 'Il est confirmé automatiquement.' : 'Ouvrez le studio pour le confirmer ou le refuser.'}`,
+      cta: { label: 'Ouvrir mes rendez-vous', url: `${config.appUrl}/admin` },
+    }),
+    text: `${clientName} ${auto ? 'a réservé' : 'demande'} un rendez-vous le ${frDay(booking.day)} de ${booking.start} à ${booking.end}.${booking.note ? `\n« ${booking.note} »` : ''}\n${config.appUrl}/admin`,
+  };
+}
+
+/** Au client : le photographe confirme, refuse ou annule. */
+export function bookingStatusEmail({ clientName, studio = defaultStudio(), booking, status, reply }) {
+  const titles = { confirmed: 'Rendez-vous confirmé', declined: 'Rendez-vous non disponible', cancelled: 'Rendez-vous annulé' };
+  const lead = {
+    confirmed: `${esc(studio)} a confirmé votre rendez-vous :`,
+    declined: `${esc(studio)} ne peut malheureusement pas vous recevoir sur ce créneau :`,
+    cancelled: `Votre rendez-vous avec ${esc(studio)} a été annulé :`,
+  }[status];
+  return {
+    subject: `${titles[status]} — ${frDay(booking.day)}`,
+    html: layout({
+      studio,
+      preheader: `${frDay(booking.day)} · ${booking.start}`,
+      title: titles[status],
+      body: `Bonjour ${esc(firstName(clientName))},<br><br>${lead}${bookingBox(booking)}${reply ? `Message : <em>« ${esc(reply)} »</em><br><br>` : ''}${status === 'confirmed' ? 'À très bientôt !' : 'Vous pouvez choisir un autre créneau depuis votre espace.'}`,
+      cta: { label: status === 'confirmed' ? 'Voir mon rendez-vous' : 'Choisir un autre créneau', url: `${config.appUrl}/client` },
+    }),
+    text: `${titles[status]} : ${frDay(booking.day)} de ${booking.start} à ${booking.end}.${reply ? `\nMessage : ${reply}` : ''}\n${config.appUrl}/client`,
+  };
+}
+
+/** Rappel la veille, au client et au photographe. */
+export function bookingReminderEmail({ name, studio = defaultStudio(), booking, forStaff = false, clientName = '' }) {
+  return {
+    subject: `Rappel : rendez-vous demain à ${booking.start}`,
+    html: layout({
+      studio,
+      preheader: `Demain à ${booking.start}`,
+      title: 'Rendez-vous demain',
+      body: `Bonjour ${esc(firstName(name))},<br><br>Petit rappel : ${forStaff ? `vous avez rendez-vous demain avec <strong style="color:#082445">${esc(clientName)}</strong>` : `votre rendez-vous avec ${esc(studio)} a lieu demain`} :${bookingBox(booking)}`,
+      cta: { label: forStaff ? 'Ouvrir mes rendez-vous' : 'Ouvrir mon espace', url: `${config.appUrl}/${forStaff ? 'admin' : 'client'}` },
+    }),
+    text: `Rappel : rendez-vous demain (${frDay(booking.day)}) de ${booking.start} à ${booking.end}${forStaff ? ` avec ${clientName}` : ` avec ${studio}`}.`,
+  };
+}

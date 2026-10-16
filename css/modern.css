@@ -2400,3 +2400,34 @@ h1 em, h2 em, .editorial-heading em, .login-caption h1 em {
 .bk-row > div:first-child { display: grid; gap: 2px; min-width: 0; }
 .bk-row > div:first-child span { color: var(--muted, #5a6b85); font-size: 0.88rem; }
 .storage-backup .row { margin: 12px 0 4px; }
+
+/* ---------- Rendez-vous : calendrier et créneaux (bleu Kentra) ---------- */
+.bk-month { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 12px 0 8px; }
+.bk-month strong { text-transform: capitalize; font-family: var(--font-display); font-size: 1.1rem; }
+.bk-week, .bk-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+.bk-week span { text-align: center; font-size: 0.75rem; font-weight: 600; color: var(--muted, #5a6b85); text-transform: uppercase; }
+.bk-grid { margin-top: 6px; transition: opacity 0.2s; }
+.bk-grid.is-loading { opacity: 0.45; }
+.bk-cell { position: relative; aspect-ratio: 1; min-height: 40px; display: grid; place-items: center; border: 1.5px solid transparent; border-radius: 12px; background: transparent; color: #9fb0c8; font-weight: 600; font-size: 0.95rem; padding: 0; }
+.bk-cell.is-empty { pointer-events: none; }
+.bk-cell:disabled { cursor: default; }
+.bk-cell.is-free { color: var(--blue); background: color-mix(in srgb, var(--blue) 10%, transparent); cursor: pointer; }
+.bk-cell.is-free:hover { border-color: var(--blue); }
+.bk-cell.is-today { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--blue) 35%, transparent); }
+.bk-cell.is-picked { background: var(--blue) !important; color: #fff !important; }
+.bk-cell.bk-adm { color: var(--ink, #082445); background: #fff; border-color: var(--border, #e0eaf8); cursor: pointer; }
+.bk-cell.bk-adm.has-bk { background: color-mix(in srgb, var(--blue) 12%, #fff); color: var(--blue); }
+.bk-cell.bk-adm.is-blocked { background: repeating-linear-gradient(135deg, #eef2f8, #eef2f8 6px, #e1e8f2 6px, #e1e8f2 12px); color: #8a9ab3; }
+.bk-cell i { position: absolute; top: 3px; right: 4px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 99px; background: var(--blue); color: #fff; font-size: 0.65rem; font-style: normal; line-height: 16px; text-align: center; }
+.bk-slots { margin-top: 16px; display: grid; gap: 10px; }
+.bk-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.bk-form { display: grid; gap: 12px; margin-top: 14px; }
+.bk-days { display: flex; flex-wrap: wrap; gap: 6px; }
+.bk-days .chip { cursor: pointer; user-select: none; }
+.bk-legend { display: flex; gap: 14px; align-items: center; margin: 10px 0 0; }
+.bk-dot { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 4px; }
+.bk-dot.has { background: var(--blue); } .bk-dot.blk { background: #c9d4e4; }
+.bk-pill { display: inline-block; padding: 3px 10px; border-radius: 99px; font-size: 0.75rem; font-weight: 700; background: color-mix(in srgb, var(--blue) 10%, transparent); color: var(--blue); }
+.bk-pill.is-confirmed { background: #e3f6ec; color: #13804b; } .bk-pill.is-declined, .bk-pill.is-cancelled { background: #f1f3f7; color: #6b7a90; }
+.count-pill { display: inline-block; min-width: 22px; padding: 0 8px; border-radius: 99px; background: var(--blue); color: #fff; font-size: 0.8rem; line-height: 22px; text-align: center; vertical-align: middle; }
+.bk-none { text-align: center; margin: 12px 0 0; }

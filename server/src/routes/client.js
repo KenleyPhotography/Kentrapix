@@ -20,12 +20,14 @@ import { toIso } from '../db.js';
 import { requireRole } from '../middleware/auth.js';
 import { BCRYPT_COST } from './auth.js';
 import { clientNotifications } from '../lib/notifications.js';
+import { clientBooking } from './booking.js';
 import {
   SHARE_SELECT, mapShare, shareCreateSchema, shareUpdateSchema, createShare, updateShare, FAMILY_COMMENT_SELECT, mapFamilyComment, byDate,
 } from '../lib/shares.js';
 
 const router = Router();
 router.use(requireRole());
+router.use('/booking', (req, res, next) => clientBookingRouter(req, res, next));
 
 // Une galerie expirée disparaît de l'espace du client (le studio la garde).
 const VISIBLE = `${CLIENT_HAS()} AND e.published = 1 AND e.archived = 0 AND ${NOT_EXPIRED}`;
@@ -52,6 +54,9 @@ async function photographersOf(clientId) {
     [clientId, clientId, clientId],
   );
 }
+
+// Rendez-vous : le client réserve un créneau chez l'un de ses photographes.
+const clientBookingRouter = clientBooking({ photographersOf });
 
 /**
  * Données de l'espace d'un client, exactement filtrées comme il les voit.

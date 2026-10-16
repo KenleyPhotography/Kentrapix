@@ -7,6 +7,7 @@ import { startExpiryReminders } from './lib/expiry.js';
 import { startAnnouncements } from './lib/announcements.js';
 import { startAutoReminders } from './lib/autoremind.js';
 import { startBackups } from './lib/backup.js';
+import { startBookingReminders } from './lib/bookingReminders.js';
 
 assertServerConfig();
 await ensureStorage();
@@ -27,6 +28,8 @@ const server = createApp().listen(config.port, config.host, () => {
   startAutoReminders();
   // Sauvegarde automatique de la base (1 par jour) + copie des photos si une 2e destination est configurée.
   startBackups();
+  // Rappel la veille de chaque rendez-vous confirmé.
+  startBookingReminders();
 });
 
 // Arrêt propre : termine les requêtes en cours puis ferme la base.
