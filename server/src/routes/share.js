@@ -195,7 +195,7 @@ shareMedia.get('/:token/photo/:id', async (req, res) => {
   );
   if (!photo || !visibleInShare(link, photo.number)) throw httpError(404, 'Photo introuvable.');
   // Galerie en mode sélection : la famille voit, comme le client, la version filigranée.
-  if (link.selection_mode) return sendPrivate(res, await watermarkedPreview(photo.preview_key, photo.id, Number(photo.number)));
+  if (link.selection_mode) return sendPrivate(res, await watermarkedPreview(photo.preview_key, photo.id, Number(photo.number), link.studio));
   await sendPrivate(res, photo.preview_key);
 });
 

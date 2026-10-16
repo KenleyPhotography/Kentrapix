@@ -387,19 +387,23 @@ export async function storeAvatar(file) {
 }
 
 /**
- * Aperçu filigrané (mode sélection) : « KentraPix » en diagonale + numéro de la photo.
+ * Aperçu filigrané (mode sélection) : nom du photographe en diagonale + numéro de la photo.
  * Généré à la demande puis gardé en cache dans watermarks/<photo>-<numéro>.webp.
  */
-export async function watermarkedPreview(previewKey, photoId, number) {
-  const key = `watermarks/${photoId}-${number || 'x'}-v2.webp`;
+export async function watermarkedPreview(previewKey, photoId, number, label) {
+  // Le filigrane porte le nom du photographe (nom du studio), pas celui de la plateforme.
+  const name = String(label || '').trim().slice(0, 40) || 'KentraPix';
+  const tag = crypto.createHash('sha1').update(name).digest('hex').slice(0, 6);
+  const key = `watermarks/${photoId}-${number || 'x'}-${tag}.webp`;
   if (await fileExists(key)) return key;
   const image = sharp(await readFile(previewKey));
   const { width, height } = await image.metadata();
-  const size = Math.round(Math.max(width, height) / 9);
+  const size = Math.round(Math.max(width, height) / Math.max(9, 5 + name.length * 0.55));
+  const text = name.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   const tiles = [];
   for (let y = -height; y < height * 2; y += size * 2.2) {
-    for (let x = -width; x < width * 2; x += size * 5.2) {
-      tiles.push(`<text x="${x}" y="${y}">KentraPix</text>`);
+    for (let x = -width; x < width * 2; x += size * (name.length * 0.62 + 2)) {
+      tiles.push(`<text x="${x}" y="${y}">${text}</text>`);
     }
   }
   const badge = Math.round(size * 0.9);

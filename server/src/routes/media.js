@@ -13,7 +13,7 @@ router.use(requireAuth, blockPending);
 /** Photo visible par l'utilisateur (droits vérifiés), avec son numéro dans la galerie. */
 async function visiblePhoto(req) {
   const [photo] = await query(
-    `SELECT p.id, p.preview_key, p.thumb_key, p.event_id, e.client_id, (SELECT STRING_AGG(ec.client_id, ',') FROM event_clients ec WHERE ec.event_id = e.id) AS extra_client_ids, e.created_by, e.expires_at, e.published, e.archived, e.selection_mode, e.unlock_limit, e.unlock_numbers, e.lock_reason,
+    `SELECT p.id, p.preview_key, p.thumb_key, p.event_id, (SELECT COALESCE(NULLIF(u.sender_name, ''), u.name) FROM users u WHERE u.id = e.created_by) AS studio_name, e.client_id, (SELECT STRING_AGG(ec.client_id, ',') FROM event_clients ec WHERE ec.event_id = e.id) AS extra_client_ids, e.created_by, e.expires_at, e.published, e.archived, e.selection_mode, e.unlock_limit, e.unlock_numbers, e.lock_reason,
        (SELECT COUNT(*) FROM photos q WHERE q.event_id = p.event_id
           AND (q.position < p.position OR (q.position = p.position AND q.created_at <= p.created_at))) AS number
      FROM photos p JOIN events e ON e.id = p.event_id WHERE p.id = ?`,
@@ -59,7 +59,7 @@ const mustWatermark = (user, photo, req) =>
 router.get('/preview/:id', async (req, res) => {
   const photo = await visiblePhoto(req);
   if (mustWatermark(req.user, photo, req)) {
-    return sendPrivate(res, await watermarkedPreview(photo.preview_key, photo.id, Number(photo.number)));
+    return sendPrivate(res, await watermarkedPreview(photo.preview_key, photo.id, Number(photo.number), photo.studio_name));
   }
   await sendPrivate(res, photo.preview_key);
 });
@@ -68,7 +68,7 @@ router.get('/preview/:id', async (req, res) => {
 router.get('/thumb/:id', async (req, res) => {
   const photo = await visiblePhoto(req);
   if (mustWatermark(req.user, photo, req)) {
-    return sendPrivate(res, await watermarkedPreview(photo.preview_key, photo.id, Number(photo.number)));
+    return sendPrivate(res, await watermarkedPreview(photo.preview_key, photo.id, Number(photo.number), photo.studio_name));
   }
   let key = photo.thumb_key;
   if (!key) {
@@ -84,13 +84,13 @@ router.get('/thumb/:id', async (req, res) => {
 });
 
 router.get('/cover/:id', async (req, res) => {
-  const [event] = await query(`SELECT e.id, e.cover_key, e.client_id, (SELECT STRING_AGG(ec.client_id, ',') FROM event_clients ec WHERE ec.event_id = e.id) AS extra_client_ids, e.created_by, e.expires_at, e.published, e.archived, e.selection_mode FROM events e WHERE e.id = ?`, [
+  const [event] = await query(`SELECT e.id, e.cover_key, (SELECT COALESCE(NULLIF(u.sender_name, ''), u.name) FROM users u WHERE u.id = e.created_by) AS studio_name, e.client_id, (SELECT STRING_AGG(ec.client_id, ',') FROM event_clients ec WHERE ec.event_id = e.id) AS extra_client_ids, e.created_by, e.expires_at, e.published, e.archived, e.selection_mode FROM events e WHERE e.id = ?`, [
     uuid.parse(req.params.id),
   ]);
   if (!event?.cover_key || !canSeeEvent(req.user, event)) throw httpError(404, 'Image introuvable.');
   if (event.selection_mode && (req.query.wm === '1' || !(req.user.role === 'owner' || (req.user.role === 'admin' && event.created_by === req.user.id)))) {
     const name = event.cover_key.split('/').pop().split('.')[0];
-    return sendPrivate(res, await watermarkedPreview(event.cover_key, `cover-${name}`, null));
+    return sendPrivate(res, await watermarkedPreview(event.cover_key, `cover-${name}`, null, event.studio_name));
   }
   await sendPrivate(res, event.cover_key);
 });
