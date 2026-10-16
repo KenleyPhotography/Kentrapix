@@ -262,7 +262,13 @@ router.get('/clients/:id/preview', async (req, res) => {
     [account.id],
   );
   // Client suivi par plusieurs photographes : l'aperçu ne montre que les galeries de ce photographe.
-  res.json({ client: mapClient(account), hiddenEvents: Number(hidden), ...(await clientBootstrap(account.id, req.user.id)) });
+  const boot = await clientBootstrap(account.id, req.user.id);
+  // Aperçu « vue du client » : dans une galerie en mode sélection, on montre aussi le filigrane.
+  const wm = (u) => (u ? `${u}${u.includes('?') ? '&' : '?'}wm=1` : u);
+  const sel = new Set(boot.events.filter((e) => e.selectionMode).map((e) => e.id));
+  boot.events = boot.events.map((e) => (sel.has(e.id) ? { ...e, cover: wm(e.cover) } : e));
+  boot.photos = boot.photos.map((p) => (sel.has(p.eventId) ? { ...p, preview: wm(p.preview), thumb: wm(p.thumb) } : p));
+  res.json({ client: mapClient(account), hiddenEvents: Number(hidden), ...boot });
 });
 
 // ---------- Équipe (propriétaire uniquement) ----------

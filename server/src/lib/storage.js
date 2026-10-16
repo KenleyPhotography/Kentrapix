@@ -391,21 +391,21 @@ export async function storeAvatar(file) {
  * Généré à la demande puis gardé en cache dans watermarks/<photo>-<numéro>.webp.
  */
 export async function watermarkedPreview(previewKey, photoId, number) {
-  const key = `watermarks/${photoId}-${number || 'x'}.webp`;
+  const key = `watermarks/${photoId}-${number || 'x'}-v2.webp`;
   if (await fileExists(key)) return key;
   const image = sharp(await readFile(previewKey));
   const { width, height } = await image.metadata();
-  const size = Math.round(Math.max(width, height) / 11);
+  const size = Math.round(Math.max(width, height) / 9);
   const tiles = [];
-  for (let y = -height; y < height * 2; y += size * 3) {
-    for (let x = -width; x < width * 2; x += size * 6) {
+  for (let y = -height; y < height * 2; y += size * 2.2) {
+    for (let x = -width; x < width * 2; x += size * 5.2) {
       tiles.push(`<text x="${x}" y="${y}">KentraPix</text>`);
     }
   }
   const badge = Math.round(size * 0.9);
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
     <g transform="rotate(-28 ${width / 2} ${height / 2})" font-family="Segoe UI, Arial, sans-serif" font-weight="800"
-       font-size="${size}" fill="#ffffff" fill-opacity="0.22" stroke="#0c4088" stroke-opacity="0.18" stroke-width="2">${tiles.join('')}</g>
+       font-size="${size}" fill="#ffffff" fill-opacity="0.42" stroke="#0c4088" stroke-opacity="0.38" stroke-width="2.5" paint-order="stroke">${tiles.join('')}</g>
     ${number ? `<rect x="${badge * 0.4}" y="${height - badge * 1.7}" rx="${badge * 0.4}" width="${badge * 3.2}" height="${badge * 1.3}" fill="#1265d8" fill-opacity="0.9"/>
     <text x="${badge * 2}" y="${height - badge * 0.78}" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif"
        font-weight="800" font-size="${badge * 0.8}" fill="#ffffff">N° ${number}</text>` : ''}

@@ -52,12 +52,13 @@ router.get('/lockthumb/:id', async (req, res) => {
 });
 
 // Mode sélection : le client ne reçoit qu'une version filigranée et numérotée (l'équipe voit l'original).
-const mustWatermark = (user, photo) =>
-  photo.selection_mode && !(user.role === 'owner' || (user.role === 'admin' && photo.created_by === user.id));
+// ?wm=1 : l'aperçu « vue du client » du studio montre le filigrane tel que le client le verra.
+const mustWatermark = (user, photo, req) =>
+  photo.selection_mode && (req?.query?.wm === '1' || !(user.role === 'owner' || (user.role === 'admin' && photo.created_by === user.id)));
 
 router.get('/preview/:id', async (req, res) => {
   const photo = await visiblePhoto(req);
-  if (mustWatermark(req.user, photo)) {
+  if (mustWatermark(req.user, photo, req)) {
     return sendPrivate(res, await watermarkedPreview(photo.preview_key, photo.id, Number(photo.number)));
   }
   await sendPrivate(res, photo.preview_key);
@@ -66,7 +67,7 @@ router.get('/preview/:id', async (req, res) => {
 // Miniature de la grille. Mode sélection : la version filigranée (jamais de miniature sans filigrane).
 router.get('/thumb/:id', async (req, res) => {
   const photo = await visiblePhoto(req);
-  if (mustWatermark(req.user, photo)) {
+  if (mustWatermark(req.user, photo, req)) {
     return sendPrivate(res, await watermarkedPreview(photo.preview_key, photo.id, Number(photo.number)));
   }
   let key = photo.thumb_key;
@@ -87,7 +88,7 @@ router.get('/cover/:id', async (req, res) => {
     uuid.parse(req.params.id),
   ]);
   if (!event?.cover_key || !canSeeEvent(req.user, event)) throw httpError(404, 'Image introuvable.');
-  if (event.selection_mode && !(req.user.role === 'owner' || (req.user.role === 'admin' && event.created_by === req.user.id))) {
+  if (event.selection_mode && (req.query.wm === '1' || !(req.user.role === 'owner' || (req.user.role === 'admin' && event.created_by === req.user.id)))) {
     const name = event.cover_key.split('/').pop().split('.')[0];
     return sendPrivate(res, await watermarkedPreview(event.cover_key, `cover-${name}`, null));
   }
