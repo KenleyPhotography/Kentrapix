@@ -786,8 +786,16 @@ img.avatar { padding: 0; object-fit: cover; background: var(--blue-soft); }
 .profile-action.danger > svg { color: var(--danger); }
 .profile-action.danger:hover { border-color: var(--border-strong); background: var(--surface); }
 
+/* Ordinateur : informations personnelles à gauche ; à droite, notifications puis apparence et sécurité (plus de vide sous la colonne de droite). */
+@media (min-width: 901px) {
+  .profile-grid { grid-template-rows: auto 1fr; }
+  .profile-grid .profile-main { grid-column: 1; grid-row: 1 / span 2; }
+  .profile-grid #push-box { grid-column: 2; grid-row: 1; }
+  .profile-grid .profile-side { grid-column: 2; grid-row: 2; }
+}
 @media (max-width: 900px) {
   .profile-grid { grid-template-columns: 1fr; }
+  .profile-grid .profile-main { order: -1; }
 }
 @media (max-width: 600px) {
   .profile-cover { height: 96px; }
