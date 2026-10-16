@@ -6,6 +6,7 @@ import { createApp } from './app.js';
 import { startExpiryReminders } from './lib/expiry.js';
 import { startAnnouncements } from './lib/announcements.js';
 import { startAutoReminders } from './lib/autoremind.js';
+import { startBackups } from './lib/backup.js';
 
 assertServerConfig();
 await ensureStorage();
@@ -24,6 +25,8 @@ const server = createApp().listen(config.port, config.host, () => {
   startAnnouncements();
   // Rappels de paiement automatiques (3 jours avant l'échéance, puis après).
   startAutoReminders();
+  // Sauvegarde automatique de la base (1 par jour) + copie des photos si une 2e destination est configurée.
+  startBackups();
 });
 
 // Arrêt propre : termine les requêtes en cours puis ferme la base.

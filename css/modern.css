@@ -2394,3 +2394,9 @@ h1 em, h2 em, .editorial-heading em, .login-caption h1 em {
 .sel-requests { margin: 10px 0; padding: 10px 14px; border-radius: 12px; background: color-mix(in srgb, var(--blue) 8%, transparent); }
 .sel-requests ul { margin: 6px 0 0; padding-left: 18px; line-height: 1.7; }
 .sel-requests b { color: var(--blue); }
+
+/* Sauvegardes */
+.bk-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 10px 0; border-bottom: 1px solid var(--border, #e0eaf8); }
+.bk-row > div:first-child { display: grid; gap: 2px; min-width: 0; }
+.bk-row > div:first-child span { color: var(--muted, #5a6b85); font-size: 0.88rem; }
+.storage-backup .row { margin: 12px 0 4px; }

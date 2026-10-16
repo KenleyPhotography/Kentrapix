@@ -108,7 +108,7 @@ export async function readFile(key) {
 }
 
 /** Flux de lecture (ZIP des originaux). */
-async function readStream(key) {
+export async function readStream(key) {
   if (isRemote) return (await s3.send(new GetObjectCommand({ Bucket, Key: key }))).Body;
   return createReadStream(resolveKey(key));
 }

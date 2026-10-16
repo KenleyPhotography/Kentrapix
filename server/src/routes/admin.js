@@ -21,6 +21,9 @@ import { kickAnnouncements } from '../lib/announcements.js';
 import { requireStaff, requireOwner, STAFF_ROLES, requireStudio } from '../middleware/auth.js';
 import { freshCode } from '../lib/accessCode.js';
 import { scanOrphans, cleanOrphans } from '../lib/cleanup.js';
+import {
+  isPlatformOwner, listBackups, createBackup, pruneBackups, openBackup, deleteBackup, restoreBackup, mirrorConfig, mirrorFiles,
+} from '../lib/backup.js';
 import { normalizeNumbers } from '../lib/unlock.js';
 const LOCK_LEVELS = [2.5, 6, 12]; // niveaux de flou proposés pour les photos verrouillées
 import { isOwner, accountScope, eventScope } from '../lib/scope.js';
@@ -1037,6 +1040,56 @@ router.post('/storage/cleanup', requireOwner, async (req, res) => {
   const done = await cleanOrphans();
   audit(req, 'storage.cleanup', { details: { files: done.count, bytes: done.bytes } });
   res.json(done);
+});
+
+// ---------- Sauvegardes (propriétaire principal uniquement : elles contiennent les données de tous les photographes) ----------
+const requirePlatformOwner = async (req, res, next) => {
+  if (req.user.role !== 'owner' || !(await isPlatformOwner(req.user))) throw httpError(403, 'Seul le propriétaire principal gère les sauvegardes.');
+  next();
+};
+const backupInfo = async () => {
+  const mirror = mirrorConfig();
+  return { backups: await listBackups(), mirror: mirror ? { enabled: true, kind: mirror.kind } : { enabled: false }, keep: 14 };
+};
+
+router.get('/backups', requirePlatformOwner, async (req, res) => {
+  res.json(await backupInfo());
+});
+
+router.post('/backups', requirePlatformOwner, async (req, res) => {
+  const made = await createBackup({ reason: 'manuelle' });
+  await pruneBackups();
+  audit(req, 'backup.create', { details: { name: made.name, rows: made.rows } });
+  res.status(201).json({ made, ...(await backupInfo()) });
+});
+
+router.post('/backups/mirror', requirePlatformOwner, async (req, res) => {
+  const done = await mirrorFiles();
+  audit(req, 'backup.mirror', { details: { copied: done.copied, remaining: done.remaining } });
+  res.json({ ...done, ...(await backupInfo()) });
+});
+
+router.get('/backups/download', requirePlatformOwner, async (req, res) => {
+  const key = z.string().max(200).parse(req.query.key);
+  const stream = await openBackup(key);
+  audit(req, 'backup.download', { details: { key } });
+  res.set({ 'Content-Type': 'application/gzip', 'Content-Disposition': `attachment; filename="${key.split('/').pop()}"`, 'Cache-Control': 'no-store' });
+  stream.pipe(res);
+});
+
+router.post('/backups/restore', requirePlatformOwner, async (req, res) => {
+  const { key, confirm } = z.object({ key: z.string().max(200), confirm: z.string() }).parse(req.body);
+  if (confirm !== 'RESTAURER') throw httpError(400, 'Tapez RESTAURER pour confirmer.');
+  const result = await restoreBackup(key);
+  audit(req, 'backup.restore', { details: { key, safety: result.safety } });
+  res.json({ ...result, ...(await backupInfo()) });
+});
+
+router.delete('/backups', requirePlatformOwner, async (req, res) => {
+  const key = z.string().max(200).parse(req.query.key);
+  await deleteBackup(key);
+  audit(req, 'backup.delete', { details: { key } });
+  res.json(await backupInfo());
 });
 
 // ---------- Autorisations ----------
