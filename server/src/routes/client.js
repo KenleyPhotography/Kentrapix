@@ -73,7 +73,7 @@ export async function clientBootstrap(id, onlyBy = null) {
     query('SELECT * FROM downloads WHERE user_id = ? ORDER BY created_at DESC LIMIT 50', [id]),
     getPermissions(),
     query(
-      `SELECT s.photo_id, p.event_id FROM photo_selections s JOIN photos p ON p.id = s.photo_id JOIN events e ON e.id = p.event_id
+      `SELECT s.photo_id, s.note, p.event_id FROM photo_selections s JOIN photos p ON p.id = s.photo_id JOIN events e ON e.id = p.event_id
        WHERE s.user_id = ? AND ${VISIBLE}`,
       [id, id],
     ),
@@ -95,6 +95,7 @@ export async function clientBootstrap(id, onlyBy = null) {
     const s = sent.find((x) => x.event_id === e.id);
     selections[e.id] = {
       photoIds: picks.filter((p) => p.event_id === e.id).map((p) => p.photo_id),
+      notes: Object.fromEntries(picks.filter((p) => p.event_id === e.id && p.note).map((p) => [p.photo_id, p.note])),
       note: s?.note || '',
       submittedAt: toIso(s?.submitted_at),
     };
@@ -270,15 +271,33 @@ router.put('/events/:id/selection', async (req, res) => {
       if (ids.some((pid) => !open.has(pid))) throw httpError(400, event.lock_reason || LOCK_DEFAULT_REASON);
     }
   }
+  // Les demandes de retouche déjà écrites restent attachées aux photos gardées.
+  const kept = Object.fromEntries((await query(
+    'SELECT s.photo_id, s.note FROM photo_selections s JOIN photos p ON p.id = s.photo_id WHERE s.user_id = ? AND p.event_id = ? AND s.note IS NOT NULL',
+    [req.user.id, event.id],
+  )).map((r) => [r.photo_id, r.note]));
   await query(
     'DELETE FROM photo_selections WHERE user_id = ? AND photo_id IN (SELECT id FROM photos WHERE event_id = ?)',
     [req.user.id, event.id],
   );
   if (ids.length) {
-    await query(`INSERT INTO photo_selections (user_id, photo_id) VALUES ${ids.map(() => '(?, ?)').join(', ')}`,
-      ids.flatMap((pid) => [req.user.id, pid]));
+    await query(`INSERT INTO photo_selections (user_id, photo_id, note) VALUES ${ids.map(() => '(?, ?, ?)').join(', ')}`,
+      ids.flatMap((pid) => [req.user.id, pid, kept[pid] || null]));
   }
   res.json({ count: ids.length });
+});
+
+// Demande de retouche / commentaire du client sur une photo choisie (enregistré à la frappe). Texte vide = effacé.
+router.put('/events/:id/selection/notes', async (req, res) => {
+  const event = await selectionEvent(req.user.id, req.params.id);
+  const { notes } = z.object({ notes: z.record(uuid, z.string().trim().max(300)) }).parse(req.body);
+  for (const [photoId, text] of Object.entries(notes)) {
+    await query(
+      'UPDATE photo_selections SET note = ? WHERE user_id = ? AND photo_id = ? AND photo_id IN (SELECT id FROM photos WHERE event_id = ?)',
+      [text || null, req.user.id, photoId, event.id],
+    );
+  }
+  res.json({ ok: true });
 });
 
 // Envoie la sélection au studio (e-mail à l'équipe). Peut être renvoyée après modification.
@@ -286,7 +305,7 @@ router.post('/events/:id/selection/submit', async (req, res) => {
   const event = await selectionEvent(req.user.id, req.params.id);
   const { note } = z.object({ note: z.string().trim().max(2000).optional().default('') }).parse(req.body);
   const rows = await query(
-    `SELECT n.number FROM photo_selections s JOIN (
+    `SELECT n.number, s.note FROM photo_selections s JOIN (
        SELECT id, ROW_NUMBER() OVER (ORDER BY position, created_at) AS number FROM photos WHERE event_id = ?
      ) n ON n.id = s.photo_id WHERE s.user_id = ? ORDER BY n.number`,
     [event.id, req.user.id],
@@ -308,7 +327,7 @@ router.post('/events/:id/selection/submit', async (req, res) => {
     : config.mail.replyTo
       ? [{ email: config.mail.replyTo.replace(/^.*<|>.*$/g, ''), id: null }]
       : await query("SELECT id, email FROM users WHERE role = 'owner' AND active = 1");
-  const tpl = selectionEmail({ clientName: req.user.name, eventName: event.name, numbers, note });
+  const tpl = selectionEmail({ clientName: req.user.name, eventName: event.name, numbers, note, requests: rows.filter((r) => r.note).map((r) => ({ number: Number(r.number), note: r.note })) });
   await Promise.all(studio.map((s) => sendMail({ to: s.email, userId: s.id, eventId: event.id, kind: 'selection', ...tpl })));
   const [saved] = await query('SELECT submitted_at FROM event_selections WHERE event_id = ? AND user_id = ?', [event.id, req.user.id]);
   res.json({ numbers, submittedAt: toIso(saved.submitted_at) });

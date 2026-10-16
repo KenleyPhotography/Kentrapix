@@ -552,7 +552,7 @@ router.get('/selections', async (req, res) => {
   const [es, ep] = eventScope(req);
   const [picks, sent] = await Promise.all([
     query(
-      `SELECT s.user_id, s.created_at, n.id, n.event_id, n.number, n.filename FROM photo_selections s JOIN (
+      `SELECT s.user_id, s.created_at, s.note, n.id, n.event_id, n.number, n.filename FROM photo_selections s JOIN (
          SELECT p.id, p.event_id, p.filename, ROW_NUMBER() OVER (PARTITION BY p.event_id ORDER BY p.position, p.created_at) AS number
          FROM photos p JOIN events e ON e.id = p.event_id WHERE ${es}
        ) n ON n.id = s.photo_id ORDER BY n.number`,
@@ -569,7 +569,7 @@ router.get('/selections', async (req, res) => {
   };
   for (const p of picks) {
     const g = group(p.event_id, p.user_id);
-    g.photos.push({ id: p.id, number: Number(p.number), filename: p.filename, thumb: `/media/thumb/${p.id}` });
+    g.photos.push({ id: p.id, number: Number(p.number), filename: p.filename, thumb: `/media/thumb/${p.id}`, note: p.note || '' });
     if (!g.lastPickAt || p.created_at > g.lastPickAt) g.lastPickAt = p.created_at;
   }
   for (const s of sent) group(s.event_id, s.user_id).sent = s;
@@ -598,7 +598,7 @@ router.get('/selections', async (req, res) => {
 router.get('/events/:id/selection', async (req, res) => {
   const event = await findEvent(req, req.params.id);
   const photos = await query(
-    `SELECT n.id, n.number, n.filename, s.user_id FROM photo_selections s JOIN (
+    `SELECT n.id, n.number, n.filename, s.user_id, s.note FROM photo_selections s JOIN (
        SELECT id, filename, ROW_NUMBER() OVER (ORDER BY position, created_at) AS number FROM photos WHERE event_id = ?
      ) n ON n.id = s.photo_id ORDER BY n.number`,
     [event.id],
@@ -615,7 +615,7 @@ router.get('/events/:id/selection', async (req, res) => {
       const mine = photos.filter((p) => p.user_id === uid);
       return {
         userId: uid, name: u?.name || '—', note: s?.note || '', submittedAt: toIso(s?.submitted_at),
-        photos: mine.map((p) => ({ id: p.id, number: Number(p.number), filename: p.filename, preview: `/media/preview/${p.id}` })),
+        photos: mine.map((p) => ({ id: p.id, number: Number(p.number), filename: p.filename, preview: `/media/preview/${p.id}`, note: p.note || '' })),
       };
     })),
   });

@@ -2382,3 +2382,15 @@ h1 em, h2 em, .editorial-heading em, .login-caption h1 em {
 }
 [data-theme="dark"] h1 em, [data-theme="dark"] h2 em { background: linear-gradient(120deg, #7ab8ff, #b6dbff); -webkit-background-clip: text; background-clip: text; }
 .login-panel h1 { font-size: clamp(2rem, 1.6rem + 1.6vw, 2.6rem); }
+
+/* Sélection : demandes de retouche par photo */
+.pick-notes { margin-top: 12px; }
+.pick-note { display: grid; grid-template-columns: 48px auto 1fr; align-items: center; gap: 10px; padding: 6px 0; }
+.pick-note img { width: 48px; height: 48px; object-fit: cover; border-radius: 10px; }
+.pick-note .pn-num { font-weight: 700; color: var(--blue); white-space: nowrap; }
+.pick-note input { min-width: 0; }
+@media (max-width: 520px) { .pick-note { grid-template-columns: 44px 1fr; } .pick-note input { grid-column: 1 / -1; } }
+.pick-recap { margin: 4px 0 12px; padding-left: 18px; line-height: 1.7; }
+.sel-requests { margin: 10px 0; padding: 10px 14px; border-radius: 12px; background: color-mix(in srgb, var(--blue) 8%, transparent); }
+.sel-requests ul { margin: 6px 0 0; padding-left: 18px; line-height: 1.7; }
+.sel-requests b { color: var(--blue); }

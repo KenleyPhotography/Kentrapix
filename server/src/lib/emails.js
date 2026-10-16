@@ -205,7 +205,7 @@ export function signupEmail({ name }) {
   };
 }
 
-export function selectionEmail({ clientName, eventName, numbers, note }) {
+export function selectionEmail({ clientName, eventName, numbers, note, requests = [] }) {
   const list = numbers.join(', ');
   return {
     subject: `Sélection reçue : ${clientName} — ${eventName}`,
@@ -214,10 +214,11 @@ export function selectionEmail({ clientName, eventName, numbers, note }) {
       title: 'Nouvelle sélection',
       body: `<strong style="color:#082445">${esc(clientName)}</strong> a choisi <strong style="color:#1265d8">${numbers.length} photo${numbers.length > 1 ? 's' : ''}</strong> dans « ${esc(eventName)} » :
         <div style="margin:16px 0;padding:16px 18px;border-radius:14px;background:#e8f1ff;color:#082445;font-size:15px;line-height:1.7;font-weight:700">N° ${esc(list)}</div>
+        ${requests.length ? `<strong style="color:#082445">Retouches demandées :</strong><ul style="margin:8px 0 16px;padding-left:18px;color:#082445;line-height:1.7">${requests.map((r) => `<li><strong>N° ${r.number}</strong> — ${esc(r.note)}</li>`).join('')}</ul>` : ''}
         ${note ? `Message du client :<br><em>« ${esc(note).replace(/\r?\n/g, '<br>')} »</em>` : ''}`,
       cta: { label: 'Ouvrir le studio', url: `${config.appUrl}/admin` },
     }),
-    text: `${clientName} a choisi ${numbers.length} photo(s) dans « ${eventName} » : N° ${list}${note ? `\n\nMessage : ${note}` : ''}`,
+    text: `${clientName} a choisi ${numbers.length} photo(s) dans « ${eventName} » : N° ${list}${requests.length ? '\n\nRetouches demandées :\n' + requests.map((r) => `N° ${r.number} — ${r.note}`).join('\n') : ''}${note ? `\n\nMessage : ${note}` : ''}`,
   };
 }
 
