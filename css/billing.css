@@ -141,7 +141,7 @@
 #upload-dock.is-collapsed #ud-list { display: none; }
 [data-theme="dark"] #upload-dock { background: #0e1b2e; border-color: #1d3253; }
 [data-theme="dark"] #upload-dock .upload-row { background: #13243b; border-color: #1d3253; }
-@media (max-width: 800px) { #upload-dock { right: 12px; bottom: calc(18px + env(safe-area-inset-bottom)); max-width: calc(100vw - 96px); } }
+@media (max-width: 800px) { #upload-dock { right: 12px; bottom: calc(88px + env(safe-area-inset-bottom)); } }
 @media (prefers-reduced-motion: reduce) { #upload-dock { animation: none; } }
 
 
