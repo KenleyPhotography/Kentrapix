@@ -21,6 +21,7 @@ import { requireRole } from '../middleware/auth.js';
 import { BCRYPT_COST } from './auth.js';
 import { clientNotifications } from '../lib/notifications.js';
 import { clientBooking } from './booking.js';
+import { clientOrders } from './orders.js';
 import {
   SHARE_SELECT, mapShare, shareCreateSchema, shareUpdateSchema, createShare, updateShare, FAMILY_COMMENT_SELECT, mapFamilyComment, byDate,
 } from '../lib/shares.js';
@@ -28,6 +29,7 @@ import {
 const router = Router();
 router.use(requireRole());
 router.use('/booking', (req, res, next) => clientBookingRouter(req, res, next));
+router.use('/orders', (req, res, next) => clientOrdersRouter(req, res, next));
 
 // Une galerie expirée disparaît de l'espace du client (le studio la garde).
 const VISIBLE = `${CLIENT_HAS()} AND e.published = 1 AND e.archived = 0 AND ${NOT_EXPIRED}`;
@@ -57,6 +59,8 @@ async function photographersOf(clientId) {
 
 // Rendez-vous : le client réserve un créneau chez l'un de ses photographes.
 const clientBookingRouter = clientBooking({ photographersOf });
+// Albums et tirages : commandes du client (catalogue du photographe).
+const clientOrdersRouter = clientOrders({ photographersOf, visiblePhotos });
 
 /**
  * Données de l'espace d'un client, exactement filtrées comme il les voit.
@@ -128,7 +132,7 @@ export async function clientBootstrap(id, onlyBy = null) {
       const m = mapEvent(e);
       // Pas de couverture choisie : la première photo ouverte au client sert de couverture (jamais une photo verrouillée).
       const firstOpen = !e.cover_key && photos.find((p) => p.event_id === e.id && !p.__locked);
-      return { ...m, cover: e.cover_key ? m.cover : firstOpen ? `/media/preview/${firstOpen.id}` : null, photographer: names[e.created_by] || '', totalPhotos: totals[e.id] || 0, openPhotos: opened[e.id] || 0 };
+      return { ...m, cover: e.cover_key ? m.cover : firstOpen ? `/media/preview/${firstOpen.id}` : null, photographer: names[e.created_by] || '', photographerId: e.created_by || null, totalPhotos: totals[e.id] || 0, openPhotos: opened[e.id] || 0 };
     }),
     photos: photos.map(mapPhoto),
     notifications: await clientNotifications(id, events),
@@ -142,7 +146,7 @@ export async function clientBootstrap(id, onlyBy = null) {
 async function visiblePhotos(userId, ids) {
   if (!ids.length) return [];
   return query(
-    `SELECT p.*, e.allow_download, e.selection_mode, e.name AS event_name, e.unlock_limit, e.unlock_numbers,
+    `SELECT p.*, e.allow_download, e.selection_mode, e.name AS event_name, e.created_by AS event_created_by, e.unlock_limit, e.unlock_numbers,
        (SELECT COUNT(*) FROM photos q WHERE q.event_id = p.event_id
           AND (q.position < p.position OR (q.position = p.position AND q.created_at <= p.created_at))) AS number
      FROM photos p JOIN events e ON e.id = p.event_id

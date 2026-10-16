@@ -29,6 +29,7 @@ const LOCK_LEVELS = [2.5, 6, 12]; // niveaux de flou proposés pour les photos v
 import { isOwner, accountScope, eventScope } from '../lib/scope.js';
 import { billingRouter } from './billing.js';
 import { staffBooking } from './booking.js';
+import { staffOrders } from './orders.js';
 import { config } from '../config.js';
 import { BCRYPT_COST, passwordRule } from './auth.js';
 import { clientBootstrap } from './client.js';
@@ -43,6 +44,7 @@ router.use(requireStudio);
 // Administration : factures, paiements, rappels (billing.js).
 router.use(billingRouter);
 router.use('/booking', staffBooking);
+router.use('/orders', staffOrders);
 
 const flag = z.enum(['0', '1']).transform((v) => v === '1');
 const text = (max, message) => z.string().trim().min(1, message).max(max);

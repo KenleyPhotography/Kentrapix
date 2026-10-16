@@ -307,3 +307,51 @@ export function bookingReminderEmail({ name, studio = defaultStudio(), booking, 
     text: `Rappel : rendez-vous demain (${frDay(booking.day)}) de ${booking.start} à ${booking.end}${forStaff ? ` avec ${clientName}` : ` avec ${studio}`}.`,
   };
 }
+
+// ---------- Commandes d'albums et de tirages ----------
+const orderMoney = (n, cur) => `${Number(n).toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} ${cur}`;
+const photoNumbers = (order) => order.photos.map((p) => p.number).sort((a, b) => a - b).join(', ');
+const orderBox = (o) => `<div style="margin:16px 0;padding:16px 18px;border-radius:14px;background:#e8f1ff;color:#082445;font-size:15px;line-height:1.7">
+  <strong style="font-size:17px">${esc(o.product)} × ${o.quantity}</strong><br>
+  Total : <strong style="color:#1265d8">${esc(orderMoney(o.total, o.currency))}</strong><br>
+  ${o.photos.length} photo${o.photos.length > 1 ? 's' : ''} : N° ${esc(photoNumbers(o))}<br>
+  ${o.delivery === 'delivery' ? `Livraison : ${esc(o.address)}` : 'Retrait chez le photographe'}${o.note ? `<br><em>« ${esc(o.note)} »</em>` : ''}</div>`;
+
+/** Au photographe : une nouvelle commande. */
+export function orderRequestEmail({ staffName, order }) {
+  return {
+    subject: `Nouvelle commande : ${order.client.name} — ${order.product} × ${order.quantity}`,
+    html: layout({
+      preheader: `${order.client.name} · ${orderMoney(order.total, order.currency)}`,
+      title: 'Nouvelle commande',
+      body: `Bonjour ${esc(firstName(staffName))},<br><br><strong style="color:#082445">${esc(order.client.name)}</strong> vient de passer une commande :${orderBox(order)}Retrouvez les numéros et les noms de fichiers dans le studio, page « Commandes ».`,
+      cta: { label: 'Ouvrir les commandes', url: `${config.appUrl}/admin` },
+    }),
+    text: `${order.client.name} a commandé ${order.product} × ${order.quantity} (${orderMoney(order.total, order.currency)}). Photos N° ${photoNumbers(order)}.\n${config.appUrl}/admin`,
+  };
+}
+
+/** Au client : l'état de sa commande change. */
+export function orderStatusEmail({ clientName, studio = defaultStudio(), order, status, reply }) {
+  const titles = {
+    accepted: 'Commande acceptée', production: 'Commande en préparation', ready: 'Commande prête', delivered: 'Commande remise', cancelled: 'Commande annulée',
+  };
+  const lead = {
+    accepted: `${esc(studio)} a accepté votre commande.`,
+    production: 'Votre commande est en cours de préparation.',
+    ready: order.delivery === 'delivery' ? 'Votre commande est prête : elle va vous être livrée.' : 'Votre commande est prête : vous pouvez venir la récupérer.',
+    delivered: 'Votre commande a été remise. Merci pour votre confiance !',
+    cancelled: 'Votre commande a été annulée.',
+  }[status];
+  return {
+    subject: `${titles[status]} — ${order.product}`,
+    html: layout({
+      studio,
+      preheader: titles[status],
+      title: titles[status],
+      body: `Bonjour ${esc(firstName(clientName))},<br><br>${lead}${orderBox(order)}${reply ? `Message : <em>« ${esc(reply)} »</em>` : ''}`,
+      cta: { label: 'Voir ma commande', url: `${config.appUrl}/client` },
+    }),
+    text: `${titles[status]} : ${order.product} × ${order.quantity}.${reply ? `\nMessage : ${reply}` : ''}\n${config.appUrl}/client`,
+  };
+}

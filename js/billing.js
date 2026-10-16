@@ -85,7 +85,7 @@ const ibtn = (label, attr, ico, cls = '') => `<button type="button" class="btn s
 const alink = (label, href, ico, cls = '') => `<a class="btn sm icon-btn ${cls}" href="${escape(href)}" target="_blank" rel="noopener noreferrer" title="${label}" aria-label="${label}" data-tip="${label}">${icon(ico)}</a>`;
 
 export function billingPage() {
-  return `${head('Administration', `${btn('Statistiques', 'data-nav="Statistics"', 'up')}${btn('Nouveau rappel', 'id="bill-new-reminder"', 'clock')}${btn('Nouvelle facture', 'id="bill-new-invoice"', 'plus', 'primary')}`)}<div id="bill-root">${bill ? billingHtml() : '<div class="empty"><h2>Chargement…</h2></div>'}</div>`;
+  return `${head('Administration', `${btn('Commandes', 'data-nav="Orders"', 'albums')}${btn('Statistiques', 'data-nav="Statistics"', 'up')}${btn('Nouveau rappel', 'id="bill-new-reminder"', 'clock')}${btn('Nouvelle facture', 'id="bill-new-invoice"', 'plus', 'primary')}`)}<div id="bill-root">${bill ? billingHtml() : '<div class="empty"><h2>Chargement…</h2></div>'}</div>`;
 }
 
 function billingHtml() {
