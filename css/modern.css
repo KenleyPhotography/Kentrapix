@@ -2506,3 +2506,13 @@ h1 em, h2 em, .editorial-heading em, .login-caption h1 em {
   #toast { bottom: calc(24px + env(safe-area-inset-bottom)); }
 }
 @media (max-width: 800px) { .bk-month strong { font-size: 1rem; white-space: nowrap; } }
+@media (max-width: 800px) {
+  .bottomnav, [data-theme="dark"] .bottomnav { width: 66px; }
+  .bottomnav button, .bottomnav .nav-switch { font-size: 0.6rem; }
+  .bottomnav button span, .bottomnav .nav-switch span { white-space: normal; text-align: center; line-height: 1.1; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .workspace { padding-left: 78px; }
+}
+@media (max-width: 800px) {
+  .bottomnav button, .bottomnav .nav-switch { justify-content: flex-start; padding: 8px 0 8px; gap: 6px; }
+  .bottomnav button.active::after, [data-theme="dark"] .bottomnav button.active::after { top: 31px; }
+}
