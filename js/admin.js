@@ -64,7 +64,7 @@ export function bindAdmin(page,render,toast,modal,navigate,refresh){const d=serv
 // Création rapide : on ajoute le résultat renvoyé par le serveur à l'écran au lieu de recharger tout le studio (toutes les photos…).
 const addEventLocal=e=>{d.events=[e,...(d.events||[]).filter(x=>x.id!==e.id)].sort((a,b)=>String(b.date).localeCompare(String(a.date)))};
 const upsertAccount=c=>{for(const k of['accounts','clients']){if(!d[k])d[k]=[];const i=d[k].findIndex(x=>x.id===c.id);if(i>=0)d[k][i]={...d[k][i],...c};else d[k].push(c);d[k].sort((a,b)=>String(a.name).localeCompare(String(b.name),'fr'))}};
-if(page==='Booking')bindAdminBooking({toast,modal,clients:()=>d.clients});if(page==='Orders')bindAdminOrders({toast,modal,navigate});if(page==='Billing')bindBilling({toast,modal,navigate,refresh});if(page==='Statistics')bindStats({toast,modal,navigate,refresh});
+if(page==='Booking')bindAdminBooking({toast,modal,clients:()=>d.clients});if(page==='Orders')bindAdminOrders({toast,modal,navigate,clients:()=>d.clients});if(page==='Billing')bindBilling({toast,modal,navigate,refresh});if(page==='Statistics')bindStats({toast,modal,navigate,refresh});
 // Clic -> appel API ; toute erreur du serveur s'affiche dans un toast.
 const act=fn=>async(...a)=>{try{await fn(...a)}catch(e){toast(e.message)}};
 const byId=id=>d.accounts.find(a=>a.id===id);

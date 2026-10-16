@@ -95,6 +95,13 @@ router.get('/cover/:id', async (req, res) => {
   await sendPrivate(res, event.cover_key);
 });
 
+// Couverture d'un album commandé : visible par le photographe et par le client de la commande.
+router.get('/order-cover/:id', async (req, res) => {
+  const [o] = await query('SELECT cover_key, staff_id, client_id FROM print_orders WHERE id = ?', [uuid.parse(req.params.id)]);
+  if (!o?.cover_key || ![o.staff_id, o.client_id].includes(req.user.id)) throw httpError(404, 'Image introuvable.');
+  await sendPrivate(res, o.cover_key);
+});
+
 // Musique du diaporama d'une galerie.
 router.get('/music/:id', async (req, res) => {
   const [event] = await query(`SELECT e.id, e.music_key, e.client_id, (SELECT STRING_AGG(ec.client_id, ',') FROM event_clients ec WHERE ec.event_id = e.id) AS extra_client_ids, e.created_by, e.expires_at, e.published, e.archived FROM events e WHERE e.id = ?`, [

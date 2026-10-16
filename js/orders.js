@@ -26,7 +26,7 @@ export async function bindClientOrders({ toast, modal }) {
       ? shops.map((s) => `<section class="settings bill-block"><h2>${escape(s.name)}</h2><div class="ord-products">${s.products.map((p) => `<article class="ord-product"><div><strong>${escape(p.name)}</strong>${p.description ? `<span>${escape(p.description)}</span>` : ''}<span class="ord-meta">${escape(range(p))}</span></div><div class="ord-buy"><b>${escape(money(p.price, p.currency))}</b><button type="button" class="btn sm primary" data-ord-new="${s.id}:${p.id}">Commander</button></div></article>`).join('')}</div></section>`).join('')
       : `<div class="empty">${icon('albums')}<h2>Aucun album ni tirage proposé</h2><p class="small">Votre photographe n’a pas encore publié de catalogue. Revenez bientôt ou écrivez-lui directement.</p></div>`;
     const mine = data.orders.length
-      ? `<section class="settings bill-block"><h2>Mes commandes</h2><ul class="rem-list">${data.orders.map((o) => `<li class="rem-row"><span class="rem-ico">${icon('albums')}</span><div><strong>${escape(o.product)} × ${o.quantity}</strong><span>${escape(when(o.createdAt))} · ${o.photos.length} photo${o.photos.length > 1 ? 's' : ''} · ${escape(money(o.total, o.currency))} · ${escape(o.staff.name)}${o.reply ? ` · « ${escape(o.reply)} »` : ''}</span></div><div class="actions">${pill(o.status)}${o.status === 'new' ? `<button type="button" class="btn sm" data-ord-cancel="${o.id}">Annuler</button>` : ''}</div></li>`).join('')}</ul></section>`
+      ? `<section class="settings bill-block"><h2>Mes commandes</h2><ul class="rem-list">${data.orders.map((o) => `<li class="rem-row">${o.cover ? `<img class="ord-cover" src="${escape(o.cover.url)}" alt="">` : `<span class="rem-ico">${icon('albums')}</span>`}<div><strong>${escape(o.product)} × ${o.quantity}</strong><span>${escape(when(o.createdAt))} · ${o.photos.length} photo${o.photos.length > 1 ? 's' : ''} · ${escape(money(o.total, o.currency))} · ${escape(o.staff.name)}${o.reply ? ` · « ${escape(o.reply)} »` : ''}</span></div><div class="actions">${pill(o.status)}${o.status === 'new' ? `<button type="button" class="btn sm" data-ord-cancel="${o.id}">Annuler</button>` : ''}</div></li>`).join('')}</ul></section>`
       : '';
     root.innerHTML = `${mine}${catalogue}`;
     root.querySelectorAll('[data-ord-cancel]').forEach((b) => { b.onclick = async () => {
@@ -89,7 +89,7 @@ export async function bindClientOrders({ toast, modal }) {
 // ====================================================================================================
 export const adminOrdersPage = () => '<div class="greeting"><h1>Commandes</h1></div><div id="ordA-root"><div class="empty small"><p>Chargement…</p></div></div>';
 
-export async function bindAdminOrders({ toast, modal, navigate }) {
+export async function bindAdminOrders({ toast, modal, navigate, clients }) {
   const root = document.getElementById('ordA-root');
   if (!root) return;
   let d;
@@ -103,7 +103,7 @@ export async function bindAdminOrders({ toast, modal, navigate }) {
     const nums = o.photos.map((p) => p.number).sort((a, b) => a - b).join(', ');
     const link = wa(o.client.whatsapp, `Bonjour ${o.client.name.split(' ')[0]}, à propos de votre commande « ${o.product} ».`);
     return `<article class="inv-card ${o.status === 'new' ? 'is-late' : ''} ${o.status === 'cancelled' ? 'is-off' : ''}">
-      <header><span class="inv-ico">${icon('albums')}</span><div><strong>${escape(o.product)} × ${o.quantity}</strong><span>${escape(o.client.name)} · ${escape(when(o.createdAt))}</span></div>${pill(o.status)}</header>
+      <header>${o.cover ? `<img class="ord-cover" src="${escape(o.cover.url)}" alt="">` : `<span class="inv-ico">${icon('albums')}</span>`}<div><strong>${escape(o.product)} × ${o.quantity}</strong><span>${escape(o.client.name)} · ${escape(when(o.createdAt))}${o.source === 'studio' ? ' · créée par vous' : ''}</span></div>${pill(o.status)}</header>
       <dl class="inv-amounts"><div><dt>Total</dt><dd>${escape(money(o.total, o.currency))}</dd></div><div><dt>Photos</dt><dd>${o.photos.length}</dd></div><div><dt>Remise</dt><dd>${o.delivery === 'delivery' ? 'Livraison' : 'Retrait'}</dd></div></dl>
       ${o.address ? `<p class="inv-client">${escape(o.address)}</p>` : ''}${o.note ? `<p class="small">« ${escape(o.note)} »</p>` : ''}
       <details class="acc"><summary><span>Photos commandées</span><small>N° ${escape(nums)}</small></summary><div class="acc-body"><div class="sel-thumbs">${o.photos.map((p) => `<figure>${p.thumb ? `<img src="${escape(p.thumb)}" alt="" loading="lazy">` : ''}<figcaption>N° ${p.number}<br><small>${escape(p.filename)}</small></figcaption></figure>`).join('')}</div></div></details>
@@ -111,6 +111,7 @@ export async function bindAdminOrders({ toast, modal, navigate }) {
         ${!['delivered', 'cancelled'].includes(o.status) ? `<button type="button" class="btn sm" data-orda-status="${o.id}:cancelled">Annuler</button>` : ''}
         <button type="button" class="btn sm" data-copy="${escape(nums)}">${icon('copy')} N°</button>
         <button type="button" class="btn sm" data-copy="${escape(o.photos.map((p) => p.filename).join(', '))}">${icon('copy')} Fichiers</button>
+        <button type="button" class="btn sm primary" data-orda-album="${o.id}">Composer l’album</button>
         <button type="button" class="btn sm" data-orda-invoice="${o.id}">Facturer</button>
         ${link ? `<a class="btn sm icon-btn" href="${escape(link)}" target="_blank" rel="noopener noreferrer" aria-label="WhatsApp" title="WhatsApp">${icon('chat')}</a>` : ''}</div>
     </article>`;
@@ -123,9 +124,11 @@ export async function bindAdminOrders({ toast, modal, navigate }) {
     const done = d.orders.filter((o) => ['delivered', 'cancelled'].includes(o.status));
     root.innerHTML = `<section class="settings bill-block"><div class="row between"><h2>Catalogue</h2><button type="button" class="btn sm primary" id="ordA-add">${icon('plus')} Ajouter un produit</button></div>
       ${d.products.length ? `<ul class="rem-list">${d.products.map(productRow).join('')}</ul>` : '<div class="empty small"><p>Ajoutez vos albums et tirages (ex. Album 30×30, Tirage 20×30) : vos clients pourront les commander.</p></div>'}</section>
-      <section class="settings bill-block"><h2>Commandes à traiter <span class="count-pill">${open.length}</span></h2>${open.length ? `<div class="inv-list">${open.map(orderCard).join('')}</div>` : '<div class="empty small"><p>Aucune commande en cours.</p></div>'}</section>
+      <section class="settings bill-block"><div class="row between"><h2>Commandes à traiter <span class="count-pill">${open.length}</span></h2><button type="button" class="btn sm primary" id="orda-new">${icon('plus')} Nouvelle commande</button></div>${open.length ? `<div class="inv-list">${open.map(orderCard).join('')}</div>` : '<div class="empty small"><p>Aucune commande en cours.</p></div>'}</section>
       ${done.length ? `<details class="acc"><summary><span>Commandes terminées</span><small>${done.length}</small></summary><div class="acc-body inv-list">${done.map(orderCard).join('')}</div></details>` : ''}`;
     root.querySelector('#ordA-add').onclick = () => productModal();
+    root.querySelector('#orda-new').onclick = () => newOrderModal();
+    root.querySelectorAll('[data-orda-album]').forEach((b) => { b.onclick = () => albumModal(b.getAttribute('data-orda-album')); });
     root.querySelectorAll('[data-orda-edit]').forEach((b) => { b.onclick = () => productModal(d.products.find((p) => p.id === b.getAttribute('data-orda-edit'))); });
     root.querySelectorAll('[data-orda-del]').forEach((b) => { b.onclick = guard(async () => {
       if (!confirm('Supprimer ce produit ? Les commandes déjà reçues restent visibles.')) return;
@@ -145,6 +148,83 @@ export async function bindAdminOrders({ toast, modal, navigate }) {
       toast(`Facture ${r.invoice.number} créée.`); navigate('Billing');
     }); });
   };
+
+  // ----- Composer l'album : page de couverture + photos (choisies par le photographe) -----
+  async function albumModal(orderId) {
+    const order = d.orders.find((x) => x.id === orderId);
+    let lib;
+    try { lib = (await api(`/api/admin/orders/${orderId}/library`)).photos; } catch (e) { return toast(e.message); }
+    if (!lib.length) return toast('Ce client n’a encore aucune galerie faite par vous : créez d’abord une galerie pour lui.');
+    const byId = new Map(lib.map((p) => [p.id, p]));
+    const picked = order.photos.map((p) => p.id).filter((id) => byId.has(id));
+    let cover = order.cover?.photoId || null; let coverTouched = false; let custom = order.cover?.custom ? order.cover.url : null;
+    const events = [...new Set(lib.map((p) => p.event))];
+    modal(`Album — ${order.client.name}`, `
+      <h3 class="bill-sub">Page de couverture</h3>
+      <div class="alb-cover" id="alb-cover"></div>
+      <div class="row"><label class="btn sm">Envoyer une image<input type="file" id="alb-file" accept="image/*" hidden></label><button type="button" class="btn sm" id="alb-clear">Retirer la couverture</button></div>
+      <p class="small">Ou touchez l’étoile sur une photo choisie ci-dessous pour en faire la couverture.</p>
+      <h3 class="bill-sub">Photos de l’album <span class="count-pill" id="alb-count"></span></h3>
+      ${events.length > 1 ? `<label>Galerie<select id="alb-ev"><option value="">Toutes</option>${events.map((e) => `<option>${escape(e)}</option>`).join('')}</select></label>` : ''}
+      <div class="ord-grid" id="alb-grid"></div>`,
+    async () => {
+      await api(`/api/admin/orders/${orderId}/photos`, { method: 'PUT', body: { photoIds: picked } });
+      if (coverTouched) await api(`/api/admin/orders/${orderId}/cover`, { method: 'PUT', body: { photoId: cover && picked.includes(cover) ? cover : null } });
+      toast('Album enregistré.'); await reload();
+    }, { submit: 'Enregistrer l’album' });
+    const host = document.getElementById('overlays');
+    const grid = host.querySelector('#alb-grid'); const count = host.querySelector('#alb-count'); const box = host.querySelector('#alb-cover');
+    const paintCover = () => {
+      const src = custom || (cover && byId.get(cover)?.thumb);
+      box.innerHTML = src ? `<img src="${escape(src)}" alt="Couverture">` : '<span>Aucune couverture</span>';
+    };
+    const paint = () => {
+      const ev = host.querySelector('#alb-ev')?.value || '';
+      grid.innerHTML = lib.filter((p) => !ev || p.event === ev).map((p) => {
+        const on = picked.includes(p.id);
+        return `<div class="ord-photo ${on ? 'is-on' : ''} ${cover === p.id && !custom ? 'is-cover' : ''}" data-p="${p.id}" role="button" tabindex="0" aria-pressed="${on}" title="${escape(p.event)}"><img src="${escape(p.thumb)}" alt="" loading="lazy"><span>${on ? `${picked.indexOf(p.id) + 1} · ` : ''}N° ${p.number}</span><i>${icon('check')}</i>${on ? `<button type="button" class="alb-star" data-star="${p.id}" aria-label="Choisir comme couverture">${icon('star')}</button>` : ''}</div>`;
+      }).join('');
+      count.textContent = picked.length;
+      grid.querySelectorAll('[data-p]').forEach((el) => el.addEventListener('click', (e) => {
+        const id = el.dataset.p;
+        if (e.target.closest('[data-star]')) { cover = id; coverTouched = true; custom = null; paintCover(); paint(); return; }
+        const i = picked.indexOf(id); if (i >= 0) picked.splice(i, 1); else picked.push(id);
+        if (cover === id && i >= 0) { cover = null; coverTouched = true; }
+        paint();
+      }));
+    };
+    host.querySelector('#alb-ev')?.addEventListener('change', paint);
+    host.querySelector('#alb-file').addEventListener('change', guard(async (e) => {
+      const f = e.target.files[0]; if (!f) return;
+      const fd = new FormData(); fd.append('cover', f);
+      const r = await api(`/api/admin/orders/${orderId}/cover`, { method: 'POST', form: fd });
+      custom = r.order.cover?.url || null; cover = null; coverTouched = false; toast('Couverture envoyée.'); paintCover(); paint();
+    }));
+    host.querySelector('#alb-clear').addEventListener('click', guard(async () => {
+      await api(`/api/admin/orders/${orderId}/cover`, { method: 'DELETE' }); custom = null; cover = null; coverTouched = false; toast('Couverture retirée.'); paintCover(); paint();
+    }));
+    paintCover(); paint();
+  }
+
+  // ----- Le photographe crée lui-même la commande d'un client, puis compose l'album -----
+  function newOrderModal() {
+    const list = clients();
+    if (!list.length) return toast('Ajoutez d’abord un client.');
+    modal('Nouvelle commande', `<label>Client<select name="clientId">${list.map((c) => `<option value="${c.id}">${escape(c.name)}</option>`).join('')}</select></label>
+      <label>Produit<select name="productId" id="ordn-prod">${d.products.map((p) => `<option value="${p.id}">${escape(p.name)} — ${escape(money(p.price, p.currency))}</option>`).join('')}<option value="">Autre (nom libre)</option></select></label>
+      <label id="ordn-name" hidden>Nom de la commande<input name="name" maxlength="120" placeholder="Ex. Album mariage 30×30"></label>
+      <div class="row2"><label>Quantité<input name="quantity" type="number" min="1" max="50" value="1" required></label>
+      <label>Remise<select name="delivery"><option value="pickup">Retrait chez moi</option><option value="delivery">Livraison</option></select></label></div>
+      <label>Note <span class="optional">(facultatif)</span><input name="note" maxlength="600"></label>`,
+    async (v) => {
+      const body = { clientId: v.clientId, productId: v.productId || null, name: v.name || '', quantity: Number(v.quantity), delivery: v.delivery, address: '', note: v.note || '' };
+      const r = await api('/api/admin/orders', { method: 'POST', body });
+      toast('Commande créée : composez maintenant l’album.'); await reload(); setTimeout(() => albumModal(r.order.id), 150);
+    }, { submit: 'Créer et composer l’album' });
+    const host = document.getElementById('overlays');
+    const sync = () => { host.querySelector('#ordn-name').hidden = !!host.querySelector('#ordn-prod').value; };
+    host.querySelector('#ordn-prod').addEventListener('change', sync); sync();
+  }
 
   function productModal(p) {
     modal(p ? 'Modifier le produit' : 'Nouveau produit', `<label>Nom<input name="name" required maxlength="120" value="${escape(p?.name || '')}" placeholder="Ex. Album 30×30 — 20 pages"></label>

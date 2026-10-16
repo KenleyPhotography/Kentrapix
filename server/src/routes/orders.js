@@ -1,9 +1,12 @@
 import { Router } from 'express';
 import crypto from 'node:crypto';
+import fs from 'node:fs/promises';
 import { z } from 'zod';
 import { query } from '../db.js';
 import { httpError } from '../lib/errors.js';
-import { uuid } from '../lib/data.js';
+import { uuid, CLIENT_HAS } from '../lib/data.js';
+import { accountScope } from '../lib/scope.js';
+import { upload, storeCover, removeKeys } from '../lib/storage.js';
 import { audit } from '../lib/audit.js';
 import { sendMail } from '../lib/mailer.js';
 import { CURRENCIES, round2 } from '../lib/billing.js';
@@ -23,6 +26,11 @@ const ORDER_SELECT = `SELECT o.*, c.name AS client_name, c.email AS client_email
     COALESCE(NULLIF(s.sender_name, ''), s.name) AS staff_name
   FROM print_orders o JOIN users c ON c.id = o.client_id JOIN users s ON s.id = o.staff_id`;
 
+// Page de couverture de l'album : image envoyée par le photographe, sinon l'une des photos de la commande.
+const coverOf = (o) => (o.cover_key
+  ? { url: `/media/order-cover/${o.id}?v=${String(o.cover_key).split('/').pop().split('.')[0]}`, custom: true, photoId: null }
+  : o.cover_photo_id ? { url: `/media/preview/${o.cover_photo_id}`, custom: false, photoId: o.cover_photo_id } : null);
+
 async function mapOrders(rows) {
   if (!rows.length) return [];
   const ids = rows.map((r) => r.id);
@@ -35,7 +43,7 @@ async function mapOrders(rows) {
   return rows.map((o) => ({
     id: o.id, product: o.product_name, unitPrice: Number(o.unit_price), currency: o.currency, quantity: Number(o.quantity),
     total: round2(Number(o.unit_price) * Number(o.quantity)), delivery: o.delivery, address: o.address || '', note: o.note || '',
-    status: o.status, reply: o.reply || '', createdAt: `${String(o.created_at).replace(' ', 'T')}Z`,
+    status: o.status, reply: o.reply || '', source: o.source || 'client', cover: coverOf(o), createdAt: `${String(o.created_at).replace(' ', 'T')}Z`,
     staff: { id: o.staff_id, name: o.staff_name },
     client: { id: o.client_id, name: o.client_name, email: o.client_email || '', phone: o.client_phone || '', whatsapp: o.client_whatsapp || o.client_phone || '' },
     photos: byOrder[o.id] || [],
@@ -109,6 +117,112 @@ staffOrders.patch('/:id', async (req, res) => {
   }
   audit(req, 'order.status', { entity: 'order', entityId: row.id, details: { status } });
   res.json({ order });
+});
+
+// ---------- Composer l'album soi-même : couverture, photos, commande créée pour un client ----------
+const LIBRARY = `SELECT p.id, p.filename, e.name AS event_name,
+    (SELECT COUNT(*) FROM photos q WHERE q.event_id = p.event_id AND (q.position < p.position OR (q.position = p.position AND q.created_at <= p.created_at))) AS number
+  FROM photos p JOIN events e ON e.id = p.event_id
+  WHERE e.created_by = ? AND ${CLIENT_HAS()}
+  ORDER BY e.event_date DESC, e.created_at DESC, p.position, p.created_at`;
+
+async function ownOrder(req, id) {
+  const [row] = await query(`${ORDER_SELECT} WHERE o.id = ? AND o.staff_id = ?`, [uuid.parse(id), req.user.id]);
+  if (!row) throw httpError(404, 'Commande introuvable.');
+  return row;
+}
+const fullOrder = async (req, id) => (await mapOrders([await ownOrder(req, id)]))[0];
+
+/** Photos que le photographe peut mettre dans l'album : celles des galeries qu'il a faites pour ce client. */
+staffOrders.get('/:id/library', async (req, res) => {
+  const order = await ownOrder(req, req.params.id);
+  const rows = await query(LIBRARY, [req.user.id, order.client_id]);
+  res.json({ photos: rows.map((p) => ({ id: p.id, number: Number(p.number), filename: p.filename, event: p.event_name, thumb: `/media/thumb/${p.id}` })) });
+});
+
+// Remplace les photos de l'album (dans l'ordre choisi).
+staffOrders.put('/:id/photos', async (req, res) => {
+  const order = await ownOrder(req, req.params.id);
+  const { photoIds } = z.object({ photoIds: z.array(uuid).max(500) }).parse(req.body);
+  const ids = [...new Set(photoIds)];
+  const library = new Map((await query(LIBRARY, [req.user.id, order.client_id])).map((p) => [p.id, p]));
+  if (ids.some((id) => !library.has(id))) throw httpError(400, 'Certaines photos ne font pas partie des galeries de ce client.');
+  await query('DELETE FROM print_order_photos WHERE order_id = ?', [order.id]);
+  let position = 0;
+  for (const id of ids) {
+    const p = library.get(id);
+    await query('INSERT INTO print_order_photos (order_id, photo_id, number, filename, event_name, position) VALUES (?, ?, ?, ?, ?, ?)', [order.id, id, Number(p.number), p.filename, p.event_name || '', position]);
+    position += 1;
+  }
+  // Couverture qui était l'une des photos retirées : on l'enlève.
+  if (order.cover_photo_id && !ids.includes(order.cover_photo_id)) await query('UPDATE print_orders SET cover_photo_id = NULL WHERE id = ?', [order.id]);
+  audit(req, 'order.photos', { entity: 'order', entityId: order.id, details: { count: ids.length } });
+  res.json({ order: await fullOrder(req, order.id) });
+});
+
+// Couverture : choisir une photo de l'album (ou aucune)…
+staffOrders.put('/:id/cover', async (req, res) => {
+  const order = await ownOrder(req, req.params.id);
+  const { photoId } = z.object({ photoId: uuid.nullable() }).parse(req.body);
+  if (photoId) {
+    const [inOrder] = await query('SELECT 1 FROM print_order_photos WHERE order_id = ? AND photo_id = ?', [order.id, photoId]);
+    if (!inOrder) throw httpError(400, 'Choisissez une photo de cette commande.');
+  }
+  await query('UPDATE print_orders SET cover_photo_id = ?, cover_key = NULL WHERE id = ?', [photoId, order.id]);
+  await removeKeys([order.cover_key]);
+  res.json({ order: await fullOrder(req, order.id) });
+});
+
+// … ou envoyer une image de couverture (conçue ailleurs).
+staffOrders.post('/:id/cover', upload.single('cover'), async (req, res) => {
+  let order;
+  try { order = await ownOrder(req, req.params.id); } catch (err) { if (req.file) await fs.rm(req.file.path, { force: true }); throw err; }
+  if (!req.file) throw httpError(400, 'Choisissez une image.');
+  const key = await storeCover(req.file);
+  await query('UPDATE print_orders SET cover_key = ?, cover_photo_id = NULL WHERE id = ?', [key, order.id]);
+  await removeKeys([order.cover_key]);
+  audit(req, 'order.cover', { entity: 'order', entityId: order.id });
+  res.json({ order: await fullOrder(req, order.id) });
+});
+
+staffOrders.delete('/:id/cover', async (req, res) => {
+  const order = await ownOrder(req, req.params.id);
+  await query('UPDATE print_orders SET cover_key = NULL, cover_photo_id = NULL WHERE id = ?', [order.id]);
+  await removeKeys([order.cover_key]);
+  res.json({ order: await fullOrder(req, order.id) });
+});
+
+// Le photographe crée lui-même la commande d'un client (album à composer) : acceptée tout de suite.
+staffOrders.post('/', async (req, res) => {
+  const data = z.object({
+    clientId: uuid,
+    productId: uuid.optional().nullable(),
+    name: z.string().trim().max(120).optional().default(''),
+    price: money.optional().default(0),
+    currency: z.enum(CURRENCIES).optional().default('USD'),
+    quantity: z.coerce.number().int().min(1).max(50).default(1),
+    delivery: z.enum(['pickup', 'delivery']).default('pickup'),
+    address: z.string().trim().max(300).optional().default(''),
+    note: z.string().trim().max(600).optional().default(''),
+  }).parse(req.body);
+  const [as, ap] = accountScope(req);
+  const [client] = await query(`SELECT u.id FROM users u WHERE u.id = ? AND u.role = 'client' AND ${as}`, [data.clientId, ...ap]);
+  if (!client) throw httpError(404, 'Client introuvable.');
+  let name = data.name; let price = data.price; let currency = data.currency; let productId = null;
+  if (data.productId) {
+    const [p] = await query('SELECT * FROM print_products WHERE id = ? AND staff_id = ?', [data.productId, req.user.id]);
+    if (!p) throw httpError(404, 'Produit introuvable.');
+    name = p.name; price = Number(p.price); currency = p.currency; productId = p.id;
+  }
+  if (!name) throw httpError(400, 'Choisissez un produit ou donnez un nom à la commande.');
+  const id = crypto.randomUUID();
+  await query(
+    `INSERT INTO print_orders (id, staff_id, client_id, product_id, product_name, unit_price, currency, quantity, delivery, address, note, status, source)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'accepted', 'studio')`,
+    [id, req.user.id, client.id, productId, name, price, currency, data.quantity, data.delivery, data.delivery === 'delivery' ? data.address : null, data.note || null],
+  );
+  audit(req, 'order.create_studio', { entity: 'order', entityId: id });
+  res.status(201).json({ order: await fullOrder(req, id) });
 });
 
 // ====================================================================================================

@@ -8,16 +8,18 @@ const REFERENCED_FOLDERS = ['originals', 'previews', 'thumbs', 'covers', 'avatar
 
 /** Liste les fichiers orphelins : [{ key, size, folder }]. */
 export async function findOrphans() {
-  const [photos, events, users, files] = await Promise.all([
+  const [photos, events, users, files, orderCovers] = await Promise.all([
     query('SELECT p.id, p.original_key, p.preview_key, p.thumb_key, e.lock_blur FROM photos p JOIN events e ON e.id = p.event_id'),
     query('SELECT cover_key, music_key FROM events'),
     query('SELECT avatar_key FROM users'),
     listStoredFiles(),
+    query('SELECT cover_key FROM print_orders WHERE cover_key IS NOT NULL'),
   ]);
   const used = new Set([
     ...photos.flatMap((p) => [p.original_key, p.preview_key, p.thumb_key]),
     ...events.flatMap((e) => [e.cover_key, e.music_key]),
     ...users.map((u) => u.avatar_key),
+    ...orderCovers.map((o) => o.cover_key),
   ].filter(Boolean));
   const photoIds = new Set(photos.map((p) => p.id));
   // locks/<id>-b25.webp : seul le fichier du niveau de flou actuel de la galerie est utile

@@ -2478,3 +2478,14 @@ h1 em, h2 em, .editorial-heading em, .login-caption h1 em {
 .workspace, .main { min-width: 0; }
 .bk-slots .row, .storage-backup .row, .bk-book .row, #bka-root .row, #ordA-root .row { flex-wrap: wrap; gap: 8px; }
 @media (max-width: 800px) { .bk-month strong { font-size: 1rem; white-space: nowrap; } }
+
+/* ---------- Album : couverture et photos composées par le photographe ---------- */
+.ord-cover { flex: none; width: 46px; height: 46px; border-radius: 12px; object-fit: cover; background: var(--blue-soft, #e8f1ff); }
+.inv-card header .ord-cover { width: 52px; height: 52px; }
+.alb-cover { display: grid; place-items: center; width: 100%; max-width: 220px; aspect-ratio: 4 / 3; margin: 6px 0 10px; border-radius: 16px; overflow: hidden; background: linear-gradient(135deg, #1265d8, #0a3a85); color: #fff; font-weight: 600; font-size: 0.9rem; }
+.alb-cover img { width: 100%; height: 100%; object-fit: cover; }
+.ord-photo.is-cover { box-shadow: 0 0 0 3px #f5b301; }
+.alb-star { position: absolute; left: 4px; top: 4px; width: 26px; height: 26px; padding: 0; border: 0; border-radius: 99px; display: grid; place-items: center; background: rgba(8, 36, 69, 0.78); color: #fff; cursor: pointer; }
+.alb-star svg { width: 14px; height: 14px; }
+.ord-photo.is-cover .alb-star { background: #f5b301; color: #082445; }
+div.ord-photo { cursor: pointer; }
