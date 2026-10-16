@@ -145,3 +145,12 @@
 @media (prefers-reduced-motion: reduce) { #upload-dock { animation: none; } }
 
 
+
+/* ---------- Listes (rendez-vous, commandes, rappels…) : lisibles sur petit écran ---------- */
+.rem-row span, .rem-row strong { overflow-wrap: anywhere; }
+.bill-block, .settings { min-width: 0; }
+@media (max-width: 600px) {
+  .rem-row { flex-wrap: wrap; align-items: flex-start; }
+  .rem-row > div:nth-of-type(1) { flex: 1 1 calc(100% - 56px); }
+  .rem-row .actions { flex: 1 1 100%; flex-wrap: wrap; align-items: center; justify-content: flex-start; gap: 8px; padding-left: 46px; }
+}

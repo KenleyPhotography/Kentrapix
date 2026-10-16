@@ -2456,3 +2456,24 @@ h1 em, h2 em, .editorial-heading em, .login-caption h1 em {
 .ord-grid { align-content: start; grid-auto-rows: max-content; }
 .ord-photo { display: block; width: 100%; height: auto; min-height: 0; }
 .ord-photo img { aspect-ratio: 1; }
+
+/* Rendez-vous / commandes : champs et boutons qui ne dépassent jamais l'écran */
+.bk-form select, .bk-form input, .bk-form .btn, .ord-grid + .row2 input, .row2 > label { max-width: 100%; min-width: 0; }
+.bk-month strong { text-align: center; flex: 1; }
+@media (max-width: 400px) {
+  .bk-week, .bk-grid { gap: 4px; }
+  .bk-cell { min-height: 36px; border-radius: 10px; font-size: 0.88rem; }
+  .bk-chips .chip { flex: 1 1 calc(50% - 8px); justify-content: center; }
+  .ord-product { flex-direction: column; align-items: stretch; }
+  .ord-buy { grid-auto-flow: column; justify-content: space-between; align-items: center; }
+  .share-toggle { gap: 10px; }
+}
+.bk-week, .bk-grid { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.bk-cell { min-width: 0; }
+@media (max-width: 420px) {
+  .bk-cell { min-height: 0; font-size: 0.85rem; border-radius: 9px; }
+  .bk-cell i { top: 1px; right: 2px; min-width: 14px; height: 14px; line-height: 14px; font-size: 0.6rem; }
+  .settings.bill-block { padding: 18px 14px; }
+}
+.workspace, .main { min-width: 0; }
+.bk-slots .row, .storage-backup .row, .bk-book .row, #bka-root .row, #ordA-root .row { flex-wrap: wrap; gap: 8px; }
