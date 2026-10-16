@@ -21,6 +21,7 @@ import { requireRole } from '../middleware/auth.js';
 import { BCRYPT_COST } from './auth.js';
 import { clientNotifications } from '../lib/notifications.js';
 import { clientBooking } from './booking.js';
+import { pushLater } from '../lib/push.js';
 import { clientOrders } from './orders.js';
 import {
   SHARE_SELECT, mapShare, shareCreateSchema, shareUpdateSchema, createShare, updateShare, FAMILY_COMMENT_SELECT, mapFamilyComment, byDate,
@@ -336,6 +337,7 @@ router.post('/events/:id/selection/submit', async (req, res) => {
     : config.mail.replyTo
       ? [{ email: config.mail.replyTo.replace(/^.*<|>.*$/g, ''), id: null }]
       : await query("SELECT id, email FROM users WHERE role = 'owner' AND active = 1");
+  for (const s of studio) if (s.id) pushLater(s.id, { title: 'Sélection reçue', body: `${req.user.name} · ${event.name} · ${numbers.length} photo${numbers.length > 1 ? 's' : ''}`, url: '/admin', tag: `selection-${event.id}` });
   const tpl = selectionEmail({ clientName: req.user.name, eventName: event.name, numbers, note, requests: rows.filter((r) => r.note).map((r) => ({ number: Number(r.number), note: r.note })) });
   await Promise.all(studio.map((s) => sendMail({ to: s.email, userId: s.id, eventId: event.id, kind: 'selection', ...tpl })));
   const [saved] = await query('SELECT submitted_at FROM event_selections WHERE event_id = ? AND user_id = ?', [event.id, req.user.id]);

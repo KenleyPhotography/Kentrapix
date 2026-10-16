@@ -1,8 +1,10 @@
 import crypto from 'node:crypto';
 import { query } from '../db.js';
 import { sendMail } from './mailer.js';
+import { pushTo } from './push.js';
 import { paymentReminderEmail } from './emails.js';
 import { INVOICE_SELECT, mapInvoice, invoiceUrl, today } from './billing.js';
+import { config } from '../config.js';
 
 // Rappels de paiement automatiques (par e-mail), une seule fois par étape et par facture :
 //   before : 3 jours avant l'échéance (jusqu'au jour J) · late1 : dès le lendemain · late2 : 8 jours après · late3 : 15 jours après.
@@ -46,8 +48,9 @@ export async function sendAutoReminders() {
       fromName: studio, replyTo: staff.email,
       ...paymentReminderEmail({ name: invoice.client.name, studio, invoice, url: invoiceUrl(row.public_token) }),
     });
+    const pushed = await pushTo(row.client_id, { title: 'Rappel de paiement', body: `${invoice.number} · reste ${invoice.balance} ${invoice.currency}`, url: invoiceUrl(row.public_token).replace(config.appUrl, ''), tag: `invoice-${row.id}` });
     // Envoi raté ou e-mails non configurés : rien n'est enregistré, on réessaiera à la prochaine vérification.
-    if (result.status !== 'sent') continue;
+    if (result.status !== 'sent' && !pushed.sent) continue;
     await query(
       `INSERT INTO reminder_log (id, staff_id, invoice_id, channel, status, phase, auto) VALUES (?, ?, ?, 'email', 'sent', ?, 1) ON CONFLICT DO NOTHING`,
       [crypto.randomUUID(), staff.id, row.id, phase],

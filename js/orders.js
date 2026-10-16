@@ -1,6 +1,7 @@
 // Albums et tirages : le photographe publie un catalogue ; le client choisit un produit et ses photos, puis envoie sa commande.
 import { api, escape, service } from './service.js';
 import { icon } from './icons.js';
+import { waLink, firstName, siteUrl } from './whatsapp.js';
 
 const STATUS = { new: 'Nouvelle', accepted: 'Acceptée', production: 'En préparation', ready: 'Prête', delivered: 'Remise', cancelled: 'Annulée' };
 const money = (n, cur) => `${Number(n).toLocaleString('fr-FR', { maximumFractionDigits: 2 })} ${cur}`;
@@ -97,11 +98,11 @@ export async function bindAdminOrders({ toast, modal, navigate, clients }) {
   const guard = (fn) => async (...a) => { try { await fn(...a); } catch (e) { toast(e.message); } };
   const reload = async () => { d = await api('/api/admin/orders'); draw(); };
   const NEXT = { new: [['accepted', 'Accepter', 'primary']], accepted: [['production', 'En préparation']], production: [['ready', 'Prête']], ready: [['delivered', 'Remise']], delivered: [], cancelled: [] };
-  const wa = (num, text) => { const digits = String(num || '').replace(/\D/g, ''); return digits ? `https://wa.me/${digits}?text=${encodeURIComponent(text)}` : ''; };
 
   const orderCard = (o) => {
     const nums = o.photos.map((p) => p.number).sort((a, b) => a - b).join(', ');
-    const link = wa(o.client.whatsapp, `Bonjour ${o.client.name.split(' ')[0]}, à propos de votre commande « ${o.product} ».`);
+    const say = { new: 'Merci pour votre commande', accepted: 'Votre commande est acceptée', production: 'Votre commande est en préparation', ready: o.delivery === 'delivery' ? 'Votre commande est prête, elle va vous être livrée' : 'Votre commande est prête, vous pouvez venir la récupérer', delivered: 'Votre commande a été remise, merci !', cancelled: 'Votre commande a été annulée' }[o.status];
+    const link = waLink(o.client.whatsapp, `Bonjour ${firstName(o.client.name)}, ${say} : « ${o.product} ». ${siteUrl('/client')}`);
     return `<article class="inv-card ${o.status === 'new' ? 'is-late' : ''} ${o.status === 'cancelled' ? 'is-off' : ''}">
       <header>${o.cover ? `<img class="ord-cover" src="${escape(o.cover.url)}" alt="">` : `<span class="inv-ico">${icon('albums')}</span>`}<div><strong>${escape(o.product)} × ${o.quantity}</strong><span>${escape(o.client.name)} · ${escape(when(o.createdAt))}${o.source === 'studio' ? ' · créée par vous' : ''}</span></div>${pill(o.status)}</header>
       <dl class="inv-amounts"><div><dt>Total</dt><dd>${escape(money(o.total, o.currency))}</dd></div><div><dt>Photos</dt><dd>${o.photos.length}</dd></div><div><dt>Remise</dt><dd>${o.delivery === 'delivery' ? 'Livraison' : 'Retrait'}</dd></div></dl>

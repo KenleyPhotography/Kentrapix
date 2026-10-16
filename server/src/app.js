@@ -10,6 +10,7 @@ import { apiNotFound, errorHandler } from './lib/errors.js';
 import authRoutes from './routes/auth.js';
 import clientRoutes from './routes/client.js';
 import adminRoutes from './routes/admin.js';
+import pushRoutes from './routes/push.js';
 import mediaRoutes from './routes/media.js';
 import pageRoutes from './routes/pages.js';
 import { shareApi, shareMedia } from './routes/share.js';
@@ -69,6 +70,7 @@ export function createApp() {
   });
 
   app.use('/api/auth', authRoutes);
+  app.use('/api/push', pushRoutes); // notifications sur téléphone (abonnement des appareils)
   app.use('/api/client', clientRoutes);
   app.use('/api/admin', adminRoutes);
   app.use('/api/invoice', invoiceApi); // page publique d'une facture (lien secret)

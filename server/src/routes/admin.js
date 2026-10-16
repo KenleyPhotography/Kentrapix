@@ -13,6 +13,7 @@ import {
   PHOTO_COLUMNS, COMMENT_SELECT, avatarUrl,
 } from '../lib/data.js';
 import { audit } from '../lib/audit.js';
+import { pushLater } from '../lib/push.js';
 import { sendMail, mailConfigured, fromLine, LOGO_CID } from '../lib/mailer.js';
 import {
   welcomeEmail, galleryReadyEmail, passwordResetEmail, adminInviteEmail, messageEmail, expiryEmail, announcementEmail,
@@ -394,6 +395,7 @@ async function notifyGallery(req, event) {
     const r = await mailTo(req, owner, galleryReadyEmail({ name: owner.name, eventName: event.name, count: Number(count), studio: studioName(req) }), {
       kind: 'gallery_ready', eventId: event.id,
     });
+    pushLater(cid, { title: 'Vos photos sont prêtes', body: `« ${event.name} » est en ligne.`, url: '/client', tag: `gallery-${event.id}` });
     if (!result || r.status === 'sent') result = r;
   }
   if (result.status === 'sent') await query('UPDATE events SET notified_at = CURRENT_TIMESTAMP WHERE id = ?', [event.id]);

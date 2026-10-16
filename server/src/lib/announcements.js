@@ -1,5 +1,6 @@
 import { query } from '../db.js';
 import { sendMail } from './mailer.js';
+import { pushTo } from './push.js';
 import { announcementEmail } from './emails.js';
 
 // Notifications écrites dans le studio : visibles dans la cloche des clients à partir de send_at,
@@ -46,6 +47,7 @@ export async function deliverAnnouncements() {
           replyTo: a.studio_email || null,
           ...announcementEmail({ name: u.name, title: a.title, body: a.body, eventName: a.event_name, studio }),
         }));
+        await pushTo(u.id, { title: a.title, body: String(a.body || '').slice(0, 140), url: '/client', tag: `announcement-${a.id}` });
         sent += 1;
         await pause(GAP);
       }

@@ -8,6 +8,7 @@ import { uuid, CLIENT_HAS } from '../lib/data.js';
 import { accountScope } from '../lib/scope.js';
 import { upload, storeCover, removeKeys } from '../lib/storage.js';
 import { audit } from '../lib/audit.js';
+import { pushLater } from '../lib/push.js';
 import { sendMail } from '../lib/mailer.js';
 import { CURRENCIES, round2 } from '../lib/billing.js';
 import { orderRequestEmail, orderStatusEmail } from '../lib/emails.js';
@@ -109,6 +110,7 @@ staffOrders.patch('/:id', async (req, res) => {
   if (!row) throw httpError(404, 'Commande introuvable.');
   await query('UPDATE print_orders SET status = ?, reply = ? WHERE id = ?', [status, reply || null, row.id]);
   const [order] = await mapOrders([{ ...row, status, reply }]);
+  if (status !== 'new' && status !== row.status) pushLater(row.client_id, { title: { accepted: 'Commande acceptée', production: 'Commande en préparation', ready: 'Commande prête', delivered: 'Commande remise', cancelled: 'Commande annulée' }[status] || 'Commande mise à jour', body: `${order.product} × ${order.quantity}`, url: '/client', tag: `order-${row.id}` });
   if (status !== 'new' && row.client_email && status !== row.status) {
     fire(sendMail({
       to: row.client_email, userId: row.client_id, sentBy: req.user.id, kind: 'order', fromName: studioName(req.user), replyTo: req.user.email,
@@ -277,6 +279,7 @@ export function clientOrders({ photographersOf, visiblePhotos }) {
     }
     const [row] = await query(`${ORDER_SELECT} WHERE o.id = ?`, [id]);
     const [order] = await mapOrders([row]);
+    pushLater(staff.id, { title: 'Nouvelle commande', body: `${req.user.name} · ${order.product} × ${order.quantity}`, url: '/admin', tag: `order-${id}` });
     if (staff.email) {
       fire(sendMail({
         to: staff.email, userId: staff.id, sentBy: req.user.id, kind: 'order', replyTo: req.user.email,

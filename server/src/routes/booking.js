@@ -5,6 +5,7 @@ import { query } from '../db.js';
 import { httpError } from '../lib/errors.js';
 import { uuid } from '../lib/data.js';
 import { audit } from '../lib/audit.js';
+import { pushLater } from '../lib/push.js';
 import { sendMail } from '../lib/mailer.js';
 import { accountScope } from '../lib/scope.js';
 import { bookingRequestEmail, bookingStatusEmail } from '../lib/emails.js';
@@ -114,6 +115,7 @@ staffBooking.patch('/bookings/:id', async (req, res) => {
     await query('UPDATE bookings SET status = ?, reply = ? WHERE id = ?', [status, reply || null, row.id]);
   }
   const booking = mapBooking({ ...row, ...moved, status, reply });
+  pushLater(row.client_id, { title: { confirmed: 'Rendez-vous confirmé', declined: 'Rendez-vous non disponible', cancelled: 'Rendez-vous annulé', proposed: 'Autre date proposée' }[status], body: `${studioName(req.user)} · ${booking.day} à ${booking.start}`, url: '/client', tag: `booking-${row.id}` });
   if (row.client_email) {
     fire(sendMail({
       to: row.client_email, userId: row.client_id, sentBy: req.user.id, kind: 'booking',
@@ -213,6 +215,7 @@ export function clientBooking({ photographersOf }) {
     }
     const [row] = await query(`${BOOKING_SELECT} WHERE b.id = ?`, [id]);
     const booking = mapBooking(row);
+    pushLater(staff.id, { title: settings.autoConfirm ? 'Nouveau rendez-vous' : 'Demande de rendez-vous', body: `${req.user.name} · ${booking.day} à ${booking.start}`, url: '/admin', tag: `booking-${id}` });
     if (staff.email) {
       fire(sendMail({
         to: staff.email, userId: staff.id, sentBy: req.user.id, kind: 'booking', replyTo: req.user.email,
@@ -233,6 +236,7 @@ export function clientBooking({ photographersOf }) {
     await query('UPDATE bookings SET status = ? WHERE id = ?', [status, row.id]);
     const [staff] = await query('SELECT id, name, email FROM users WHERE id = ?', [row.staff_id]);
     const booking = mapBooking({ ...row, status });
+    pushLater(row.staff_id, { title: accept ? 'Nouvelle date acceptée' : 'Nouvelle date refusée', body: `${req.user.name} · ${booking.day} à ${booking.start}`, url: '/admin', tag: `booking-${row.id}` });
     if (staff?.email) {
       fire(sendMail({
         to: staff.email, userId: staff.id, sentBy: req.user.id, kind: 'booking', replyTo: req.user.email,
@@ -252,6 +256,7 @@ export function clientBooking({ photographersOf }) {
     if (['declined', 'cancelled'].includes(row.status)) throw httpError(400, 'Ce rendez-vous est déjà clos.');
     await query("UPDATE bookings SET status = 'cancelled' WHERE id = ?", [row.id]);
     const [staff] = await query('SELECT id, name, email FROM users WHERE id = ?', [row.staff_id]);
+    pushLater(row.staff_id, { title: 'Rendez-vous annulé', body: `${req.user.name} · ${String(row.day).slice(0, 10)} à ${row.start_time}`, url: '/admin', tag: `booking-${row.id}` });
     if (staff?.email) {
       const booking = mapBooking({ ...row, status: 'cancelled' });
       fire(sendMail({

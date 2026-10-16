@@ -1,9 +1,10 @@
 import { query } from '../db.js';
 import { sendMail } from './mailer.js';
+import { pushTo } from './push.js';
 import { bookingReminderEmail } from './emails.js';
 import { BOOKING_SELECT, mapBooking, studioToday, addDays } from './booking.js';
 
-// Rappel la veille : un e-mail au client et un au photographe pour chaque rendez-vous confirmé du lendemain.
+// Rappel la veille : un e-mail et une notification sur téléphone au client et au photographe pour chaque rendez-vous confirmé du lendemain.
 // Vérifié au démarrage puis toutes les heures ; un seul rappel par rendez-vous (reminded_at).
 const EVERY = 60 * 60 * 1000;
 
@@ -28,8 +29,11 @@ export async function sendBookingReminders() {
         ...bookingReminderEmail({ name: staff.name, studio, booking, forStaff: true, clientName: row.client_name }),
       }));
     }
+    const note = { title: 'Rappel : rendez-vous demain', body: `${booking.start} – ${booking.end}`, tag: `booking-${row.id}` };
+    const p1 = await pushTo(row.client_id, { ...note, body: `${studio} · ${booking.start} – ${booking.end}`, url: '/client' });
+    const p2 = await pushTo(row.staff_id, { ...note, body: `${row.client_name} · ${booking.start} – ${booking.end}`, url: '/admin' });
     // Au moins un e-mail parti : rappel fait. Sinon (e-mails non configurés ou échec) on réessaiera.
-    if (results.some((r) => r.status === 'sent')) {
+    if (results.some((r) => r.status === 'sent') || p1.sent || p2.sent) {
       await query('UPDATE bookings SET reminded_at = CURRENT_TIMESTAMP WHERE id = ?', [row.id]);
       sent += 1;
     }
