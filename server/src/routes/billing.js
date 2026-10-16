@@ -255,7 +255,7 @@ invoiceApi.get('/:token', async (req, res) => {
     `${INVOICE_SELECT} WHERE i.public_token = ?`, [token],
   );
   if (!row) throw httpError(404, 'Facture introuvable.');
-  const [studio] = await query('SELECT name, sender_name, email, phone, whatsapp, website, address, instagram, bio, avatar_key FROM users WHERE id = ?', [row.staff_id]);
+  const [studio] = await query('SELECT name, sender_name, email, phone, whatsapp, website, address, instagram, bio, avatar_key, moncash_number, natcash_number, pay_note FROM users WHERE id = ?', [row.staff_id]);
   const payments = await query('SELECT * FROM payments WHERE invoice_id = ? ORDER BY paid_at, created_at', [row.id]);
   const inv = mapInvoice(row, payments);
   res.set('Cache-Control', 'no-store').json({
@@ -267,7 +267,7 @@ invoiceApi.get('/:token', async (req, res) => {
       name: studio?.sender_name || studio?.name || 'KentraPix', person: studio?.name || '', email: studio?.email || '', phone: studio?.phone || '',
       whatsapp: studio?.whatsapp || studio?.phone || '', website: studio?.website || '', address: studio?.address || '',
       instagram: studio?.instagram || '', bio: studio?.bio || '',
-      avatar: studio?.avatar_key ? `/api/invoice/${token}/avatar` : null,
+      avatar: studio?.avatar_key ? `/api/invoice/${token}/avatar` : null, pay: payInfo(studio),
     },
   });
 });
@@ -278,4 +278,33 @@ invoiceApi.get('/:token/avatar', async (req, res) => {
   const [row] = await query('SELECT u.avatar_key FROM invoices i JOIN users u ON u.id = i.staff_id WHERE i.public_token = ?', [token]);
   if (!row?.avatar_key) throw httpError(404, 'Image introuvable.');
   await sendPrivate(res, row.avatar_key);
+});
+
+// ---------- Espace client : ses factures + où envoyer le paiement (MonCash / NatCash : instructions seulement) ----------
+export const clientInvoices = Router();
+
+export const payInfo = (s) => ({
+  moncash: s?.moncash_number || '', natcash: s?.natcash_number || '', note: s?.pay_note || '', whatsapp: s?.whatsapp || s?.phone || '',
+});
+
+clientInvoices.get('/', async (req, res) => {
+  const rows = await query(`${INVOICE_SELECT} WHERE i.client_id = ? AND i.cancelled = 0 ORDER BY i.issued_at DESC, i.created_at DESC`, [req.user.id]);
+  const payments = rows.length
+    ? await query(`SELECT * FROM payments WHERE invoice_id IN (${rows.map(() => '?').join(', ')}) ORDER BY paid_at, created_at`, rows.map((r) => r.id))
+    : [];
+  const studios = rows.length
+    ? await query(`SELECT id, name, sender_name, phone, whatsapp, moncash_number, natcash_number, pay_note FROM users WHERE id IN (${[...new Set(rows.map((r) => r.staff_id))].map(() => '?').join(', ')})`, [...new Set(rows.map((r) => r.staff_id))])
+    : [];
+  const byStudio = Object.fromEntries(studios.map((s) => [s.id, s]));
+  res.json({
+    invoices: rows.map((r) => {
+      const inv = mapInvoice(r, payments.filter((p) => p.invoice_id === r.id));
+      const s = byStudio[r.staff_id];
+      return {
+        id: inv.id, number: inv.number, title: inv.title, currency: inv.currency, total: inv.total, paid: inv.paid, balance: inv.balance, status: inv.status,
+        issuedAt: inv.issuedAt, dueDate: inv.dueDate, url: inv.url, event: inv.eventName || '',
+        studio: s?.sender_name || s?.name || '', pay: payInfo(s),
+      };
+    }),
+  });
 });

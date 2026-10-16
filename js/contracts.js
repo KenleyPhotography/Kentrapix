@@ -11,18 +11,17 @@ const fstamp = (iso) => (iso ? new Date(iso).toLocaleString('fr-FR', { day: 'num
 const studioName = () => { const u = auth.session(); return u?.senderName || u?.name || 'Le photographe'; };
 
 /** Modèle de contrat de séance photo : à relire et adapter avant l'envoi. */
-function template({ client, studio, session, date, place, price, deposit }) {
-  return `CONTRAT DE PRESTATION PHOTOGRAPHIQUE
+const DEFAULT_TEMPLATE = `CONTRAT DE PRESTATION PHOTOGRAPHIQUE
 
-Entre : ${studio} (« le photographe »)
-Et : ${client} (« le client »)
+Entre : {{studio}} (« le photographe »)
+Et : {{client}} (« le client »)
 
 1. Objet
-Le photographe réalise pour le client une séance photo : ${session || '…'}.
-Date : ${date || 'à confirmer'}. Lieu : ${place || 'à confirmer'}.
+Le photographe réalise pour le client une séance photo : {{session}}.
+Date : {{date}}. Lieu : {{place}}.
 
 2. Prix et paiement
-Prix total : ${price || '…'}. Acompte à la réservation : ${deposit || '…'}. Le solde est payable au plus tard le jour de la séance ou à la remise des photos, selon l’accord entre les deux parties.
+Prix total : {{price}}. Acompte à la réservation : {{deposit}}. Le solde est payable au plus tard le jour de la séance ou à la remise des photos, selon l’accord entre les deux parties.
 L’acompte n’est pas remboursable en cas d’annulation par le client moins de 48 heures avant la séance.
 
 3. Report et annulation
@@ -39,7 +38,13 @@ Le client autorise le photographe à utiliser quelques photos de la séance pour
 
 7. Acceptation
 En signant électroniquement ce contrat, les deux parties acceptent ces conditions. Cette signature a la même valeur qu’une signature sur papier.`;
-}
+
+/** Remplace {{client}}, {{studio}}, {{session}}, {{date}}, {{place}}, {{price}}, {{deposit}} par les valeurs saisies. */
+const FALLBACK = { session: '…', date: 'à confirmer', place: 'à confirmer', price: '…', deposit: '…', client: '…', studio: '' };
+const fillTemplate = (text, vars) => text.replace(/\{\{(client|studio|session|date|place|price|deposit)\}\}/g, (_, k) => vars[k] || FALLBACK[k]);
+/** Inverse : remet les valeurs saisies sous forme de {{…}} pour enregistrer un modèle réutilisable. */
+const unfillTemplate = (text, vars) => Object.entries(vars).filter(([, v]) => v && v.length > 1).sort((x, y) => y[1].length - x[1].length)
+  .reduce((t, [k, v]) => t.split(v).join(`{{${k}}}`), text);
 
 export const adminContractsPage = () => '<div class="greeting"><h1>Contrats</h1><p>Contrats à signer en ligne : plus de séance sans papier signé.</p></div><div id="ctr-root"><div class="empty small"><p>Chargement…</p></div></div>';
 
@@ -139,8 +144,10 @@ export async function bindAdminContracts({ toast, modal, clients }) {
       <div class="row2"><label>Lieu <span class="optional">(facultatif)</span><input name="place" id="ctr-place" maxlength="120"></label>
       <label>Prix total <span class="optional">(facultatif)</span><input name="price" id="ctr-price" maxlength="40" placeholder="Ex. 500 USD"></label></div>
       <label>Acompte <span class="optional">(facultatif)</span><input name="deposit" id="ctr-deposit" maxlength="40" placeholder="Ex. 200 USD"></label>`}
+      ${contract ? '' : `<label>Modèle de contrat<select id="ctr-tpl"><option value="">Modèle KentraPix (par défaut)</option>${d.templates.map((t) => `<option value="${t.id}">${escape(t.name)}</option>`).join('')}</select></label>`}
       <label>Titre<input name="title" id="ctr-title" required maxlength="200" value="${escape(contract?.title || '')}" placeholder="Ex. Contrat — Séance photo mariage"></label>
-      <label>Texte du contrat <span class="optional">(relisez et adaptez)</span><textarea name="body" id="ctr-body" rows="14" required maxlength="20000" style="font:14px/1.5 Inter,sans-serif">${escape(contract?.body || '')}</textarea></label>`,
+      <label>Texte du contrat <span class="optional">(relisez et adaptez)</span><textarea name="body" id="ctr-body" rows="14" required maxlength="20000" style="font:14px/1.5 Inter,sans-serif">${escape(contract?.body || '')}</textarea></label>
+      ${contract ? '' : `<div class="actions" style="justify-content:flex-start"><button type="button" class="btn sm" id="ctr-tpl-save">Enregistrer comme modèle</button><button type="button" class="btn sm danger" id="ctr-tpl-del" hidden>Supprimer ce modèle</button></div>`}`,
     async (v) => {
       if (contract) {
         await api(`/api/admin/contracts/${contract.id}`, { method: 'PATCH', body: { title: v.title, body: v.body } });
@@ -161,9 +168,33 @@ export async function bindAdminContracts({ toast, modal, clients }) {
       const client = list.find((c) => c.id === el('#ctr-client').value);
       if (!el('#ctr-title').dataset.edited) el('#ctr-title').value = `Contrat — ${el('#ctr-session').value || 'Séance photo'} — ${client?.name || ''}`;
       if (touched && !confirm('Remplacer le texte que vous avez modifié par le modèle mis à jour ?')) return;
-      el('#ctr-body').value = template({ client: client?.name || '…', studio: studioName(), session: el('#ctr-session').value, date: el('#ctr-date').value, place: el('#ctr-place').value, price: el('#ctr-price').value, deposit: el('#ctr-deposit').value });
+      el('#ctr-body').value = fillTemplate(currentTemplate(), vars());
       touched = false;
     };
+    const vars = () => ({ client: list.find((c) => c.id === el('#ctr-client').value)?.name || '', studio: studioName(), session: el('#ctr-session').value.trim(), date: el('#ctr-date').value.trim(), place: el('#ctr-place').value.trim(), price: el('#ctr-price').value.trim(), deposit: el('#ctr-deposit').value.trim() });
+    const saved = () => d.templates.find((t) => t.id === el('#ctr-tpl').value);
+    const currentTemplate = () => saved()?.body || DEFAULT_TEMPLATE;
+    const syncDel = () => { el('#ctr-tpl-del').hidden = !saved(); };
+    el('#ctr-tpl').addEventListener('change', () => { syncDel(); refill(); });
+    el('#ctr-tpl-save').onclick = guard(async () => {
+      const cur = saved();
+      const name = prompt(cur ? 'Nom du modèle (gardez-le pour mettre à jour ce modèle) :' : 'Nom du nouveau modèle (ex. Mariage, Portrait, Bébé) :', cur?.name || '');
+      if (!name?.trim()) return;
+      const body = unfillTemplate(el('#ctr-body').value, vars());
+      const same = cur && cur.name === name.trim();
+      const res = await api(same ? `/api/admin/contracts/templates/${cur.id}` : '/api/admin/contracts/templates', { method: same ? 'PUT' : 'POST', body: { name: name.trim(), body } });
+      if (same) cur.body = body; else { d.templates.push(res.template); d.templates.sort((x, y) => x.name.localeCompare(y.name)); }
+      el('#ctr-tpl').innerHTML = `<option value="">Modèle KentraPix (par défaut)</option>${d.templates.map((t) => `<option value="${t.id}">${escape(t.name)}</option>`).join('')}`;
+      el('#ctr-tpl').value = res.template.id; syncDel(); touched = false;
+      toast('Modèle enregistré.');
+    });
+    el('#ctr-tpl-del').onclick = guard(async () => {
+      const cur = saved();
+      if (!cur || !confirm(`Supprimer le modèle « ${cur.name} » ?`)) return;
+      await api(`/api/admin/contracts/templates/${cur.id}`, { method: 'DELETE' });
+      d.templates = d.templates.filter((t) => t.id !== cur.id);
+      el('#ctr-tpl').querySelector(`option[value="${cur.id}"]`)?.remove(); el('#ctr-tpl').value = ''; syncDel(); refill();
+    });
     el('#ctr-title').addEventListener('input', () => { el('#ctr-title').dataset.edited = '1'; });
     ['#ctr-client', '#ctr-session', '#ctr-date', '#ctr-place', '#ctr-price', '#ctr-deposit'].forEach((id) => el(id).addEventListener('change', refill));
     refill();

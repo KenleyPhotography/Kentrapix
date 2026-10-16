@@ -25,6 +25,9 @@ export const publicUser = (u) => ({
   instagram: u.instagram || '',
   address: u.address || '',
   bio: u.bio || '',
+  moncash: ['owner', 'admin'].includes(u.role) ? u.moncash_number || '' : undefined,
+  natcash: ['owner', 'admin'].includes(u.role) ? u.natcash_number || '' : undefined,
+  payNote: ['owner', 'admin'].includes(u.role) ? u.pay_note || '' : undefined,
   needsCode: u.role === 'client' && !u.access_granted,
 });
 

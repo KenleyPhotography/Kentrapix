@@ -11,7 +11,7 @@ import { sendPrivate } from '../lib/storage.js';
 import { contractEmail } from '../lib/emails.js';
 import { accountScope } from '../lib/scope.js';
 import { studioToday } from '../lib/booking.js';
-import { CONTRACT_SELECT, mapContract, contractUrl, newContractToken, bodyHash } from '../lib/contracts.js';
+import { CONTRACT_SELECT, mapContract, contractUrl, newContractToken, bodyHash, unsignedBookings } from '../lib/contracts.js';
 
 // ====================================================================================================
 //  Photographe : rédiger, envoyer et suivre les contrats (monté dans le routeur du studio)
@@ -40,19 +40,14 @@ async function loadContract(req, id) {
 
 // Contrats + séances confirmées à venir qui n'ont toujours pas de contrat signé (« pas de séance sans papier signé »).
 staffContracts.get('/', async (req, res) => {
-  const [rows, missing] = await Promise.all([
+  const [rows, missing, templates] = await Promise.all([
     query(`${CONTRACT_SELECT} WHERE c.staff_id = ? ORDER BY c.created_at DESC`, [req.user.id]),
-    query(
-      `SELECT b.id, b.day, b.start_time, b.session_type, b.client_id, u.name AS client_name
-       FROM bookings b JOIN users u ON u.id = b.client_id
-       WHERE b.staff_id = ? AND b.status = 'confirmed' AND b.day >= ?
-         AND NOT EXISTS (SELECT 1 FROM contracts c WHERE c.client_id = b.client_id AND c.staff_id = b.staff_id AND c.status = 'signed' AND (c.booking_id = b.id OR c.booking_id IS NULL))
-       ORDER BY b.day, b.start_time`,
-      [req.user.id, studioToday()],
-    ),
+    unsignedBookings(req.user.id, studioToday()),
+    query('SELECT id, name, body FROM contract_templates WHERE staff_id = ? ORDER BY name', [req.user.id]),
   ]);
   res.json({
     mySignature: await mySignature(req.user.id),
+    templates,
     contracts: rows.map(mapContract),
     unsigned: missing.map((b) => ({
       bookingId: b.id, day: String(b.day).slice(0, 10), start: b.start_time, sessionType: b.session_type, clientId: b.client_id, clientName: b.client_name,
@@ -85,6 +80,31 @@ staffContracts.post('/', async (req, res) => {
   ]);
   audit(req, 'contract.create', { entity: 'contract', entityId: id, details: { client: data.clientId } });
   res.status(201).json({ contract: mapContract(await loadContract(req, id)) });
+});
+
+// Modèles de contrat du photographe : texte réutilisable ({{client}}, {{studio}}, {{session}}, {{date}}, {{place}}, {{price}}, {{deposit}}).
+const templateSchema = z.object({
+  name: z.string().trim().min(1, 'Donnez un nom au modèle.').max(80),
+  body: z.string().trim().min(30, 'Le modèle est trop court.').max(20000),
+});
+staffContracts.post('/templates', async (req, res) => {
+  const data = templateSchema.parse(req.body);
+  const [{ n }] = await query('SELECT COUNT(*) AS n FROM contract_templates WHERE staff_id = ?', [req.user.id]);
+  if (Number(n) >= 30) throw httpError(400, '30 modèles maximum : supprimez-en un d’abord.');
+  const id = crypto.randomUUID();
+  await query('INSERT INTO contract_templates (id, staff_id, name, body) VALUES (?, ?, ?, ?)', [id, req.user.id, data.name, data.body]);
+  res.status(201).json({ template: { id, name: data.name, body: data.body } });
+});
+staffContracts.put('/templates/:id', async (req, res) => {
+  const data = templateSchema.parse(req.body);
+  const done = await query('UPDATE contract_templates SET name = ?, body = ? WHERE id = ? AND staff_id = ?', [data.name, data.body, uuid.parse(req.params.id), req.user.id]);
+  if (!done.affectedRows) throw httpError(404, 'Modèle introuvable.');
+  res.json({ template: { id: req.params.id, name: data.name, body: data.body } });
+});
+staffContracts.delete('/templates/:id', async (req, res) => {
+  const done = await query('DELETE FROM contract_templates WHERE id = ? AND staff_id = ?', [uuid.parse(req.params.id), req.user.id]);
+  if (!done.affectedRows) throw httpError(404, 'Modèle introuvable.');
+  res.status(204).end();
 });
 
 // Un contrat signé ne se modifie jamais : on l'annule et on en rédige un nouveau.

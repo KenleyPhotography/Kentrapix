@@ -31,6 +31,14 @@
     .then(draw)
     .catch(function (e) { sheet.innerHTML = '<p class="error">' + esc(e.message) + '</p>'; });
 
+  function payBox(f) {
+    var p = f.studio.pay || {};
+    if (f.balance <= 0 || f.status === 'cancelled' || (!p.moncash && !p.natcash)) return '';
+    return '<div class="notes"><strong>Comment payer</strong><br>Envoyez ' + esc(money(f.balance, f.currency)) + ' par ' +
+      [p.moncash && 'MonCash au ' + esc(p.moncash), p.natcash && 'NatCash au ' + esc(p.natcash)].filter(Boolean).join(' ou ') +
+      ', avec la référence ' + esc(f.number) + '.' + (p.note ? '<br>' + esc(p.note) : '') + '</div>';
+  }
+
   function draw(f) {
     var s = f.studio, cur = f.currency;
     document.title = 'Facture ' + f.number + ' — ' + s.name;
@@ -69,6 +77,7 @@
         '<div class="totals"><div><span>Total</span><strong>' + esc(money(f.total, cur)) + '</strong></div><div><span>Déjà payé</span><span>' + esc(money(f.paid, cur)) + '</span></div>' +
         '<div class="due' + (f.balance <= 0 ? ' zero' : '') + '"><span>' + (f.balance <= 0 ? 'Facture réglée' : 'Reste à payer') + '</span><span>' + esc(money(Math.max(0, f.balance), cur)) + '</span></div></div>' +
         pays +
+        payBox(f) +
         (f.notes ? '<div class="notes">' + esc(f.notes) + '</div>' : '') +
         '<div class="sign"><div><strong>Le photographe</strong><span>' + esc(person || s.name) + '</span><em>Date et signature</em></div></div>' +
       '</div>';

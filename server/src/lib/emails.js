@@ -371,3 +371,18 @@ export function contractEmail({ name, studio = defaultStudio(), title, url }) {
     text: `Bonjour ${firstName(name)},\n\n${studio} vous envoie le contrat « ${title} ». Lisez-le et signez-le en ligne (connexion à votre compte KentraPix nécessaire) :\n${url}`,
   };
 }
+
+/** Au client : rappel d'un contrat qui attend toujours sa signature. */
+export function contractReminderEmail({ name, studio = defaultStudio(), title, url, bookingDay }) {
+  return {
+    subject: `Rappel : contrat à signer — ${title}`,
+    html: layout({
+      studio,
+      preheader: 'Votre contrat attend encore votre signature.',
+      title: 'N’oubliez pas de signer',
+      body: `Bonjour ${esc(firstName(name))},<br><br>Le contrat « <strong style="color:#082445">${esc(title)}</strong> » de ${esc(studio)} attend encore votre signature${bookingDay ? ` avant votre séance du <strong>${esc(bookingDay)}</strong>` : ''}. Cela prend une minute. Connectez-vous à votre compte KentraPix pour le lire et le signer.`,
+      cta: { label: 'Lire et signer le contrat', url },
+    }),
+    text: `Bonjour ${firstName(name)},\n\nLe contrat « ${title} » de ${studio} attend encore votre signature${bookingDay ? ` avant votre séance du ${bookingDay}` : ''}.\n${url}`,
+  };
+}

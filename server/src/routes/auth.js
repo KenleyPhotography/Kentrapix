@@ -302,6 +302,10 @@ const profileSchema = z.object({
   instagram: z.string().trim().max(80).optional(),
   address: z.string().trim().max(200).optional(),
   bio: z.string().trim().max(500).optional(),
+  // Photographes : où le client envoie son paiement (affiché sur les factures).
+  moncash: z.string().trim().max(40).optional(),
+  natcash: z.string().trim().max(40).optional(),
+  payNote: z.string().trim().max(300).optional(),
 });
 
 // Adresse de site : https:// ajouté si absent ; refus de tout autre schéma (javascript:…).
@@ -318,7 +322,7 @@ const cleanInstagram = (v) => {
 };
 
 router.patch('/profile', requireRole(), async (req, res) => {
-  const { name, phone, senderName, whatsapp, website, instagram, address, bio } = profileSchema.parse(req.body);
+  const { name, phone, senderName, whatsapp, website, instagram, address, bio, moncash, natcash, payNote } = profileSchema.parse(req.body);
   const staff = ['owner', 'admin'].includes(req.user.role);
   const sender = staff && senderName !== undefined ? senderName || null : req.user.sender_name ?? null;
   await query('UPDATE users SET name = ?, phone = ?, sender_name = ? WHERE id = ?', [name, phone, sender, req.user.id]);
@@ -326,6 +330,9 @@ router.patch('/profile', requireRole(), async (req, res) => {
     await query('UPDATE users SET whatsapp = ?, website = ?, instagram = ?, address = ?, bio = ? WHERE id = ?', [
       whatsapp || null, cleanWebsite(website), cleanInstagram(instagram), address || null, bio || null, req.user.id,
     ]);
+    if (moncash !== undefined || natcash !== undefined || payNote !== undefined) {
+      await query('UPDATE users SET moncash_number = ?, natcash_number = ?, pay_note = ? WHERE id = ?', [moncash || null, natcash || null, payNote || null, req.user.id]);
+    }
   }
   audit(req, 'profile.update');
   const [user] = await query('SELECT * FROM users WHERE id = ?', [req.user.id]);

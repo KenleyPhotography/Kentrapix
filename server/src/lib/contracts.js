@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import { config } from '../config.js';
+import { query } from '../db.js';
 
 // Contrats : un lien secret par contrat ; une fois signé, le texte est figé (empreinte SHA-256).
 export const contractUrl = (token) => `${config.appUrl}/contrat?t=${token}`;
@@ -28,3 +29,15 @@ export const mapContract = (c) => ({
   signedName: c.signed_name || '',
   createdAt: iso(c.created_at),
 });
+
+/** Séances confirmées à venir sans contrat signé (« pas de séance sans papier signé »). */
+export async function unsignedBookings(staffId, today) {
+  return query(
+    `SELECT b.id, b.day, b.start_time, b.session_type, b.client_id, u.name AS client_name
+     FROM bookings b JOIN users u ON u.id = b.client_id
+     WHERE b.staff_id = ? AND b.status = 'confirmed' AND b.day >= ?
+       AND NOT EXISTS (SELECT 1 FROM contracts c WHERE c.client_id = b.client_id AND c.staff_id = b.staff_id AND c.status = 'signed' AND (c.booking_id = b.id OR c.booking_id IS NULL))
+     ORDER BY b.day, b.start_time`,
+    [staffId, today],
+  );
+}

@@ -30,6 +30,8 @@ const LOCK_LEVELS = [2.5, 6, 12]; // niveaux de flou proposés pour les photos v
 import { isOwner, accountScope, eventScope } from '../lib/scope.js';
 import { billingRouter } from './billing.js';
 import { staffContracts } from './contracts.js';
+import { staffReviews } from './reviews.js';
+import { staffTodo } from './todo.js';
 import { staffBooking } from './booking.js';
 import { staffOrders } from './orders.js';
 import { config } from '../config.js';
@@ -47,6 +49,8 @@ router.use(requireStudio);
 router.use(billingRouter);
 router.use('/booking', staffBooking);
 router.use('/contracts', staffContracts);
+router.use('/reviews', staffReviews);
+router.use('/todo', staffTodo);
 router.use('/orders', staffOrders);
 
 const flag = z.enum(['0', '1']).transform((v) => v === '1');
