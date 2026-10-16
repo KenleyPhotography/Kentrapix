@@ -5,6 +5,7 @@ import { ensureStorage } from './lib/storage.js';
 import { createApp } from './app.js';
 import { startExpiryReminders } from './lib/expiry.js';
 import { startAnnouncements } from './lib/announcements.js';
+import { startAutoReminders } from './lib/autoremind.js';
 
 assertServerConfig();
 await ensureStorage();
@@ -21,6 +22,8 @@ const server = createApp().listen(config.port, config.host, () => {
   startExpiryReminders();
   // Notifications du studio : e-mails envoyés tout de suite ou à l'heure programmée.
   startAnnouncements();
+  // Rappels de paiement automatiques (3 jours avant l'échéance, puis après).
+  startAutoReminders();
 });
 
 // Arrêt propre : termine les requêtes en cours puis ferme la base.

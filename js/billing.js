@@ -149,8 +149,9 @@ function reminderSection() {
     const late = !r.done && r.dueAt < today;
     return `<li class="rem-row ${r.done ? 'is-done' : ''} ${late ? 'is-late' : ''}"><label class="rem-check"><input type="checkbox" data-rem-done="${r.id}" ${r.done ? 'checked' : ''} aria-label="Terminé"></label><div><strong>${escape(r.title)}</strong><span>${fday(r.dueAt)}${r.clientName ? ` · ${escape(r.clientName)}` : ''}${late ? ' · en retard' : ''}</span></div><div class="actions">${ibtn('Supprimer', `data-rem-del="${r.id}"`, 'trash')}</div></li>`;
   }).join('');
-  const hist = (bill.reminderLog || []).slice(0, 8).map((l) => { const inv = bill.invoices.find((x) => x.id === l.invoiceId); return `<li class="rem-row is-done"><span class="rem-ico">${icon(l.channel === 'email' ? 'mail' : 'chat')}</span><div><strong>${escape(inv?.client.name || 'Client')}</strong><span>${escape(inv?.number || '')} · rappel par ${CH[l.channel] || l.channel}${l.status === 'failed' ? ' (échec)' : ''} · ${fstamp(l.at)}</span></div></li>`; }).join('');
+  const hist = (bill.reminderLog || []).slice(0, 8).map((l) => { const inv = bill.invoices.find((x) => x.id === l.invoiceId); return `<li class="rem-row is-done"><span class="rem-ico">${icon(l.channel === 'email' ? 'mail' : 'chat')}</span><div><strong>${escape(inv?.client.name || 'Client')}</strong><span>${escape(inv?.number || '')} · rappel ${l.auto ? 'automatique ' : ''}par ${CH[l.channel] || l.channel}${l.status === 'failed' ? ' (échec)' : ''} · ${fstamp(l.at)}</span></div></li>`; }).join('');
   return `<section class="settings bill-block"><h2>Rappels</h2>
+    <label class="share-toggle auto-rem"><span><strong>Rappels automatiques par e-mail</strong></span><input class="switch" type="checkbox" data-auto-rem ${bill.autoReminders ? 'checked' : ''}></label>
     ${autoHtml || ownHtml ? `<ul class="rem-list">${autoHtml}${ownHtml}</ul>` : '<div class="empty small"><p>Aucun rappel. Les factures en retard ou bientôt échues apparaissent ici automatiquement.</p></div>'}
     ${hist ? `<details class="acc"><summary><span>Rappels envoyés</span><small>${bill.reminderLog.length}</small></summary><ul class="acc-body rem-list">${hist}</ul></details>` : ''}</section>`;
 }
@@ -197,6 +198,7 @@ export async function bindBilling(c) {
       if (!confirm(`Envoyer un rappel de paiement à ${inv.client.name} (reste ${money(inv.balance, inv.currency)}) ?`)) return;
       b.disabled = true; const res = await api(`/api/admin/invoices/${inv.id}/remind`, { method: 'POST' }); mailResult(res, 'Rappel envoyé par e-mail.'); logLocal(inv, 'email', res.email.status === 'sent' ? 'sent' : 'failed'); refreshAll().catch(() => {});
     }); });
+    r.querySelectorAll('[data-auto-rem]').forEach((c) => { c.onchange = act(async () => { await api('/api/admin/billing/settings', { method: 'PATCH', body: { autoReminders: c.checked } }); bill.autoReminders = c.checked; ctx.toast(c.checked ? 'Rappels automatiques activés : 3 jours avant l’échéance, puis après.' : 'Rappels automatiques désactivés.'); }); });
     r.querySelectorAll('[data-wa-log]').forEach((a) => { a.addEventListener('click', () => { const inv = find(a.dataset.waLog); if (!inv) return; ctx.toast('Rappel WhatsApp enregistré.'); setTimeout(() => logLocal(inv, 'whatsapp'), 0); api(`/api/admin/invoices/${inv.id}/reminded`, { method: 'POST', body: { channel: 'whatsapp' } }).catch((e) => ctx.toast(e.message)); }); });
     r.querySelectorAll('[data-new-invoice-for]').forEach((b) => { b.onclick = () => invoiceModal(b.dataset.newInvoiceFor); });
     r.querySelectorAll('[data-rem-done]').forEach((b) => { b.onchange = act(async () => { await api(`/api/admin/reminders/${b.dataset.remDone}`, { method: 'PATCH', body: { done: b.checked } }); await refreshAll(); }); });

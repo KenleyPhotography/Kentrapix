@@ -39,14 +39,15 @@ billingRouter.get('/billing', async (req, res) => {
       `SELECT r.*, u.name AS client_name FROM reminders r LEFT JOIN users u ON u.id = r.client_id
        WHERE r.staff_id = ? ORDER BY r.done, r.due_at`, [req.user.id],
     ),
-    query('SELECT id, invoice_id, channel, status, created_at FROM reminder_log WHERE staff_id = ? ORDER BY created_at DESC LIMIT 100', [req.user.id]),
+    query('SELECT id, invoice_id, channel, status, auto, created_at FROM reminder_log WHERE staff_id = ? ORDER BY created_at DESC LIMIT 100', [req.user.id]),
   ]);
   const byInvoice = {};
   for (const p of payments) (byInvoice[p.invoice_id] ??= []).push(p);
   res.json({
     today: today(),
     invoices: rows.map((i) => mapInvoice(i, byInvoice[i.id] || [])),
-    reminderLog: log.map((l) => ({ id: l.id, invoiceId: l.invoice_id, channel: l.channel, status: l.status, at: `${String(l.created_at).replace(' ', 'T')}Z` })),
+    reminderLog: log.map((l) => ({ id: l.id, invoiceId: l.invoice_id, channel: l.channel, status: l.status, auto: !!l.auto, at: `${String(l.created_at).replace(' ', 'T')}Z` })),
+    autoReminders: !!(await query('SELECT auto_reminders FROM users WHERE id = ?', [req.user.id]))[0]?.auto_reminders,
     reminders: reminders.map((r) => ({
       id: r.id, title: r.title, dueAt: String(r.due_at).slice(0, 10), done: !!r.done, clientId: r.client_id, clientName: r.client_name || '', invoiceId: r.invoice_id,
     })),
@@ -165,6 +166,13 @@ billingRouter.delete('/payments/:id', async (req, res) => {
   await query('DELETE FROM payments WHERE id = ?', [p.id]);
   audit(req, 'payment.delete', { entity: 'invoice', entityId: p.invoice_id });
   res.json({ invoice: (await loadInvoice(req, p.invoice_id)).invoice });
+});
+
+// Rappels automatiques par e-mail (3 jours avant l'échéance, puis après) : réglage du photographe.
+billingRouter.patch('/billing/settings', async (req, res) => {
+  const { autoReminders } = z.object({ autoReminders: z.boolean() }).parse(req.body);
+  await query('UPDATE users SET auto_reminders = ? WHERE id = ?', [autoReminders ? 1 : 0, req.user.id]);
+  res.json({ autoReminders });
 });
 
 // ---------- Historique des rappels de paiement (e-mail, WhatsApp, appel) ----------
