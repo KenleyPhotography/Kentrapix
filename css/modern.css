@@ -2477,3 +2477,32 @@ h1 em, h2 em, .editorial-heading em, .login-caption h1 em {
 }
 .workspace, .main { min-width: 0; }
 .bk-slots .row, .storage-backup .row, .bk-book .row, #bka-root .row, #ordA-root .row { flex-wrap: wrap; gap: 8px; }
+
+/* ==========================================================================
+   Navigation mobile VERTICALE : même barre bleue Kentra qu'avant, posée sur le bord gauche,
+   sans menu hamburger. Les onglets sont empilés ; si l'écran est bas, la barre défile.
+   ========================================================================== */
+@media (max-width: 800px) {
+  .bottomnav,
+  [data-theme="dark"] .bottomnav {
+    inset: 50% auto auto calc(8px + env(safe-area-inset-left));
+    transform: translateY(-50%);
+    width: 60px;
+    max-height: calc(100dvh - 24px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: none;
+    flex-direction: column;
+    justify-content: flex-start;
+    gap: 2px;
+    padding: 10px 4px;
+    background: linear-gradient(180deg, rgba(12, 64, 136, 0.88), rgba(18, 101, 216, 0.86) 55%, rgba(28, 119, 238, 0.86));
+  }
+  .bottomnav::-webkit-scrollbar { display: none; }
+  .bottomnav button, .bottomnav .nav-switch { flex: none; width: 100%; min-height: 56px; padding: 6px 0 8px; font-size: 0.625rem; }
+  .bottomnav .nav-switch { border-left: 0; border-top: 1px solid rgba(255, 255, 255, 0.18); }
+  .workspace { padding-left: 72px; }
+  .main { padding-bottom: calc(32px + env(safe-area-inset-bottom)); }
+  #toast { bottom: calc(24px + env(safe-area-inset-bottom)); }
+}
+@media (max-width: 800px) { .bk-month strong { font-size: 1rem; white-space: nowrap; } }

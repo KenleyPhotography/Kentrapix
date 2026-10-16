@@ -53,8 +53,8 @@
 [data-theme="dark"] .faq-chips button{background:#13243b;color:#e6eefb}
 [data-theme="dark"] .faq-form input{background:#0a1626;border-color:#1d3253;color:#e6eefb}
 [data-theme="dark"] .faq-nudge{background:#13243b;color:#fff;border-color:#1d3253}
-@media (max-width:800px){.faq-fab{width:52px;height:52px;border-radius:17px;right:14px;bottom:calc(88px + env(safe-area-inset-bottom))}.faq-fab img,.faq-fab:before{border-radius:17px}
-  .faq-nudge{right:76px;bottom:calc(96px + env(safe-area-inset-bottom))}
+@media (max-width:800px){.faq-fab{width:52px;height:52px;border-radius:17px;right:14px;bottom:calc(18px + env(safe-area-inset-bottom))}.faq-fab img,.faq-fab:before{border-radius:17px}
+  .faq-nudge{right:76px;bottom:calc(26px + env(safe-area-inset-bottom))}
   .faq-panel{right:12px;bottom:calc(150px + env(safe-area-inset-bottom));max-height:calc(100vh - 190px)}}
 @media (prefers-reduced-motion:reduce){.faq-panel,.faq-msg,.faq-nudge{animation:none}.faq-fab,.faq-fab:before,.faq-typing i{animation:none}.faq-fab{transition:none}}
 
