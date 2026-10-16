@@ -23,6 +23,7 @@ import { clientNotifications } from '../lib/notifications.js';
 import { clientBooking } from './booking.js';
 import { pushLater } from '../lib/push.js';
 import { clientOrders } from './orders.js';
+import { clientContracts } from './contracts.js';
 import {
   SHARE_SELECT, mapShare, shareCreateSchema, shareUpdateSchema, createShare, updateShare, FAMILY_COMMENT_SELECT, mapFamilyComment, byDate,
 } from '../lib/shares.js';
@@ -31,6 +32,7 @@ const router = Router();
 router.use(requireRole());
 router.use('/booking', (req, res, next) => clientBookingRouter(req, res, next));
 router.use('/orders', (req, res, next) => clientOrdersRouter(req, res, next));
+router.use('/contracts', clientContracts);
 
 // Une galerie expirée disparaît de l'espace du client (le studio la garde).
 const VISIBLE = `${CLIENT_HAS()} AND e.published = 1 AND e.archived = 0 AND ${NOT_EXPIRED}`;

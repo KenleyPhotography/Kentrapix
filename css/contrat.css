@@ -1,0 +1,41 @@
+/* Page publique d'un contrat : papier à en-tête du photographe, lecture, deux signatures. Complète facture.css (même bleu Kentra). */
+.letterhead{display:flex;align-items:center;gap:20px;flex-wrap:wrap;padding:30px clamp(20px,5vw,44px);color:#fff;background:linear-gradient(120deg,var(--blue-d),var(--blue) 60%,#1c77ee);border-bottom:5px solid #9cc6ff}
+.letterhead .avatar{width:78px;height:78px;border:3px solid rgba(255,255,255,.55);box-shadow:0 10px 24px rgba(0,20,70,.35)}
+.lh-name h1{margin:0;font:500 clamp(28px,5vw,40px)/1.1 Fraunces,Georgia,serif;letter-spacing:.01em}
+.lh-person{margin:6px 0 0;font-size:13px;letter-spacing:.14em;text-transform:uppercase;font-weight:600;opacity:.88}
+.lh-contact{margin:8px 0 0;font-size:13px;opacity:.9}
+.doc-title{margin:0 0 22px;text-align:center}
+.doc-title span{display:block;font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:var(--blue);font-weight:700}
+.doc-title h2{margin:8px 0 6px;font:500 clamp(24px,4vw,32px)/1.2 Fraunces,Georgia,serif;color:var(--ink)}
+.doc-title p{margin:0;font-size:14px;color:var(--muted)}
+.contract-text{white-space:pre-wrap;word-wrap:break-word;margin:0 0 28px;padding:24px clamp(16px,4vw,32px);border:1px solid var(--line);border-left:5px solid var(--blue);border-radius:6px 18px 18px 6px;background:#fafcff;color:var(--ink);font:400 15px/1.75 Inter,system-ui,sans-serif}
+
+.sigs{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin:0 0 20px}
+.sig{padding:18px 18px 16px;border:1px solid var(--line);border-radius:18px;background:#fff;box-shadow:0 10px 30px -22px rgba(8,36,69,.5)}
+.sig h3{margin:0 0 10px;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--blue);font-weight:800}
+.sig-area{position:relative;display:grid;place-items:center;height:150px;border-bottom:2px solid var(--ink);background:linear-gradient(#fff,#f6faff);border-radius:10px 10px 0 0}
+.sig-area img{max-width:100%;max-height:140px;object-fit:contain}
+.sig-empty{color:#b7c6dc}
+.sig-name{margin:10px 0 0;font:600 17px Fraunces,Georgia,serif;color:var(--ink)}
+.sig-date{margin:2px 0 0;min-height:18px;font-size:12.5px;color:var(--muted)}
+.pad-wrap{display:block;padding:0;touch-action:none;background:repeating-linear-gradient(#fff 0 29px,#eef4ff 29px 30px)}
+.pad-wrap canvas{display:block;width:100%;height:150px;border-radius:10px 10px 0 0;cursor:crosshair;touch-action:none}
+.pad-hint{position:absolute;inset:0;display:grid;place-items:center;padding:0 12px;text-align:center;pointer-events:none;color:#9bb4d6;font-size:14px;font-weight:600}
+.pad-wrap.has-ink .pad-hint{display:none}
+.pad-tools{display:flex;justify-content:flex-end;margin:8px 0 6px}
+.pad-tools button{padding:5px 14px;border:1px solid var(--line);border-radius:99px;background:#fff;color:var(--blue);font:700 12.5px Inter,sans-serif;cursor:pointer}
+.sig label.field{display:block;margin:6px 0 0;font-size:12px;font-weight:700;color:var(--muted)}
+.sig input[type=text]{display:block;width:100%;margin-top:4px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;font:600 16px Fraunces,Georgia,serif;color:var(--ink);background:#fff}
+.sig input[type=text]:focus{outline:2px solid var(--blue);outline-offset:1px}
+
+.signbox{margin-top:6px;padding:20px clamp(16px,4vw,26px);border:2px solid var(--blue);border-radius:18px;background:var(--sky)}
+.agree{display:flex;gap:10px;align-items:flex-start;margin:0 0 16px;font-size:14px;color:var(--ink);cursor:pointer}
+.agree input{flex:none;width:20px;height:20px;margin-top:2px;accent-color:var(--blue)}
+.sign-btn{display:block;width:100%;padding:15px 20px;border:0;border-radius:14px;background:linear-gradient(120deg,var(--blue-d),var(--blue));color:#fff;font:700 17px Sora,sans-serif;cursor:pointer;box-shadow:0 12px 24px -12px rgba(18,101,216,.7)}
+.sign-btn:disabled{opacity:.6;cursor:wait}
+.sign-error{margin:12px 0 0;color:var(--red);font-weight:600;font-size:14px}
+.hash{margin:6px 0 0;padding:14px 18px;border:1px solid #bfe3cf;border-radius:14px;background:#f2faf5;color:var(--green);font-weight:600;font-size:13.5px;line-height:1.6;word-break:break-all}
+.stamp.signed{color:var(--green);top:130px}
+.powered{margin:26px 0 0;text-align:center;font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;color:#a3b4cc}
+@media(max-width:620px){.sigs{grid-template-columns:1fr}.letterhead .avatar{width:62px;height:62px}}
+@media print{.signbox,.pad-tools{display:none}.contract-text{border-radius:0;background:none}.sig{box-shadow:none}}

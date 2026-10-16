@@ -356,3 +356,18 @@ export function orderStatusEmail({ clientName, studio = defaultStudio(), order, 
     text: `${titles[status]} : ${order.product} × ${order.quantity}.${reply ? `\nMessage : ${reply}` : ''}\n${config.appUrl}/client`,
   };
 }
+
+/** Au client : un contrat est prêt à être lu et signé en ligne. */
+export function contractEmail({ name, studio = defaultStudio(), title, url }) {
+  return {
+    subject: `Contrat à signer : ${title}`,
+    html: layout({
+      studio,
+      preheader: 'Lisez et signez votre contrat en ligne.',
+      title: 'Votre contrat est prêt',
+      body: `Bonjour ${esc(firstName(name))},<br><br>${esc(studio)} vous envoie le contrat « <strong style="color:#082445">${esc(title)}</strong> ». Merci de le lire puis de le signer en ligne avant la séance : il suffit de dessiner votre signature avec le doigt ou la souris.`,
+      cta: { label: 'Lire et signer le contrat', url },
+    }),
+    text: `Bonjour ${firstName(name)},\n\n${studio} vous envoie le contrat « ${title} ». Lisez-le et signez-le en ligne :\n${url}`,
+  };
+}

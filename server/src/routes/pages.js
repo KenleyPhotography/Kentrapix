@@ -64,6 +64,11 @@ router.get('/facture', (req, res) => {
   res.set('Referrer-Policy', 'no-referrer').sendFile(page('facture.html'));
 });
 
+// Contrat : page publique de lecture et de signature (lien secret reçu par e-mail).
+router.get('/contrat', (req, res) => {
+  res.set('Referrer-Policy', 'no-referrer').sendFile(page('contrat.html'));
+});
+
 router.get('/share', (req, res) => {
   res.set('Referrer-Policy', 'no-referrer').sendFile(page('share.html'));
 });

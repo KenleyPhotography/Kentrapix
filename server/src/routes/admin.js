@@ -29,6 +29,7 @@ import { normalizeNumbers } from '../lib/unlock.js';
 const LOCK_LEVELS = [2.5, 6, 12]; // niveaux de flou proposés pour les photos verrouillées
 import { isOwner, accountScope, eventScope } from '../lib/scope.js';
 import { billingRouter } from './billing.js';
+import { staffContracts } from './contracts.js';
 import { staffBooking } from './booking.js';
 import { staffOrders } from './orders.js';
 import { config } from '../config.js';
@@ -45,6 +46,7 @@ router.use(requireStudio);
 // Administration : factures, paiements, rappels (billing.js).
 router.use(billingRouter);
 router.use('/booking', staffBooking);
+router.use('/contracts', staffContracts);
 router.use('/orders', staffOrders);
 
 const flag = z.enum(['0', '1']).transform((v) => v === '1');
