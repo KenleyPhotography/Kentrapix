@@ -2,7 +2,7 @@ import { query } from '../db.js';
 
 // Rendez-vous : jours et heures sont des heures locales du studio (Haïti), sans fuseau stocké.
 export const STUDIO_TZ = process.env.STUDIO_TZ || 'America/Port-au-Prince';
-export const ACTIVE = ['pending', 'confirmed'];
+export const ACTIVE = ['pending', 'confirmed', 'proposed'];
 
 const pad = (n) => String(n).padStart(2, '0');
 export const minutesOf = (hhmm) => {
@@ -64,7 +64,7 @@ export async function monthSlots(staffId, month) {
   const end = (() => { const d = new Date(`${first}T12:00:00Z`); d.setUTCMonth(d.getUTCMonth() + 1); d.setUTCDate(0); return d.toISOString().slice(0, 10); })();
   const [blocked, taken] = await Promise.all([
     query('SELECT day FROM booking_blocked_days WHERE staff_id = ? AND day BETWEEN ? AND ?', [staffId, first, end]),
-    query("SELECT day, start_time, duration_min FROM bookings WHERE staff_id = ? AND status IN ('pending', 'confirmed') AND day BETWEEN ? AND ?", [staffId, first, end]),
+    query("SELECT day, start_time, duration_min FROM bookings WHERE staff_id = ? AND status IN ('pending', 'confirmed', 'proposed') AND day BETWEEN ? AND ?", [staffId, first, end]),
   ]);
   const blockedSet = new Set(blocked.map((b) => String(b.day).slice(0, 10)));
   const byDay = {};
@@ -87,6 +87,8 @@ export const mapBooking = (b) => ({
   note: b.note || '',
   status: b.status,
   reply: b.reply || '',
+  originalDay: b.orig_day ? String(b.orig_day).slice(0, 10) : null,
+  originalStart: b.orig_start || null,
   staff: b.staff_name ? { id: b.staff_id, name: b.staff_name } : undefined,
   client: b.client_name ? { id: b.client_id, name: b.client_name, email: b.client_email || '', phone: b.client_phone || '', whatsapp: b.client_whatsapp || b.client_phone || '' } : undefined,
 });

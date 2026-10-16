@@ -5,7 +5,7 @@ import { icon } from './icons.js';
 const MONTHS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
 const WEEK = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
 const DAYS_LONG = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
-const STATUS = { pending: 'En attente', confirmed: 'Confirmé', declined: 'Refusé', cancelled: 'Annulé' };
+const STATUS = { pending: 'En attente', confirmed: 'Confirmé', declined: 'Refusé', cancelled: 'Annulé', proposed: 'Autre date proposée' };
 const fday = (iso) => new Date(`${iso}T12:00:00Z`).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' });
 const pill = (s) => `<span class="bk-pill is-${s}">${STATUS[s] || s}</span>`;
 const ym = (y, m) => `${y}-${String(m + 1).padStart(2, '0')}`;
@@ -48,7 +48,7 @@ export async function bindClientBooking({ toast }) {
   const mine = () => {
     const list = data.bookings.filter((b) => b.day >= data.today || b.status === 'pending');
     if (!list.length) return '';
-    return `<section class="settings bill-block"><h2>Mes rendez-vous</h2><ul class="rem-list">${list.map((b) => `<li class="rem-row"><span class="rem-ico">${icon('events')}</span><div><strong style="text-transform:capitalize">${escape(fday(b.day))}</strong><span>${escape(b.start)} – ${escape(b.end)}${b.sessionType ? ` · ${escape(b.sessionType)}` : ''} · ${escape(b.staff?.name || '')}${b.reply ? ` · « ${escape(b.reply)} »` : ''}</span></div><div class="actions">${pill(b.status)}${['pending', 'confirmed'].includes(b.status) ? `<button type="button" class="btn sm" data-bk-cancel="${b.id}">Annuler</button>` : ''}</div></li>`).join('')}</ul></section>`;
+    return `<section class="settings bill-block"><h2>Mes rendez-vous</h2><ul class="rem-list">${list.map((b) => `<li class="rem-row"><span class="rem-ico">${icon('events')}</span><div><strong style="text-transform:capitalize">${escape(fday(b.day))}</strong><span>${escape(b.start)} – ${escape(b.end)}${b.sessionType ? ` · ${escape(b.sessionType)}` : ''} · ${escape(b.staff?.name || '')}${b.reply ? ` · « ${escape(b.reply)} »` : ''}</span>${b.status === 'proposed' && b.originalDay ? `<span>Vous aviez demandé : ${escape(fday(b.originalDay))}, ${escape(b.originalStart || '')}</span>` : ''}</div><div class="actions">${pill(b.status)}${b.status === 'proposed' ? `<button type="button" class="btn sm primary" data-bk-yes="${b.id}">Accepter</button><button type="button" class="btn sm" data-bk-no="${b.id}">Refuser</button>` : ''}${['pending', 'confirmed'].includes(b.status) ? `<button type="button" class="btn sm" data-bk-cancel="${b.id}">Annuler</button>` : ''}</div></li>`).join('')}</ul></section>`;
   };
 
   const draw = () => {
@@ -92,6 +92,11 @@ export async function bindClientBooking({ toast }) {
     root.querySelector('[data-bk-next]')?.addEventListener('click', () => { st.month += 1; if (st.month > 11) { st.month = 0; st.year += 1; } st.day = null; st.slot = null; load(); });
     root.querySelectorAll('[data-bk-day]').forEach((b) => b.addEventListener('click', () => { st.day = b.dataset.bkDay; st.slot = null; draw(); }));
     root.querySelectorAll('[data-bk-slot]').forEach((b) => b.addEventListener('click', () => { st.slot = b.dataset.bkSlot; draw(); root.querySelector('#bk-form')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }));
+    root.querySelectorAll('[data-bk-yes],[data-bk-no]').forEach((b) => b.addEventListener('click', async () => {
+      const accept = b.hasAttribute('data-bk-yes'); const id = b.getAttribute(accept ? 'data-bk-yes' : 'data-bk-no');
+      if (!accept && !confirm('Refuser cette nouvelle date ? Le rendez-vous sera annulé.')) return;
+      try { await api(`/api/client/booking/${id}/respond`, { method: 'POST', body: { accept } }); data = await api('/api/client/booking'); toast(accept ? 'Rendez-vous confirmé pour la nouvelle date.' : 'Nouvelle date refusée.'); await load(); } catch (e) { toast(e.message); }
+    }));
     root.querySelectorAll('[data-bk-cancel]').forEach((b) => b.addEventListener('click', async () => {
       if (!confirm('Annuler ce rendez-vous ?')) return;
       try { await api(`/api/client/booking/${b.dataset.bkCancel}`, { method: 'DELETE' }); data = await api('/api/client/booking'); toast('Rendez-vous annulé.'); draw(); } catch (e) { toast(e.message); }
@@ -134,14 +139,14 @@ export async function bindAdminBooking({ toast, modal, clients }) {
   const calendarHtml = () => {
     const key = ym(st.year, st.month);
     const byDay = {};
-    for (const b of d.bookings) if (b.day.startsWith(key) && ['pending', 'confirmed'].includes(b.status)) (byDay[b.day] ??= []).push(b);
+    for (const b of d.bookings) if (b.day.startsWith(key) && ['pending', 'confirmed', 'proposed'].includes(b.status)) (byDay[b.day] ??= []).push(b);
     const cells = grid(st.year, st.month).map((c) => {
       if (!c.day) return '<span class="bk-cell is-empty"></span>';
       const list = byDay[c.day] || []; const blocked = d.blocked.includes(c.day);
       return `<button type="button" class="bk-cell bk-adm ${list.length ? 'has-bk' : ''} ${blocked ? 'is-blocked' : ''} ${st.day === c.day ? 'is-picked' : ''} ${c.day === d.today ? 'is-today' : ''}" data-bka-day="${c.day}">${c.n}${list.length ? `<i>${list.length}</i>` : ''}</button>`;
     }).join('');
     const sel = st.day;
-    const dayList = sel ? d.bookings.filter((b) => b.day === sel && ['pending', 'confirmed'].includes(b.status)) : [];
+    const dayList = sel ? d.bookings.filter((b) => b.day === sel && ['pending', 'confirmed', 'proposed'].includes(b.status)) : [];
     return `<section class="settings bill-block"><h2>Calendrier</h2>${monthNav(st.year, st.month, true)}<div class="bk-week">${WEEK.map((w) => `<span>${w}</span>`).join('')}</div><div class="bk-grid">${cells}</div>
       <p class="small bk-legend"><span class="bk-dot has"></span> rendez-vous <span class="bk-dot blk"></span> jour bloqué</p>
       ${sel ? `<div class="bk-slots"><strong style="text-transform:capitalize">${escape(fday(sel))}</strong>
@@ -169,11 +174,22 @@ export async function bindAdminBooking({ toast, modal, clients }) {
     root.querySelector('[data-bk-next]')?.addEventListener('click', () => { st.month += 1; if (st.month > 11) { st.month = 0; st.year += 1; } draw(); });
     root.querySelectorAll('[data-bka-day]').forEach((b) => b.addEventListener('click', () => { st.day = b.dataset.bkaDay; draw(); }));
     root.querySelectorAll('[data-bka-ok]').forEach((b) => { b.onclick = guard(async () => { b.disabled = true; await api(`/api/admin/booking/bookings/${b.dataset.bkaOk}`, { method: 'PATCH', body: { status: 'confirmed' } }); toast('Rendez-vous confirmé : le client est prévenu.'); await reload(); }); });
-    root.querySelectorAll('[data-bka-no]').forEach((b) => { b.onclick = guard(async () => {
-      const reply = prompt('Message pour le client (facultatif) :', '');
-      if (reply === null) return;
-      await api(`/api/admin/booking/bookings/${b.dataset.bkaNo}`, { method: 'PATCH', body: { status: 'declined', reply } }); toast('Demande refusée : le client est prévenu.'); await reload();
-    }); });
+    root.querySelectorAll('[data-bka-no]').forEach((b) => { b.onclick = () => {
+      const id = b.dataset.bkaNo; const bk = d.bookings.find((x) => x.id === id);
+      modal('Refuser ce créneau', `<p class="small">${escape(bk.client.name)} · ${escape(fday(bk.day))}, ${escape(bk.start)}</p>
+        <label class="share-toggle"><span><strong>Proposer une autre date</strong></span><input class="switch" type="checkbox" name="propose" id="bka-propose" checked></label>
+        <div id="bka-prop" class="row2"><label>Date<input type="date" name="pday" min="${d.today}" value="${bk.day}" required></label><label>Heure<input type="time" name="pstart" value="${bk.start}" required></label></div>
+        <label>Message <span class="optional">(facultatif)</span><input name="reply" maxlength="500" placeholder="Ex. Je suis pris ce jour-là, je vous propose…"></label>`,
+      async (v) => {
+        const body = { status: 'declined', reply: v.reply || '' };
+        if (v.propose === 'on') body.proposal = { day: v.pday, start: v.pstart };
+        await api(`/api/admin/booking/bookings/${id}`, { method: 'PATCH', body });
+        toast(body.proposal ? 'Nouvelle date proposée : le client est prévenu.' : 'Demande refusée : le client est prévenu.'); await reload();
+      }, { submit: 'Envoyer' });
+      const host = document.getElementById('overlays');
+      const sync = () => { const on = host.querySelector('#bka-propose').checked; host.querySelector('#bka-prop').hidden = !on; host.querySelectorAll('#bka-prop input').forEach((i) => { i.disabled = !on; }); };
+      host.querySelector('#bka-propose').addEventListener('change', sync); sync();
+    }; });
     root.querySelectorAll('[data-bka-cancel]').forEach((b) => { b.onclick = guard(async () => {
       if (!confirm('Annuler ce rendez-vous ? Le client sera prévenu.')) return;
       await api(`/api/admin/booking/bookings/${b.dataset.bkaCancel}`, { method: 'PATCH', body: { status: 'cancelled' } }); await reload();

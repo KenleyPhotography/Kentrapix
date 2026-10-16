@@ -78,15 +78,42 @@ async function loadOwn(req, id) {
 
 // Confirmer, refuser ou annuler : le client est prévenu par e-mail.
 staffBooking.patch('/bookings/:id', async (req, res) => {
-  const { status, reply } = z.object({
+  const { status: asked, reply, proposal } = z.object({
     status: z.enum(['confirmed', 'declined', 'cancelled']),
     reply: z.string().trim().max(500).optional().default(''),
+    // Refus avec une autre date proposée : le client accepte ou refuse la nouvelle date.
+    proposal: z.object({ day, start: time }).optional(),
   }).parse(req.body);
   const row = await loadOwn(req, req.params.id);
   if (['declined', 'cancelled'].includes(row.status)) throw httpError(400, 'Ce rendez-vous est déjà clos.');
-  if (status === 'confirmed' && row.status === 'confirmed') throw httpError(400, 'Ce rendez-vous est déjà confirmé.');
-  await query('UPDATE bookings SET status = ?, reply = ? WHERE id = ?', [status, reply || null, row.id]);
-  const booking = mapBooking({ ...row, status, reply });
+  if (asked === 'confirmed' && row.status === 'confirmed') throw httpError(400, 'Ce rendez-vous est déjà confirmé.');
+  if (proposal && asked !== 'declined') throw httpError(400, 'Une autre date ne peut être proposée qu’en refusant.');
+  let status = asked;
+  let moved = {};
+  if (proposal) {
+    if (proposal.day < studioToday()) throw httpError(400, 'Proposez une date à venir.');
+    const others = await query(
+      "SELECT start_time, duration_min FROM bookings WHERE staff_id = ? AND day = ? AND id <> ? AND status IN ('pending', 'confirmed', 'proposed')",
+      [req.user.id, proposal.day, row.id],
+    );
+    const from = minutesOf(proposal.start);
+    const to = from + Number(row.duration_min);
+    if (others.some((o) => from < minutesOf(o.start_time) + Number(o.duration_min) && to > minutesOf(o.start_time))) throw httpError(409, 'Un autre rendez-vous occupe déjà ce créneau.');
+    status = 'proposed';
+    moved = { day: proposal.day, start_time: proposal.start, orig_day: String(row.day).slice(0, 10), orig_start: row.start_time };
+    try {
+      await query(
+        'UPDATE bookings SET status = ?, reply = ?, day = ?, start_time = ?, orig_day = ?, orig_start = ? WHERE id = ?',
+        [status, reply || null, proposal.day, proposal.start, moved.orig_day, moved.orig_start, row.id],
+      );
+    } catch (err) {
+      if (err.code === '23505') throw httpError(409, 'Ce créneau est déjà pris.');
+      throw err;
+    }
+  } else {
+    await query('UPDATE bookings SET status = ?, reply = ? WHERE id = ?', [status, reply || null, row.id]);
+  }
+  const booking = mapBooking({ ...row, ...moved, status, reply });
   if (row.client_email) {
     fire(sendMail({
       to: row.client_email, userId: row.client_id, sentBy: req.user.id, kind: 'booking',
@@ -170,7 +197,7 @@ export function clientBooking({ photographersOf }) {
     const staff = await myStaff(req, data.staffId);
     const settings = await settingsOf(staff.id);
     const [blocked] = await query('SELECT 1 FROM booking_blocked_days WHERE staff_id = ? AND day = ?', [staff.id, data.day]);
-    const taken = await query("SELECT start_time, duration_min FROM bookings WHERE staff_id = ? AND day = ? AND status IN ('pending', 'confirmed')", [staff.id, data.day]);
+    const taken = await query("SELECT start_time, duration_min FROM bookings WHERE staff_id = ? AND day = ? AND status IN ('pending', 'confirmed', 'proposed')", [staff.id, data.day]);
     if (!slotsForDay(settings, data.day, { blocked: !!blocked, taken }).includes(data.start)) throw httpError(409, 'Ce créneau n’est plus disponible. Choisissez-en un autre.');
     if (settings.sessionTypes.length && data.sessionType && !settings.sessionTypes.includes(data.sessionType)) throw httpError(400, 'Type de séance invalide.');
     const id = crypto.randomUUID();
@@ -194,6 +221,28 @@ export function clientBooking({ photographersOf }) {
     }
     audit(req, 'booking.request', { entity: 'booking', entityId: id });
     res.status(201).json({ booking });
+  });
+
+  // Le client répond à une autre date proposée : accepter (confirmé) ou refuser (annulé).
+  router.post('/:id/respond', async (req, res) => {
+    const { accept } = z.object({ accept: z.boolean() }).parse(req.body);
+    const [row] = await query(`${BOOKING_SELECT} WHERE b.id = ? AND b.client_id = ?`, [uuid.parse(req.params.id), req.user.id]);
+    if (!row) throw httpError(404, 'Rendez-vous introuvable.');
+    if (row.status !== 'proposed') throw httpError(400, 'Aucune nouvelle date à confirmer pour ce rendez-vous.');
+    const status = accept ? 'confirmed' : 'cancelled';
+    await query('UPDATE bookings SET status = ? WHERE id = ?', [status, row.id]);
+    const [staff] = await query('SELECT id, name, email FROM users WHERE id = ?', [row.staff_id]);
+    const booking = mapBooking({ ...row, status });
+    if (staff?.email) {
+      fire(sendMail({
+        to: staff.email, userId: staff.id, sentBy: req.user.id, kind: 'booking', replyTo: req.user.email,
+        ...(accept
+          ? bookingRequestEmail({ staffName: staff.name, clientName: req.user.name, booking, auto: true })
+          : bookingStatusEmail({ clientName: staff.name, studio: req.user.name, booking, status: 'cancelled' })),
+      }));
+    }
+    audit(req, accept ? 'booking.proposal_accept' : 'booking.proposal_decline', { entity: 'booking', entityId: row.id });
+    res.json({ booking });
   });
 
   // Le client annule sa demande ou son rendez-vous (le photographe est prévenu).

@@ -274,11 +274,12 @@ export function bookingRequestEmail({ staffName, clientName, booking, auto }) {
 
 /** Au client : le photographe confirme, refuse ou annule. */
 export function bookingStatusEmail({ clientName, studio = defaultStudio(), booking, status, reply }) {
-  const titles = { confirmed: 'Rendez-vous confirmé', declined: 'Rendez-vous non disponible', cancelled: 'Rendez-vous annulé' };
+  const titles = { confirmed: 'Rendez-vous confirmé', declined: 'Rendez-vous non disponible', cancelled: 'Rendez-vous annulé', proposed: 'Une autre date vous est proposée' };
   const lead = {
     confirmed: `${esc(studio)} a confirmé votre rendez-vous :`,
     declined: `${esc(studio)} ne peut malheureusement pas vous recevoir sur ce créneau :`,
     cancelled: `Votre rendez-vous avec ${esc(studio)} a été annulé :`,
+    proposed: `${esc(studio)} ne peut pas vous recevoir sur le créneau demandé, mais vous propose cette date :`,
   }[status];
   return {
     subject: `${titles[status]} — ${frDay(booking.day)}`,
@@ -286,8 +287,8 @@ export function bookingStatusEmail({ clientName, studio = defaultStudio(), booki
       studio,
       preheader: `${frDay(booking.day)} · ${booking.start}`,
       title: titles[status],
-      body: `Bonjour ${esc(firstName(clientName))},<br><br>${lead}${bookingBox(booking)}${reply ? `Message : <em>« ${esc(reply)} »</em><br><br>` : ''}${status === 'confirmed' ? 'À très bientôt !' : 'Vous pouvez choisir un autre créneau depuis votre espace.'}`,
-      cta: { label: status === 'confirmed' ? 'Voir mon rendez-vous' : 'Choisir un autre créneau', url: `${config.appUrl}/client` },
+      body: `Bonjour ${esc(firstName(clientName))},<br><br>${lead}${bookingBox(booking)}${reply ? `Message : <em>« ${esc(reply)} »</em><br><br>` : ''}${status === 'confirmed' ? 'À très bientôt !' : status === 'proposed' ? 'Ouvrez votre espace, page « Rendez-vous », pour accepter ou refuser cette date.' : 'Vous pouvez choisir un autre créneau depuis votre espace.'}`,
+      cta: { label: status === 'confirmed' ? 'Voir mon rendez-vous' : status === 'proposed' ? 'Répondre' : 'Choisir un autre créneau', url: `${config.appUrl}/client` },
     }),
     text: `${titles[status]} : ${frDay(booking.day)} de ${booking.start} à ${booking.end}.${reply ? `\nMessage : ${reply}` : ''}\n${config.appUrl}/client`,
   };
