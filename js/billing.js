@@ -3,6 +3,7 @@
 import { service, api, escape } from './service.js';
 import { icon } from './icons.js';
 import { auth } from './auth.js';
+import { openSignatureModal, loadMySignature } from './signature.js';
 
 const METHODS = { especes: 'Espèces', moncash: 'MonCash', natcash: 'NatCash', virement: 'Virement', carte: 'Carte', cheque: 'Chèque', autre: 'Autre' };
 const CURRENCIES = { USD: 'Dollar US', HTG: 'Gourde', EUR: 'Euro', CAD: 'Dollar canadien' };
@@ -85,7 +86,7 @@ const ibtn = (label, attr, ico, cls = '') => `<button type="button" class="btn s
 const alink = (label, href, ico, cls = '') => `<a class="btn sm icon-btn ${cls}" href="${escape(href)}" target="_blank" rel="noopener noreferrer" title="${label}" aria-label="${label}" data-tip="${label}">${icon(ico)}</a>`;
 
 export function billingPage() {
-  return `${head('Administration', `${btn('Commandes', 'data-nav="Orders"', 'albums')}${btn('Statistiques', 'data-nav="Statistics"', 'up')}${btn('Nouveau rappel', 'id="bill-new-reminder"', 'clock')}${btn('Nouvelle facture', 'id="bill-new-invoice"', 'plus', 'primary')}`)}<div id="bill-root">${bill ? billingHtml() : '<div class="empty"><h2>Chargement…</h2></div>'}</div>`;
+  return `${head('Administration', `${btn('Commandes', 'data-nav="Orders"', 'albums')}${btn('Statistiques', 'data-nav="Statistics"', 'up')}${btn('Ma signature', 'id="bill-signature"', 'edit')}${btn('Nouveau rappel', 'id="bill-new-reminder"', 'clock')}${btn('Nouvelle facture', 'id="bill-new-invoice"', 'plus', 'primary')}`)}<div id="bill-root">${bill ? billingHtml() : '<div class="empty"><h2>Chargement…</h2></div>'}</div>`;
 }
 
 function billingHtml() {
@@ -287,6 +288,7 @@ export async function bindBilling(c) {
     else if (d.id === 'pay') { const inv = find(d.args?.invoiceId); if (inv) payModal(inv); }
   }, 0);
   document.getElementById('bill-new-reminder').onclick = reminderModal;
+  document.getElementById('bill-signature').onclick = async () => { try { openSignatureModal({ modal: ctx.modal, toast: ctx.toast, current: await loadMySignature() }); } catch (e) { ctx.toast(e.message); } };
   document.querySelectorAll('.page-actions [data-nav]').forEach((b) => { b.onclick = () => ctx.navigate(b.dataset.nav); });
   redraw();
 }

@@ -62,7 +62,8 @@ h3{margin:28px 0 8px;font-size:12px;letter-spacing:.12em;text-transform:uppercas
 
 /* Zone de signatures */
 .sign{display:grid;grid-template-columns:minmax(0,320px);justify-content:center;text-align:center;gap:28px;margin-top:38px}
-.sign div{margin-top:64px;padding-top:8px;border-top:1.5px solid var(--ink)}
+.sign div{position:relative;margin-top:64px;padding-top:8px;border-top:1.5px solid var(--ink)}
+.sign .sig-img{position:absolute;left:50%;bottom:100%;transform:translateX(-50%);max-width:240px;max-height:70px;object-fit:contain;margin-bottom:2px}
 .sign strong{display:block;color:var(--ink);font-size:14px}
 .sign span{display:block;margin-top:2px;font-size:12px;color:var(--muted)}
 .sign em{display:block;margin-top:14px;font-style:normal;font-size:12px;color:var(--muted)}

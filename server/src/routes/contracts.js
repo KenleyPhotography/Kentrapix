@@ -25,7 +25,10 @@ const pngData = z.string().max(150_000, 'Signature trop lourde.').startsWith(PNG
 }, 'Dessinez votre signature dans le cadre.');
 const mySignature = async (userId) => (await query('SELECT contract_signature FROM users WHERE id = ?', [userId]))[0]?.contract_signature || null;
 
-// Signature du photographe : dessinée une fois, apposée sur chacun de ses contrats.
+// Signature du photographe : dessinée une fois, apposée sur chacun de ses contrats et de ses factures.
+staffContracts.get('/signature', async (req, res) => {
+  res.json({ signature: await mySignature(req.user.id) });
+});
 staffContracts.put('/signature', async (req, res) => {
   const { signature } = z.object({ signature: pngData }).parse(req.body);
   await query('UPDATE users SET contract_signature = ? WHERE id = ?', [signature, req.user.id]);

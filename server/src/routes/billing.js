@@ -255,7 +255,7 @@ invoiceApi.get('/:token', async (req, res) => {
     `${INVOICE_SELECT} WHERE i.public_token = ?`, [token],
   );
   if (!row) throw httpError(404, 'Facture introuvable.');
-  const [studio] = await query('SELECT name, sender_name, email, phone, whatsapp, website, address, instagram, bio, avatar_key, moncash_number, natcash_number, pay_note FROM users WHERE id = ?', [row.staff_id]);
+  const [studio] = await query('SELECT name, sender_name, email, phone, whatsapp, website, address, instagram, bio, avatar_key, moncash_number, natcash_number, pay_note, contract_signature FROM users WHERE id = ?', [row.staff_id]);
   const payments = await query('SELECT * FROM payments WHERE invoice_id = ? ORDER BY paid_at, created_at', [row.id]);
   const inv = mapInvoice(row, payments);
   res.set('Cache-Control', 'no-store').json({
@@ -267,7 +267,7 @@ invoiceApi.get('/:token', async (req, res) => {
       name: studio?.sender_name || studio?.name || 'KentraPix', person: studio?.name || '', email: studio?.email || '', phone: studio?.phone || '',
       whatsapp: studio?.whatsapp || studio?.phone || '', website: studio?.website || '', address: studio?.address || '',
       instagram: studio?.instagram || '', bio: studio?.bio || '',
-      avatar: studio?.avatar_key ? `/api/invoice/${token}/avatar` : null, pay: payInfo(studio),
+      avatar: studio?.avatar_key ? `/api/invoice/${token}/avatar` : null, pay: payInfo(studio), signature: studio?.contract_signature || null,
     },
   });
 });
