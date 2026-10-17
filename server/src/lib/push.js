@@ -97,10 +97,19 @@ async function sendFcm(token, { title, body, url = '/', tag }) {
 
 let ready = false;
 function init() {
-  if (ready || !pushConfigured()) return pushConfigured();
-  webpush.setVapidDetails(subject(), publicKey(), privateKey());
-  ready = true;
-  return true;
+  if (ready) return true;
+  if (!pushConfigured()) return false;
+  // Une clé VAPID ou un sujet invalide ne doit jamais faire planter une route : on retombe sur l'adresse du site.
+  for (const sub of [subject(), config.appUrl]) {
+    try {
+      webpush.setVapidDetails(sub, publicKey(), privateKey());
+      ready = true;
+      return true;
+    } catch (err) {
+      console.error('Notifications (VAPID) :', err.message);
+    }
+  }
+  return false;
 }
 
 /**
