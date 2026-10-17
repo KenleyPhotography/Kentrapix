@@ -24,7 +24,10 @@ async function registerNative() {
     nativeReady = true;
     // Canal des notifications KentraPix (Android 8+) : importance haute, vibration, voyant bleu Kentra.
     await P.createChannel({ id: 'kentrapix', name: 'KentraPix', description: 'Photos prêtes, rendez-vous, contrats et rappels', importance: 4, visibility: 0, vibration: true, lights: true, lightColor: '#1265d8' }).catch(() => {});
-    P.addListener('registration', (t) => api('/api/push/fcm', { method: 'POST', body: { token: t.value } }).catch(() => {}));
+    P.addListener('registration', (t) => {
+      try { localStorage.setItem('kp-fcm-token', t.value); } catch { /* sans stockage */ }
+      api('/api/push/fcm', { method: 'POST', body: { token: t.value } }).catch(() => {});
+    });
     P.addListener('pushNotificationActionPerformed', (a) => {
       const url = a.notification?.data?.url;
       if (typeof url === 'string' && url.startsWith('/')) location.href = url;
@@ -136,4 +139,16 @@ export async function offerPush({ toast }) {
       } catch (err) { toast(err.message || 'Activation impossible.'); }
     };
   } catch { /* hors connexion ou serveur sans notifications : rien à faire */ }
+}
+
+// À la déconnexion : cet appareil ne reçoit plus les notifications de ce compte (appareil partagé). Reconnexion = réabonnement automatique.
+export async function detachPush() {
+  try {
+    const eps = [];
+    const reg = 'serviceWorker' in navigator ? await navigator.serviceWorker.getRegistration() : null;
+    const sub = await reg?.pushManager?.getSubscription();
+    if (sub) eps.push(sub.endpoint);
+    try { const t = localStorage.getItem('kp-fcm-token'); if (t) eps.push(`fcm:${t}`); } catch { /* sans stockage */ }
+    await Promise.all(eps.map((endpoint) => api('/api/push/unsubscribe', { method: 'POST', body: { endpoint } }).catch(() => {})));
+  } catch { /* hors connexion : ignoré */ }
 }

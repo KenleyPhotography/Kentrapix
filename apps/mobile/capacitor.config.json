@@ -7,5 +7,6 @@
     "cleartext": false,
     "allowNavigation": ["kentrapix.kenleyelysee.com"]
   },
+  "android": { "allowMixedContent": false, "webContentsDebuggingEnabled": false },
   "backgroundColor": "#f4f7fc"
 }

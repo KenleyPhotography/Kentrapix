@@ -15,5 +15,10 @@
     "@capacitor/ios": "^6.1.2",
     "@capacitor/push-notifications": "^6.0.3"
   },
-  "devDependencies": { "@capacitor/cli": "^6.1.2" }
+  "devDependencies": {
+    "@capacitor/cli": "^6.1.2"
+  },
+  "overrides": {
+    "tar": "^7.5.21"
+  }
 }

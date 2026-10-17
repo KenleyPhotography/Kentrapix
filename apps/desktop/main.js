@@ -15,6 +15,12 @@ const sameSite = (url) => { try { return new URL(url).host === HOST; } catch { r
 
 if (!app.requestSingleInstanceLock()) app.quit();
 
+// Pas de <webview> ; seules les notifications et la copie dans le presse-papiers sont autorisées (rien d'autre : caméra, micro, position…).
+app.on('web-contents-created', (_e, contents) => {
+  contents.on('will-attach-webview', (ev) => ev.preventDefault());
+  contents.session.setPermissionRequestHandler((_wc, permission, cb) => cb(['notifications', 'clipboard-sanitized-write', 'fullscreen'].includes(permission)));
+});
+
 let win;
 function createWindow() {
   win = new BrowserWindow({
