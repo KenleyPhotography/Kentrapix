@@ -26,7 +26,16 @@ jobs:
         env:
           GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
         run: if [ -z "$GOOGLE_SERVICES_JSON" ]; then npm uninstall @capacitor/push-notifications; fi
+      - name: Numéro de version (l'application sait ainsi qu'une mise à jour existe)
+        env:
+          BUILD: ${{ github.run_number }}
+        run: |
+          node -e "const fs=require('fs');const c=JSON.parse(fs.readFileSync('capacitor.config.json','utf8'));c.android={...c.android,appendUserAgent:'KentraPixApp/'+process.env.BUILD};fs.writeFileSync('capacitor.config.json',JSON.stringify(c,null,2))"
       - run: npx cap add android
+      - name: versionCode Android
+        env:
+          BUILD: ${{ github.run_number }}
+        run: sed -i "s/versionCode 1/versionCode $BUILD/; s/versionName \"1.0\"/versionName \"1.0.$BUILD\"/" android/app/build.gradle
       - name: Sécurité Android (pas de sauvegarde cloud des données de l'application)
         run: sed -i 's/android:allowBackup="true"/android:allowBackup="false"/' android/app/src/main/AndroidManifest.xml
       - name: Ikon notifikasyon KentraPix (K blan nan ba notifikasyon an)
@@ -52,6 +61,7 @@ jobs:
         run: |
           cp apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk "$RUNNER_TEMP/KentraPix.apk"
           cp apps/mobile/signing/debug.keystore "$RUNNER_TEMP/debug.keystore"
+          echo '{"build":${{ github.run_number }}}' > "$RUNNER_TEMP/apk-version.json"
           git config user.name "github-actions"
           git config user.email "actions@github.com"
           for i in 1 2 3 4; do
@@ -60,7 +70,8 @@ jobs:
             mkdir -p downloads apps/mobile/signing
             cp "$RUNNER_TEMP/KentraPix.apk" downloads/KentraPix.apk
             cp "$RUNNER_TEMP/debug.keystore" apps/mobile/signing/debug.keystore
-            git add -f downloads/KentraPix.apk apps/mobile/signing/debug.keystore
+            cp "$RUNNER_TEMP/apk-version.json" downloads/apk-version.json
+            git add -f downloads/KentraPix.apk downloads/apk-version.json apps/mobile/signing/debug.keystore
             git commit -q -m "APK Android mis à jour [skip ci]" || exit 0
             git push -q origin HEAD:master && exit 0
             sleep 5

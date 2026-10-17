@@ -1,5 +1,6 @@
 import express from 'express';
 import path from 'node:path';
+import fs from 'node:fs';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import cookieParser from 'cookie-parser';
@@ -69,6 +70,13 @@ export function createApp() {
   app.get('/api/health', async (req, res) => {
     await query('SELECT 1');
     res.json({ ok: true });
+  });
+
+  // Numéro du dernier APK Android publié (écrit par le workflow « Android APK ») : l'application installée le compare au sien.
+  app.get('/api/app-version', (req, res) => {
+    let build = 0;
+    try { build = Number(JSON.parse(fs.readFileSync(path.join(frontendRoot, 'downloads', 'apk-version.json'), 'utf8')).build) || 0; } catch { /* pas encore publié */ }
+    res.set('Cache-Control', 'no-store').json({ build });
   });
 
   app.use('/api/auth', authRoutes);
