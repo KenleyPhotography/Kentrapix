@@ -2551,3 +2551,23 @@ div.ord-photo { cursor: pointer; }
   .main { padding-bottom: calc(84px + env(safe-area-inset-bottom)); }
   #toast { bottom: calc(76px + env(safe-area-inset-bottom)); }
 }
+
+/* Visionneuse photo sur téléphone : la barre du haut (fermer, nom, commentaires, favori, partager, télécharger, zoom)
+   tient toujours sur une ligne. Le nom du fichier rétrécit (…) et les boutons s'adaptent à la largeur, donc
+   « Télécharger » reste visible et touchable sur tous les écrans. */
+@media (max-width: 800px) {
+  .viewer-top {
+    flex-wrap: nowrap;
+    gap: 4px;
+    padding: calc(6px + env(safe-area-inset-top)) calc(6px + env(safe-area-inset-right)) 6px calc(6px + env(safe-area-inset-left));
+  }
+  .viewer-top > .row:first-child { flex: 1 1 0; min-width: 0; }
+  .viewer-top > .row:last-child { flex: none; gap: 0; }
+  .viewer .filename { flex: 1 1 auto; min-width: 0; max-width: none; margin-left: 2px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .viewer-top .icon { flex: none; width: clamp(34px, 10.5vw, 42px); height: clamp(34px, 10.5vw, 42px); }
+  .viewer-top .icon svg { width: clamp(18px, 5.4vw, 22px); height: clamp(18px, 5.4vw, 22px); }
+  .viewer-top .vpick { flex: none; white-space: nowrap; }
+}
+@media (max-width: 380px) {
+  .viewer .filename { font-size: 0.75rem; }
+}
