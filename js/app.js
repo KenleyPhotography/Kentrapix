@@ -152,7 +152,13 @@ function bindTheme(){document.querySelectorAll('[data-theme-set]').forEach(b=>b.
 const APK_URL='/KentraPix.apk';
 function installCard(){if(installed())return'';if(installPrompt||!isIos())return `<div class="install-card" id="install-card">${icon('phone')}<div><strong>Installer KentraPix</strong><p class="small">Retrouvez vos photos depuis l’écran d’accueil, comme une application.</p></div><button class="btn primary" id="install-app">Installer</button>${platform()==='android'?`<a class="btn" href="${APK_URL}" download>Télécharger l’APK</a>`:''}</div>`;if(isIos())return `<div class="install-card" id="install-card">${icon('phone')}<div><strong>Installer KentraPix</strong><p class="small">Dans Safari, touchez ${icon('share')} <b>Partager</b>, puis <b>Sur l’écran d’accueil</b>.</p></div></div>`;return''}
 // Installer : la fenêtre du navigateur si elle est prête (Chrome, Edge, Android), sinon le mode d'emploi de l'appareil.
-function downloadApk(){location.href=APK_URL;toast('Téléchargement de KentraPix… Ouvrez le fichier pour l’installer.')}
+function downloadApk(){
+  // Un lien touché directement est ce qu'Android accepte le mieux ; le téléchargement démarre aussi tout seul.
+  const abs=location.origin+APK_URL;
+  const browser=`intent://${location.host}${APK_URL}#Intent;scheme=https;action=android.intent.action.VIEW;end`;
+  modal('Télécharger KentraPix',`<div class="install-help"><p>Touchez le bouton ci-dessous pour télécharger l’application, puis ouvrez le fichier <b>KentraPix.apk</b> pour l’installer.</p><p><a class="btn primary" href="${APK_URL}" download="KentraPix.apk" style="display:block;text-align:center">${icon('download')} Télécharger KentraPix.apk</a></p>${standalone()?`<p class="small">Rien ne se passe ? Ouvrez le téléchargement dans Chrome : <a href="${browser}">ouvrir dans le navigateur</a>.</p>`:''}<p class="small">Android peut demander d’autoriser l’installation depuis cette source : acceptez, c’est normal pour une application hors Play Store.</p></div>`);
+  const a=document.createElement('a');a.href=abs;a.download='KentraPix.apk';document.body.appendChild(a);a.click();a.remove();
+}
 async function installApp(){if(platform()==='android'&&!inApk())return downloadApk();if(standalone())return toast('KentraPix est déjà installé sur cet appareil.');if(installPrompt){installPrompt.prompt();const c=await installPrompt.userChoice.catch(()=>null);installPrompt=null;if(c?.outcome==='accepted')toast('Installation en cours…');if(auth.session())render();return}openInstallHelp()}
 /** Petite icône d'installation (infobulle « Installer l'application ») ; rien si l'application est déjà installée. */
 function installButton(cls='mini-install'){return installed()?'':`<button type="button" class="${cls}" data-install title="Installer l’application" aria-label="Installer l’application">${icon('download')}</button>`}
