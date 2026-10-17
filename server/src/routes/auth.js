@@ -111,7 +111,16 @@ const codeLimiter = rateLimit({
   message: { error: 'Trop d’essais. Réessayez dans une heure ou demandez le bon code à votre photographe.' },
 });
 
-router.post('/access-code', requireAuth, codeLimiter, async (req, res) => {
+// Plafond par connexion aussi : sinon créer plusieurs comptes (5 par heure) contournerait la limite par compte.
+const codeIpLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 20,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: { error: 'Trop d’essais depuis cette connexion. Réessayez plus tard.' },
+});
+
+router.post('/access-code', requireAuth, codeIpLimiter, codeLimiter, async (req, res) => {
   if (req.user.role !== 'client' || req.user.access_granted) throw httpError(400, 'Votre accès est déjà actif.');
   const { code } = z.object({ code: codeRule }).parse(req.body);
   const [staff] = await query("SELECT id, name FROM users WHERE access_code = ? AND role IN ('owner', 'admin') AND active = 1", [code]);

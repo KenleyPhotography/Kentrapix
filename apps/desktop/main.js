@@ -5,6 +5,14 @@ const path = require('path');
 const SITE = process.env.KENTRAPIX_URL || 'https://kentrapix.kenleyelysee.com';
 const HOST = new URL(SITE).host;
 
+// Seuls les liens web et e-mail sortent vers le système : jamais file:, ni un protocole d'application.
+function openExternal(url) {
+  try {
+    if (['https:', 'http:', 'mailto:'].includes(new URL(url).protocol)) shell.openExternal(url);
+  } catch { /* adresse invalide : ignorée */ }
+}
+const sameSite = (url) => { try { return new URL(url).host === HOST; } catch { return false; } };
+
 if (!app.requestSingleInstanceLock()) app.quit();
 
 let win;
@@ -23,13 +31,13 @@ function createWindow() {
   });
   // Liens externes : navigateur par défaut. Le reste de KentraPix reste dans l'app.
   win.webContents.setWindowOpenHandler(({ url }) => {
-    if (new URL(url).host === HOST) return { action: 'allow' };
-    shell.openExternal(url);
+    if (sameSite(url)) return { action: 'allow' };
+    openExternal(url);
     return { action: 'deny' };
   });
   win.webContents.on('will-navigate', (e, url) => {
-    if (url.startsWith('file:')) return;
-    if (new URL(url).host !== HOST) { e.preventDefault(); shell.openExternal(url); }
+    if (url.startsWith('file:')) return; // page « hors connexion » locale
+    if (!sameSite(url)) { e.preventDefault(); openExternal(url); }
   });
 }
 
