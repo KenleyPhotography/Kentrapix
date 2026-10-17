@@ -3,7 +3,7 @@ import crypto from 'node:crypto';
 import { z } from 'zod';
 import { query } from '../db.js';
 import { httpError } from '../lib/errors.js';
-import { requireAuth } from '../middleware/auth.js';
+import { requireAuth, isStaff } from '../middleware/auth.js';
 import { pushConfigured, fcmConfigured, pushPublicKey, pushTo } from '../lib/push.js';
 
 const router = Router();
@@ -51,6 +51,7 @@ router.post('/unsubscribe', async (req, res) => {
 
 // Notification d'essai envoyée à ses propres appareils.
 router.post('/test', async (req, res) => {
+  if (!isStaff(req.user)) throw httpError(403, 'Réservé à l’équipe du studio.'); // l'essai est un outil d'administration
   if (!pushConfigured() && !fcmConfigured()) throw httpError(503, 'Les notifications ne sont pas encore activées sur ce serveur.');
   const payload = { title: 'KentraPix', body: 'Les notifications fonctionnent sur ce téléphone.', url: '/', tag: 'test' };
   // Android n'affiche pas une notification pendant que l'application est ouverte : l'essai peut être différé de quelques secondes
