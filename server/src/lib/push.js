@@ -1,5 +1,6 @@
 import webpush from 'web-push';
 import jwt from 'jsonwebtoken';
+import fs from 'node:fs';
 import { query } from '../db.js';
 import { config } from '../config.js';
 
@@ -15,15 +16,25 @@ export const pushPublicKey = () => publicKey();
 // ---------- Application Android (Firebase Cloud Messaging, API HTTP v1) ----------
 // FIREBASE_SERVICE_ACCOUNT : contenu du fichier JSON de la clé de compte de service (ou ce contenu encodé en base64).
 // Les jetons FCM sont rangés dans push_subscriptions avec endpoint « fcm:<jeton> ».
+// Ou bien un « Secret File » Render nommé firebase-service-account.json (monté dans /etc/secrets/), ou le chemin donné par
+// FIREBASE_SERVICE_ACCOUNT_FILE : pratique quand le JSON est trop long pour une variable.
+let saCache;
 function serviceAccount() {
-  const raw = (process.env.FIREBASE_SERVICE_ACCOUNT || '').trim();
-  if (!raw) return null;
-  try {
-    const sa = JSON.parse(raw.startsWith('{') ? raw : Buffer.from(raw, 'base64').toString('utf8'));
-    return sa.client_email && sa.private_key && sa.project_id ? sa : null;
-  } catch {
-    return null;
+  if (saCache !== undefined) return saCache;
+  let raw = (process.env.FIREBASE_SERVICE_ACCOUNT || '').trim();
+  if (!raw) {
+    for (const file of [process.env.FIREBASE_SERVICE_ACCOUNT_FILE, '/etc/secrets/firebase-service-account.json']) {
+      try { if (file) raw = fs.readFileSync(file, 'utf8').trim(); } catch { /* fichier absent */ }
+      if (raw) break;
+    }
   }
+  try {
+    const sa = raw ? JSON.parse(raw.startsWith('{') ? raw : Buffer.from(raw, 'base64').toString('utf8')) : null;
+    saCache = sa?.client_email && sa.private_key && sa.project_id ? sa : null;
+  } catch {
+    saCache = null;
+  }
+  return saCache;
 }
 export const fcmConfigured = () => Boolean(serviceAccount());
 
