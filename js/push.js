@@ -29,6 +29,19 @@ async function registerNative() {
       try { localStorage.setItem('kp-fcm-token', t.value); } catch { /* sans stockage */ }
       api('/api/push/fcm', { method: 'POST', body: { token: t.value } }).catch(() => {});
     });
+    // Application ouverte : Android n'affiche pas la notification, on la montre dans l'application.
+    P.addListener('pushNotificationReceived', (n) => {
+      document.getElementById('push-live')?.remove();
+      const el = document.createElement('div');
+      el.id = 'push-live';
+      el.setAttribute('role', 'status');
+      el.style.cssText = 'position:fixed;left:12px;right:12px;top:calc(10px + env(safe-area-inset-top));z-index:9999;max-width:460px;margin:0 auto;background:#1265d8;color:#fff;border-radius:14px;padding:12px 16px;box-shadow:0 10px 30px rgba(0,0,0,.3);font-size:15px';
+      el.innerHTML = `<b>${escape(n.title || 'KentraPix')}</b><br>${escape(n.body || '')}`;
+      const url = n.data?.url;
+      el.onclick = () => { el.remove(); if (typeof url === 'string' && url.startsWith('/') && url !== '/') location.href = url; };
+      document.body.appendChild(el);
+      setTimeout(() => el.remove(), 6000);
+    });
     P.addListener('registrationError', (e) => { nativeError = e?.error || 'Enregistrement refusé par Firebase'; });
     P.addListener('pushNotificationActionPerformed', (a) => {
       const url = a.notification?.data?.url;
@@ -52,7 +65,7 @@ export async function bindPush({ toast }) {
       ? `<p class="small">${devices > 0 ? 'Activées : vous serez prévenu sur ce téléphone (photos prêtes, rendez-vous, commandes, rappels).' : 'Autorisées, mais cet appareil n’est pas encore enregistré. Fermez puis rouvrez l’application.'}</p><p class="small">Appareils enregistrés : <b>${devices}</b>${nativeError ? ` · Erreur : ${escape(nativeError)}` : ''}</p><div class="row"><button class="btn sm" id="push-test">Envoyer un essai</button></div>`
       : `<p class="small">Les notifications sont bloquées ou indisponibles : autorisez-les dans Réglages Android → Applications → KentraPix → Notifications.${nativeError ? ` (${escape(nativeError)})` : ''}</p>`);
     body.querySelector('#push-test')?.addEventListener('click', async () => {
-      try { await api('/api/push/test', { method: 'POST' }); toast('Essai envoyé.'); } catch (err) { toast(err.message); }
+      try { await api('/api/push/test', { method: 'POST', body: { delay: 8 } }); toast('Essai dans 8 secondes : appuyez sur le bouton Accueil pour fermer l’application et voir la notification.'); } catch (err) { toast(err.message); }
     });
     return;
   }

@@ -52,7 +52,15 @@ router.post('/unsubscribe', async (req, res) => {
 // Notification d'essai envoyée à ses propres appareils.
 router.post('/test', async (req, res) => {
   if (!pushConfigured() && !fcmConfigured()) throw httpError(503, 'Les notifications ne sont pas encore activées sur ce serveur.');
-  const { sent, errors } = await pushTo(req.user.id, { title: 'KentraPix', body: 'Les notifications fonctionnent sur ce téléphone.', url: '/', tag: 'test' });
+  const payload = { title: 'KentraPix', body: 'Les notifications fonctionnent sur ce téléphone.', url: '/', tag: 'test' };
+  // Android n'affiche pas une notification pendant que l'application est ouverte : l'essai peut être différé de quelques secondes
+  // pour laisser le temps de la fermer (bouton Accueil).
+  const delay = Math.min(Math.max(Number(req.body?.delay) || 0, 0), 30);
+  if (delay) {
+    setTimeout(() => pushTo(req.user.id, payload).catch(() => {}), delay * 1000);
+    return res.json({ sent: 0, scheduled: delay });
+  }
+  const { sent, errors } = await pushTo(req.user.id, payload);
   if (!sent && errors?.length) throw httpError(502, `Envoi refusé : ${errors[0]}`);
   if (!sent) throw httpError(400, 'Aucun appareil abonné : activez d’abord les notifications.');
   res.json({ sent });
