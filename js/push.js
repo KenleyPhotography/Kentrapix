@@ -61,3 +61,45 @@ export async function bindPush({ toast }) {
   };
   await draw();
 }
+
+// ---------- Activation automatique ----------
+// Une fois KentraPix installé (icône / fenêtre d'application), on propose les notifications dès l'ouverture :
+// un seul toucher sur « Activer » (les navigateurs exigent un geste de l'utilisateur). Si l'autorisation est déjà donnée,
+// l'appareil est réabonné sans rien demander. Refus ou « Plus tard » : on ne redemande pas avant 14 jours.
+const ASKED_KEY = 'kp-push-asked';
+const askedRecently = () => { try { return Date.now() - Number(localStorage.getItem(ASKED_KEY) || 0) < 14 * 864e5; } catch { return false; } };
+const markAsked = () => { try { localStorage.setItem(ASKED_KEY, String(Date.now())); } catch { /* sans stockage : on redemandera */ } };
+
+async function subscribeThisDevice(reg, publicKey) {
+  const sub = (await reg.pushManager.getSubscription())
+    || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(publicKey) });
+  await api('/api/push/subscribe', { method: 'POST', body: sub.toJSON() });
+}
+
+export async function offerPush({ toast }) {
+  try {
+    if (!('serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window)) return;
+    if (Notification.permission === 'denied') return;
+    const info = await api('/api/push');
+    if (!info.enabled) return;
+    const reg = await navigator.serviceWorker.ready;
+    if (Notification.permission === 'granted') return await subscribeThisDevice(reg, info.publicKey); // réabonnement silencieux
+    if (!standalone() || askedRecently() || document.getElementById('push-ask')) return;
+    const bar = document.createElement('div');
+    bar.id = 'push-ask';
+    bar.setAttribute('role', 'dialog');
+    bar.style.cssText = 'position:fixed;left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom));z-index:9999;max-width:460px;margin:0 auto;background:#1265d8;color:#fff;border-radius:14px;padding:14px 16px;box-shadow:0 10px 30px rgba(0,0,0,.3);font-size:15px;display:flex;gap:12px;align-items:center;flex-wrap:wrap';
+    bar.innerHTML = '<span style="flex:1 1 200px"><b>Activer les notifications ?</b><br>Soyez prévenu dès que vos photos sont prêtes.</span><span style="display:flex;gap:8px"><button type="button" id="push-ask-later" style="background:transparent;color:#fff;border:1px solid rgba(255,255,255,.6);border-radius:10px;padding:9px 14px;font:inherit">Plus tard</button><button type="button" id="push-ask-on" style="background:#fff;color:#1265d8;border:0;border-radius:10px;padding:9px 16px;font:inherit;font-weight:700">Activer</button></span>';
+    document.body.appendChild(bar);
+    bar.querySelector('#push-ask-later').onclick = () => { markAsked(); bar.remove(); };
+    bar.querySelector('#push-ask-on').onclick = async () => {
+      markAsked();
+      bar.remove();
+      try {
+        if ((await Notification.requestPermission()) !== 'granted') return toast('Notifications refusées : vous pourrez les activer dans Profil.');
+        await subscribeThisDevice(reg, info.publicKey);
+        toast('Notifications activées sur cet appareil.');
+      } catch (err) { toast(err.message || 'Activation impossible.'); }
+    };
+  } catch { /* hors connexion ou serveur sans notifications : rien à faire */ }
+}
