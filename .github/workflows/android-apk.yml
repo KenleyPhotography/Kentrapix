@@ -33,6 +33,13 @@ jobs:
           if [ -n "$GOOGLE_SERVICES_JSON" ]; then printf '%s' "$GOOGLE_SERVICES_JSON" > android/app/google-services.json; else echo "Pas de GOOGLE_SERVICES_JSON : APK sans notifications."; fi
       - run: npm install --no-save @capacitor/assets && npx capacitor-assets generate --android
       - run: npx cap sync android
+      - name: Clé de signature stable (sinon chaque APK a une signature différente et Android refuse la mise à jour)
+        run: |
+          mkdir -p ~/.android signing
+          if [ ! -f signing/debug.keystore ]; then
+            keytool -genkeypair -keystore signing/debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=KentraPix,O=KentraPix,C=HT"
+          fi
+          cp signing/debug.keystore ~/.android/debug.keystore
       - run: ./gradlew assembleDebug
         working-directory: apps/mobile/android
       - name: Déposer l'APK dans le site (servi par /KentraPix.apk)
@@ -42,7 +49,7 @@ jobs:
           cp apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk downloads/KentraPix.apk
           git config user.name "github-actions"
           git config user.email "actions@github.com"
-          git add -f downloads/KentraPix.apk
+          git add -f downloads/KentraPix.apk apps/mobile/signing/debug.keystore
           git commit -m "APK Android mis à jour [skip ci]" || exit 0
           git pull --rebase origin master
           git push origin HEAD:master
