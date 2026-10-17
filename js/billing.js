@@ -199,7 +199,7 @@ export async function bindBilling(c) {
       if (!confirm(`Envoyer un rappel de paiement à ${inv.client.name} (reste ${money(inv.balance, inv.currency)}) ?`)) return;
       b.disabled = true; const res = await api(`/api/admin/invoices/${inv.id}/remind`, { method: 'POST' }); mailResult(res, 'Rappel envoyé par e-mail.'); logLocal(inv, 'email', res.email.status === 'sent' ? 'sent' : 'failed'); refreshAll().catch(() => {});
     }); });
-    r.querySelectorAll('[data-auto-rem]').forEach((c) => { c.onchange = act(async () => { await api('/api/admin/billing/settings', { method: 'PATCH', body: { autoReminders: c.checked } }); bill.autoReminders = c.checked; ctx.toast(c.checked ? 'Rappels automatiques activés : 3 jours avant l’échéance, puis après.' : 'Rappels automatiques désactivés.'); }); });
+    r.querySelectorAll('[data-auto-rem]').forEach((c) => { c.onchange = act(async () => { await api('/api/admin/billing/settings', { method: 'PATCH', body: { autoReminders: c.checked } }); bill.autoReminders = c.checked; }); });
     r.querySelectorAll('[data-wa-log]').forEach((a) => { a.addEventListener('click', () => { const inv = find(a.dataset.waLog); if (!inv) return; ctx.toast('Rappel WhatsApp enregistré.'); setTimeout(() => logLocal(inv, 'whatsapp'), 0); api(`/api/admin/invoices/${inv.id}/reminded`, { method: 'POST', body: { channel: 'whatsapp' } }).catch((e) => ctx.toast(e.message)); }); });
     r.querySelectorAll('[data-new-invoice-for]').forEach((b) => { b.onclick = () => invoiceModal(b.dataset.newInvoiceFor); });
     r.querySelectorAll('[data-rem-done]').forEach((b) => { b.onchange = act(async () => { await api(`/api/admin/reminders/${b.dataset.remDone}`, { method: 'PATCH', body: { done: b.checked } }); await refreshAll(); }); });
