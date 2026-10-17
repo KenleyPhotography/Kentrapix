@@ -6,6 +6,9 @@ on:
     paths: ['apps/mobile/**', '.github/workflows/android-apk.yml']
 permissions:
   contents: write
+concurrency:
+  group: android-apk
+  cancel-in-progress: false
 jobs:
   apk:
     runs-on: ubuntu-latest
@@ -45,15 +48,24 @@ jobs:
       - name: Déposer l'APK dans le site (servi par /KentraPix.apk)
         working-directory: .
         run: |
-          mkdir -p downloads
-          cp apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk downloads/KentraPix.apk
+          cp apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk "$RUNNER_TEMP/KentraPix.apk"
+          cp apps/mobile/signing/debug.keystore "$RUNNER_TEMP/debug.keystore"
           git config user.name "github-actions"
           git config user.email "actions@github.com"
-          git add -f downloads/KentraPix.apk apps/mobile/signing/debug.keystore
-          git commit -m "APK Android mis à jour [skip ci]" || exit 0
-          git pull --rebase origin master
-          git push origin HEAD:master
+          for i in 1 2 3 4; do
+            git fetch -q origin master
+            git reset -q --hard origin/master   # repart du dernier état : pas de conflit si d'autres commits sont arrivés pendant le bati
+            mkdir -p downloads apps/mobile/signing
+            cp "$RUNNER_TEMP/KentraPix.apk" downloads/KentraPix.apk
+            cp "$RUNNER_TEMP/debug.keystore" apps/mobile/signing/debug.keystore
+            git add -f downloads/KentraPix.apk apps/mobile/signing/debug.keystore
+            git commit -q -m "APK Android mis à jour [skip ci]" || exit 0
+            git push -q origin HEAD:master && exit 0
+            sleep 5
+          done
+          exit 1
       - name: Publier KentraPix.apk
+        continue-on-error: true # facultatif : le site sert déjà l'APK
         env: { GH_TOKEN: '${{ github.token }}' }
         run: |
           cp android/app/build/outputs/apk/debug/app-debug.apk KentraPix.apk
