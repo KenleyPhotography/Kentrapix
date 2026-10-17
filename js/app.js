@@ -145,6 +145,7 @@ if(standalone())markInstalled(true);
 navigator.getInstalledRelatedApps?.().then(apps=>{if(apps.length){markInstalled(true);hideInstall()}}).catch(()=>{});
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();installPrompt=e;const was=installedFlag();markInstalled(false);if(document.getElementById('install-card')||(was&&auth.session()))render()});
 window.addEventListener('appinstalled',()=>{installPrompt=null;markInstalled(true);hideInstall();toast('KentraPix est installé sur votre appareil.')});
+window.addEventListener('offline',()=>toast('Hors connexion : vous voyez les dernières données enregistrées.'));window.addEventListener('online',()=>toast('Connexion rétablie.'));
 if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('/sw.js').catch(()=>{}));
 // Thème clair / sombre (js/theme.js) : auto = suit le réglage du téléphone / de l’ordinateur.
 function themeSwitch(){const cur=window.kpTheme?.get()||'light';return `<div class="theme-switch" role="radiogroup" aria-label="Thème">${[['light','sun','Clair'],['dark','moon','Sombre'],['auto','monitor','Auto']].map(([v,i,l])=>`<button type="button" role="radio" aria-checked="${cur===v}" class="${cur===v?'active':''}" data-theme-set="${v}">${icon(i)}${l}</button>`).join('')}</div>`}
