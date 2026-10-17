@@ -35,6 +35,16 @@ router.get('/sw.js', (req, res) => {
   res.type('application/javascript').set('Cache-Control', 'no-cache').sendFile(page('sw.js'));
 });
 
+// Application Android : l'APK est construit par GitHub (workflow « Android APK ») qui le dépose dans downloads/.
+// Servi d'ici pour que le téléchargement reste sur KentraPix.
+router.get('/KentraPix.apk', (req, res) => {
+  res.set('Cache-Control', 'no-cache').download(page('downloads/KentraPix.apk'), 'KentraPix.apk', {
+    headers: { 'Content-Type': 'application/vnd.android.package-archive' },
+  }, (err) => {
+    if (err && !res.headersSent) res.status(404).type('text').send('Application pas encore disponible. Réessayez dans quelques minutes.');
+  });
+});
+
 // Moteurs de recherche : seule la page d'accueil (connexion) est indexée ; galeries, studio,
 // API, photos et liens de partage restent privés (voir aussi X-Robots-Tag dans app.js).
 router.get('/robots.txt', (req, res) => res.type('text').send([
