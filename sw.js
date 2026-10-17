@@ -104,9 +104,12 @@ self.addEventListener('push', (event) => {
   event.waitUntil(self.registration.showNotification(data.title || 'KentraPix', {
     body: data.body || '',
     icon: '/logo/icon-192.png',
-    badge: '/logo/icon-192.png',
+    badge: '/logo/badge-96.png', // « K » blanc : la barre d'état Android ne garde que la silhouette
     tag: data.tag || undefined,
     renotify: !!data.tag,
+    vibrate: [90, 40, 90],
+    timestamp: Date.now(),
+    actions: [{ action: 'open', title: 'Ouvrir KentraPix' }],
     data: { url: data.url || '/' },
   }));
 });

@@ -22,6 +22,8 @@ async function registerNative() {
   if (perm.receive !== 'granted') return false;
   if (!nativeReady) {
     nativeReady = true;
+    // Canal des notifications KentraPix (Android 8+) : importance haute, vibration, voyant bleu Kentra.
+    await P.createChannel({ id: 'kentrapix', name: 'KentraPix', description: 'Photos prêtes, rendez-vous, contrats et rappels', importance: 4, visibility: 0, vibration: true, lights: true, lightColor: '#1265d8' }).catch(() => {});
     P.addListener('registration', (t) => api('/api/push/fcm', { method: 'POST', body: { token: t.value } }).catch(() => {}));
     P.addListener('pushNotificationActionPerformed', (a) => {
       const url = a.notification?.data?.url;

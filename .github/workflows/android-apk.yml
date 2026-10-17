@@ -24,6 +24,8 @@ jobs:
           GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
         run: if [ -z "$GOOGLE_SERVICES_JSON" ]; then npm uninstall @capacitor/push-notifications; fi
       - run: npx cap add android
+      - name: Ikon notifikasyon KentraPix (K blan nan ba notifikasyon an)
+        run: cp -r res/. android/app/src/main/res/
       - name: Configuration Firebase (notifications)
         env:
           GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}

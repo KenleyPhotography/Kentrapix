@@ -72,7 +72,18 @@ async function sendFcm(token, { title, body, url = '/', tag }) {
         android: {
           priority: 'HIGH',
           ...(tag ? { collapse_key: String(tag).slice(0, 60) } : {}),
-          notification: { ...(tag ? { tag: String(tag).slice(0, 60) } : {}), color: '#1265d8' },
+          // Aspect KentraPix : petit « K » blanc (ic_stat_kentrapix, ajouté à l'APK) sur pastille bleue Kentra,
+          // canal « KentraPix » (son + vibration), texte déroulable si le message est long.
+          notification: {
+            ...(tag ? { tag: String(tag).slice(0, 60) } : {}),
+            icon: 'ic_stat_kentrapix',
+            color: '#1265d8',
+            channel_id: 'kentrapix',
+            notification_priority: 'PRIORITY_HIGH',
+            default_sound: true,
+            default_vibrate_timings: true,
+            visibility: 'PRIVATE',
+          },
         },
       },
     }),
