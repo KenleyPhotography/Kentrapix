@@ -414,7 +414,8 @@ const clientIdsField = z.string().trim().max(2000).optional();
 function clientsOf(body) {
   if (!body || body.clientIds === undefined) return null;
   const ids = [...new Set(String(body.clientIds).split(',').map((s) => s.trim()).filter(Boolean))];
-  if (!ids.length) throw httpError(400, 'Choisissez au moins un client.');
+  // Aucun client coché : la galerie reste au compte du photographe (elle se partage ensuite par lien).
+  if (!ids.length) return [body.__self];
   if (ids.length > 50) throw httpError(400, 'Cinquante clients au maximum par galerie.');
   return ids.map((id) => uuid.parse(id));
 }
@@ -435,7 +436,7 @@ const eventSchema = z.object({
 router.post('/events', upload.single('coverFile'), async (req, res) => {
   let coverKey = null;
   try {
-    const ids = clientsOf(req.body);
+    const ids = clientsOf({ ...req.body, __self: req.user.id });
     const data = eventSchema.parse(ids ? { ...req.body, clientId: ids[0] } : req.body);
     for (const cid of ids || [data.clientId]) await findAccount(req, cid);
     if (req.file) coverKey = await storeCover(req.file);
@@ -473,7 +474,7 @@ const eventPatchSchema = eventSchema
 
 router.patch('/events/:id', upload.single('coverFile'), async (req, res) => {
   const event = await findEvent(req, req.params.id);
-  const ids = clientsOf(req.body);
+  const ids = clientsOf({ ...req.body, __self: req.user.id });
   const data = eventPatchSchema.parse(ids ? { ...req.body, clientId: ids[0] } : req.body);
   for (const cid of ids || (data.clientId ? [data.clientId] : [])) await findAccount(req, cid);
   const coverKey = req.file ? await storeCover(req.file) : event.cover_key;
@@ -520,8 +521,10 @@ router.patch('/events/:id', upload.single('coverFile'), async (req, res) => {
   const updated = await findEvent(req, event.id);
   // Galerie qui devient visible : e-mail automatique « Vos photos sont prêtes ».
   const becameVisible = published && !archived && !(event.published && !event.archived);
-  const email = becameVisible && notify !== false ? await notifyGallery(req, updated) : null;
-  res.json({ event: mapEvent(updated), email });
+  // E-mails envoyés en arrière-plan : la réponse part tout de suite.
+  const sendMail = becameVisible && notify !== false;
+  if (sendMail) notifyGallery(req, updated).catch((err) => console.error('notifyGallery', err.message));
+  res.json({ event: mapEvent(updated), email: sendMail ? { status: 'queued' } : null });
 });
 
 // ---------- Partage famille (liens + mot de passe) ----------

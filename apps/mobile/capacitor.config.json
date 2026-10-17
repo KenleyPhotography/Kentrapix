@@ -1,0 +1,11 @@
+{
+  "appId": "com.kenleyelysee.kentrapix",
+  "appName": "KentraPix",
+  "webDir": "www",
+  "server": {
+    "url": "https://kentrapix.kenleyelysee.com",
+    "cleartext": false,
+    "allowNavigation": ["kentrapix.kenleyelysee.com"]
+  },
+  "backgroundColor": "#f4f7fc"
+}

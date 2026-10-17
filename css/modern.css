@@ -2497,3 +2497,9 @@ h1 em, h2 em, .editorial-heading em, .login-caption h1 em {
 .alb-star svg { width: 14px; height: 14px; }
 .ord-photo.is-cover .alb-star { background: #f5b301; color: #082445; }
 div.ord-photo { cursor: pointer; }
+
+/* Sélecteur de clients : chaque ligne garde sa hauteur (nom + email empilés, sans chevauchement) */
+.modal .cpick-list { display: flex; flex-direction: column; gap: 2px; }
+.modal .cpick-list .cpick-row { flex: 0 0 auto; height: auto !important; min-height: 52px !important; align-items: center; }
+.modal .cpick-row span { display: flex; flex-direction: column; gap: 2px; min-width: 0; height: auto; line-height: 1.3; }
+.modal .cpick-row strong, .modal .cpick-row small { display: block; position: static; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
