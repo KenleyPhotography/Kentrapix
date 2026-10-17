@@ -119,8 +119,9 @@ function init() {
  */
 export async function pushTo(userId, payload) {
   const web = init();
-  if (!userId || (!web && !fcmConfigured())) return { sent: 0 };
+  if (!userId || (!web && !fcmConfigured())) return { sent: 0, errors: [] };
   let sent = 0;
+  const errors = [];
   try {
     const subs = await query('SELECT id, endpoint, p256dh, auth FROM push_subscriptions WHERE user_id = ?', [userId]);
     const body = JSON.stringify({ url: '/', ...payload });
@@ -130,7 +131,7 @@ export async function pushTo(userId, payload) {
         try {
           if (await sendFcm(s.endpoint.slice(4), { url: '/', ...payload })) sent += 1;
           else await query('DELETE FROM push_subscriptions WHERE id = ?', [s.id]).catch(() => {});
-        } catch (err) { console.error('Notification Android :', err.message); }
+        } catch (err) { console.error('Notification Android :', err.message); errors.push(err.message); }
         return;
       }
       if (!web) return;
@@ -139,13 +140,14 @@ export async function pushTo(userId, payload) {
         sent += 1;
       } catch (err) {
         if (err.statusCode === 404 || err.statusCode === 410) await query('DELETE FROM push_subscriptions WHERE id = ?', [s.id]).catch(() => {});
-        else console.error(`Notification (${err.statusCode || err.code || 'erreur'}) :`, String(err.body || err.message).slice(0, 120));
+        else { console.error(`Notification (${err.statusCode || err.code || 'erreur'}) :`, String(err.body || err.message).slice(0, 120)); errors.push(`${err.statusCode || err.code || 'erreur'} ${String(err.body || err.message).slice(0, 80)}`); }
       }
     }));
   } catch (err) {
     console.error('Notifications :', err.message);
+    errors.push(err.message);
   }
-  return { sent };
+  return { sent, errors };
 }
 
 /** Plusieurs destinataires (galerie partagée par plusieurs clients…). */

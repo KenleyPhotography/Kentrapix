@@ -52,7 +52,8 @@ router.post('/unsubscribe', async (req, res) => {
 // Notification d'essai envoyée à ses propres appareils.
 router.post('/test', async (req, res) => {
   if (!pushConfigured() && !fcmConfigured()) throw httpError(503, 'Les notifications ne sont pas encore activées sur ce serveur.');
-  const { sent } = await pushTo(req.user.id, { title: 'KentraPix', body: 'Les notifications fonctionnent sur ce téléphone.', url: '/', tag: 'test' });
+  const { sent, errors } = await pushTo(req.user.id, { title: 'KentraPix', body: 'Les notifications fonctionnent sur ce téléphone.', url: '/', tag: 'test' });
+  if (!sent && errors?.length) throw httpError(502, `Envoi refusé : ${errors[0]}`);
   if (!sent) throw httpError(400, 'Aucun appareil abonné : activez d’abord les notifications.');
   res.json({ sent });
 });

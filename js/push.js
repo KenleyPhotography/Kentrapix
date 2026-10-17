@@ -1,5 +1,5 @@
 // Notifications sur ce téléphone (Web Push) : activer / désactiver / tester, dans la page « Profil ».
-import { api } from './service.js';
+import { api, escape } from './service.js';
 
 export const pushSection = () => '<section class="settings profile-panel" id="push-box"><header><h2>Notifications sur ce téléphone</h2></header><div id="push-body"><p class="small">Chargement…</p></div></section>';
 
@@ -14,6 +14,7 @@ const standalone = () => window.matchMedia('(display-mode: standalone)').matches
 // ---------- Application Android (APK) : Firebase Cloud Messaging via le plugin natif ----------
 const nativePush = () => (window.Capacitor?.isNativePlatform?.() ? window.Capacitor.Plugins?.PushNotifications : null);
 let nativeReady = false;
+let nativeError = '';
 async function registerNative() {
   const P = nativePush();
   if (!P) return false;
@@ -28,6 +29,7 @@ async function registerNative() {
       try { localStorage.setItem('kp-fcm-token', t.value); } catch { /* sans stockage */ }
       api('/api/push/fcm', { method: 'POST', body: { token: t.value } }).catch(() => {});
     });
+    P.addListener('registrationError', (e) => { nativeError = e?.error || 'Enregistrement refusé par Firebase'; });
     P.addListener('pushNotificationActionPerformed', (a) => {
       const url = a.notification?.data?.url;
       if (typeof url === 'string' && url.startsWith('/')) location.href = url;
@@ -42,10 +44,13 @@ export async function bindPush({ toast }) {
   if (!body) return;
   const say = (html) => { body.innerHTML = html; };
   if (nativePush()) {
-    const ok = await registerNative().catch(() => false);
+    const ok = await registerNative().catch((e) => { nativeError = e?.message || String(e); return false; });
+    await new Promise((r) => setTimeout(r, 2500)); // laisse à Firebase le temps de donner le jeton
+    let devices = '?';
+    try { devices = (await api('/api/push')).devices; } catch { /* hors connexion */ }
     say(ok
-      ? '<p class="small">Activées : vous serez prévenu sur ce téléphone (photos prêtes, rendez-vous, commandes, rappels).</p><div class="row"><button class="btn sm" id="push-test">Envoyer un essai</button></div>'
-      : '<p class="small">Les notifications sont bloquées : autorisez-les dans Réglages Android → Applications → KentraPix → Notifications.</p>');
+      ? `<p class="small">${devices > 0 ? 'Activées : vous serez prévenu sur ce téléphone (photos prêtes, rendez-vous, commandes, rappels).' : 'Autorisées, mais cet appareil n’est pas encore enregistré. Fermez puis rouvrez l’application.'}</p><p class="small">Appareils enregistrés : <b>${devices}</b>${nativeError ? ` · Erreur : ${escape(nativeError)}` : ''}</p><div class="row"><button class="btn sm" id="push-test">Envoyer un essai</button></div>`
+      : `<p class="small">Les notifications sont bloquées ou indisponibles : autorisez-les dans Réglages Android → Applications → KentraPix → Notifications.${nativeError ? ` (${escape(nativeError)})` : ''}</p>`);
     body.querySelector('#push-test')?.addEventListener('click', async () => {
       try { await api('/api/push/test', { method: 'POST' }); toast('Essai envoyé.'); } catch (err) { toast(err.message); }
     });
