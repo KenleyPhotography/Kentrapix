@@ -19,7 +19,16 @@ jobs:
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: 17 }
       - run: npm install
+      - name: Sans Firebase, retirer le plugin de notifications (il ferait planter l'application)
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: if [ -z "$GOOGLE_SERVICES_JSON" ]; then npm uninstall @capacitor/push-notifications; fi
       - run: npx cap add android
+      - name: Configuration Firebase (notifications)
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          if [ -n "$GOOGLE_SERVICES_JSON" ]; then printf '%s' "$GOOGLE_SERVICES_JSON" > android/app/google-services.json; else echo "Pas de GOOGLE_SERVICES_JSON : APK sans notifications."; fi
       - run: npm install --no-save @capacitor/assets && npx capacitor-assets generate --android --iconBackgroundColor '#1265d8' --iconBackgroundColorDark '#1265d8'
       - run: npx cap sync android
       - run: ./gradlew assembleDebug

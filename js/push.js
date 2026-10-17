@@ -11,10 +11,41 @@ const keyBytes = (b64) => {
 const isIos = () => /iphone|ipad|ipod/i.test(navigator.userAgent);
 const standalone = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 
+// ---------- Application Android (APK) : Firebase Cloud Messaging via le plugin natif ----------
+const nativePush = () => (window.Capacitor?.isNativePlatform?.() ? window.Capacitor.Plugins?.PushNotifications : null);
+let nativeReady = false;
+async function registerNative() {
+  const P = nativePush();
+  if (!P) return false;
+  let perm = await P.checkPermissions();
+  if (perm.receive !== 'granted' && perm.receive !== 'denied') perm = await P.requestPermissions(); // boîte de dialogue Android
+  if (perm.receive !== 'granted') return false;
+  if (!nativeReady) {
+    nativeReady = true;
+    P.addListener('registration', (t) => api('/api/push/fcm', { method: 'POST', body: { token: t.value } }).catch(() => {}));
+    P.addListener('pushNotificationActionPerformed', (a) => {
+      const url = a.notification?.data?.url;
+      if (typeof url === 'string' && url.startsWith('/')) location.href = url;
+    });
+  }
+  await P.register();
+  return true;
+}
+
 export async function bindPush({ toast }) {
   const body = document.getElementById('push-body');
   if (!body) return;
   const say = (html) => { body.innerHTML = html; };
+  if (nativePush()) {
+    const ok = await registerNative().catch(() => false);
+    say(ok
+      ? '<p class="small">Activées : vous serez prévenu sur ce téléphone (photos prêtes, rendez-vous, commandes, rappels).</p><div class="row"><button class="btn sm" id="push-test">Envoyer un essai</button></div>'
+      : '<p class="small">Les notifications sont bloquées : autorisez-les dans Réglages Android → Applications → KentraPix → Notifications.</p>');
+    body.querySelector('#push-test')?.addEventListener('click', async () => {
+      try { await api('/api/push/test', { method: 'POST' }); toast('Essai envoyé.'); } catch (err) { toast(err.message); }
+    });
+    return;
+  }
   const supported = 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
   if (!supported) {
     say(isIos() && !standalone()
@@ -78,6 +109,7 @@ async function subscribeThisDevice(reg, publicKey) {
 
 export async function offerPush({ toast }) {
   try {
+    if (nativePush()) return void (await registerNative()); // application Android : demande système, sans bandeau
     if (!('serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window)) return;
     if (Notification.permission === 'denied') return;
     const info = await api('/api/push');
