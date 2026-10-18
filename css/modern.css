@@ -2689,3 +2689,17 @@ div.ord-photo { cursor: pointer; }
   }
 }
 @media (max-width: 360px) { .topbar .burger { width: 40px; height: 40px; border-radius: 12px; } }
+
+/* Finitions du tiroir mobile : éléments plus compacts, pied (profil / déconnexion) toujours accessible. */
+@media (max-width: 800px) {
+  .sidebar .nav button { min-height: 44px; font-size: 0.96875rem; }
+  .sidebar .nav { margin-top: 14px; }
+  .sidebar-foot {
+    position: sticky; bottom: calc(-1 * max(var(--space-5), env(safe-area-inset-bottom)));
+    margin-left: -14px; margin-right: -14px; padding: 14px 14px 10px;
+    background: linear-gradient(to top, #1466d3 72%, rgba(20, 102, 211, 0));
+    border-top: 0;
+  }
+  .sidebar-foot::before { content: ""; display: block; height: 1px; margin: 0 4px 10px; background: rgba(255, 255, 255, 0.16); }
+}
+@media (max-width: 800px) { .sidebar-foot { border-radius: 0 0 28px 0; box-shadow: none; } }
