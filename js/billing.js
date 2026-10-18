@@ -58,11 +58,12 @@ function balances(cur = currency) {
   const map = new Map();
   for (const i of bill.invoices) {
     if (i.currency !== cur || i.status === 'cancelled') continue;
-    const row = map.get(i.client.id) || { client: i.client, billed: 0, paid: 0, balance: 0, overdue: 0, next: null, open: [] };
+    const key = i.client.id || `g:${i.client.email || i.client.name}`;
+    const row = map.get(key) || { client: i.client, billed: 0, paid: 0, balance: 0, overdue: 0, next: null, open: [] };
     row.billed += i.total; row.paid += i.paid; row.balance += Math.max(0, i.balance);
     if (i.status === 'overdue') row.overdue += i.balance;
     if (i.balance > 0) row.open.push(i);
-    map.set(i.client.id, row);
+    map.set(key, row);
   }
   return [...map.values()].sort((a, b) => b.overdue - a.overdue || b.balance - a.balance);
 }
@@ -127,10 +128,10 @@ function invoiceCard(i) {
   return `<article class="inv-card ${i.status === 'overdue' ? 'is-late' : ''} ${i.status === 'cancelled' ? 'is-off' : ''}">
     <header><span class="inv-ico">${icon('file')}</span><div><strong>${escape(i.number)}</strong><span>${escape(i.title)}</span></div>${pill(i.status)}</header>
     <p class="inv-type"><span class="badge ${i.paymentType === 'cash' ? 'is-live' : 'is-draft'}">${icon(i.paymentType === 'cash' ? 'cash' : 'card')} ${i.paymentType === 'cash' ? 'Cash' : 'Crédit'}</span>${i.paymentType === 'credit' && i.paid > 0 ? `<span>Avance reçue : ${escape(money(i.paid, i.currency))}</span>` : ''}</p>
-    <p class="inv-client">${icon('users')} ${escape(i.client.name)}${i.eventName ? ` · ${escape(i.eventName)}` : ''}</p>
+    <p class="inv-client">${icon('users')} ${escape(i.client.name)}${i.client.guest ? ' <span class="badge is-draft">Hors système</span>' : ''}${i.eventName ? ` · ${escape(i.eventName)}` : ''}</p>
     <dl class="inv-amounts"><div><dt>Total</dt><dd>${escape(money(i.total, i.currency))}</dd></div><div><dt>Payé</dt><dd>${escape(money(i.paid, i.currency))}</dd></div><div><dt>Solde</dt><dd class="${i.status === 'overdue' ? 'amt-late' : ''}">${escape(money(Math.max(0, i.balance), i.currency))}</dd></div></dl>
     <p class="inv-foot"><span>Échéance : ${fday(i.dueDate)}</span>${i.sentAt ? '<span>Envoyée par e-mail</span>' : ''}${lastRem(i)}</p>
-    <div class="actions">${alink('Voir la facture', i.url, 'eye')}${open ? ibtn('Enregistrer un paiement', `data-pay="${i.id}"`, 'check') : ''}${i.status !== 'cancelled' ? ibtn('Envoyer par e-mail', `data-send="${i.id}"`, 'send') : ''}${open ? ibtn('Rappel par e-mail', `data-remind="${i.id}"`, 'mail') : ''}${wa ? alink('WhatsApp', wa, 'chat').replace('<a ', `<a data-wa-log="${i.id}" `) : ''}${ibtn('Gérer', `data-manage-invoice="${i.id}"`, 'more')}</div>
+    <div class="actions">${alink('Voir la facture', i.url, 'eye')}${open ? ibtn('Enregistrer un paiement', `data-pay="${i.id}"`, 'check') : ''}${i.status !== 'cancelled' && i.client.email ? ibtn('Envoyer par e-mail', `data-send="${i.id}"`, 'send') : ''}${open && i.client.email ? ibtn('Rappel par e-mail', `data-remind="${i.id}"`, 'mail') : ''}${wa ? alink('WhatsApp', wa, 'chat').replace('<a ', `<a data-wa-log="${i.id}" `) : ''}${ibtn('Gérer', `data-manage-invoice="${i.id}"`, 'more')}</div>
   </article>`;
 }
 
@@ -212,10 +213,27 @@ export async function bindBilling(c) {
     return list.map((c) => `<option value="${c.id}" ${c.id === selected ? 'selected' : ''}>${escape(c.name)}${c.email ? ` — ${escape(c.email)}` : ''}</option>`).join('');
   }
   function invoiceModal(clientId) {
-    if (!clients().length) return ctx.toast('Ajoutez d’abord un client.');
     const evs = service.data.events || [];
+    const list = clients().filter((c) => c.active !== false);
+    const pick = list.map((c) => `<label class="inv-pick" data-q="${escape(`${c.name} ${c.email || ''}`.toLowerCase())}"><input type="checkbox" name="pick" value="${c.id}" ${c.id === clientId ? 'checked' : ''}><span><strong>${escape(c.name)}</strong>${c.email ? `<small>${escape(c.email)}</small>` : ''}</span></label>`).join('');
     ctx.modal('Nouvelle facture', `
-      <label>Client<select name="clientId" id="inv-client" required>${clientOptions(clientId)}</select></label>
+      <div class="inv-who">
+        <div class="inv-seg" role="radiogroup" aria-label="Pour qui ?">
+          <label><input type="radio" name="who" value="existing" ${list.length ? 'checked' : ''}><span>Client existant</span></label>
+          <label><input type="radio" name="who" value="guest" ${list.length ? '' : 'checked'}><span>Nouveau client (hors système)</span></label>
+        </div>
+        <div id="inv-existing" ${list.length ? '' : 'hidden'}>
+          <input type="search" id="inv-search" placeholder="Rechercher un client…" autocomplete="off" aria-label="Rechercher un client">
+          <div class="inv-pick-list" id="inv-pick-list">${pick || '<p class="small">Aucun client inscrit pour le moment.</p>'}</div>
+          <p class="small" id="inv-pick-count"></p>
+        </div>
+        <div id="inv-guest" ${list.length ? 'hidden' : ''}>
+          <label>Nom du client<input name="gname" maxlength="120" placeholder="Ex. Marie Jean-Baptiste"></label>
+          <div class="row2"><label>E-mail <span class="optional">(facultatif)</span><input name="gemail" type="email" maxlength="190" placeholder="marie@exemple.com"></label>
+          <label>Téléphone / WhatsApp <span class="optional">(facultatif)</span><input name="gphone" maxlength="40" placeholder="+509 …"></label></div>
+          <p class="small">Ce client n’a pas de compte : la facture se partage par lien, e-mail ou WhatsApp.</p>
+        </div>
+      </div>
       <label>Galerie <span class="optional">(facultatif)</span><select name="eventId" id="inv-event"><option value="">Aucune</option>${evs.map((e) => `<option value="${e.id}" data-c="${e.clientId}">${escape(e.name)}</option>`).join('')}</select></label>
       <label>Titre de la facture<input name="title" required maxlength="200" placeholder="Ex. Mariage — forfait complet"></label>
       <div class="row2"><label>Montant<input name="amount" type="number" min="0.01" step="0.01" required></label>
@@ -226,13 +244,46 @@ export async function bindBilling(c) {
       <label>Échéance du solde <span class="optional">(facultatif)</span><input name="dueDate" type="date"></label>
       <label>Notes <span class="optional">(visibles sur la facture)</span><input name="notes" maxlength="1000" placeholder="Ex. Acompte de 50 % à la réservation"></label>`,
     async (v) => {
-      const res = await api('/api/admin/invoices', { method: 'POST', body: { clientId: v.clientId, eventId: v.eventId || '', title: v.title, amount: v.amount, currency: v.currency, dueDate: v.dueDate || '', notes: v.notes || '', paymentType: v.paymentType, advance: v.paymentType === 'credit' ? (v.advance || '') : '', advanceMethod: v.advanceMethod } });
-      bill.invoices.unshift(res.invoice); redraw(); refreshAll().catch(() => {});
-      ctx.toast(`Facture ${res.invoice.number} créée.`);
+      const guest = v.who === 'guest';
+      const ids = guest ? [] : [...document.querySelectorAll('#inv-pick-list input:checked')].map((c) => c.value);
+      if (!guest && !ids.length) throw new Error('Cochez au moins un client, ou entrez un nouveau client.');
+      if (guest && !(v.gname || '').trim()) throw new Error('Entrez le nom du client.');
+      const base = { title: v.title, amount: v.amount, currency: v.currency, dueDate: v.dueDate || '', notes: v.notes || '', paymentType: v.paymentType, advance: v.paymentType === 'credit' ? (v.advance || '') : '', advanceMethod: v.advanceMethod };
+      const made = [];
+      try {
+        for (const id of guest ? [null] : ids) {
+          const who = guest ? { guest: { name: v.gname, email: v.gemail || '', phone: v.gphone || '' } } : { clientId: id, eventId: ids.length === 1 ? (v.eventId || '') : '' };
+          made.push((await api('/api/admin/invoices', { method: 'POST', body: { ...base, ...who } })).invoice);
+        }
+      } catch (err) {
+        if (made.length) { bill.invoices.unshift(...made.reverse()); redraw(); throw new Error(`${made.length} facture(s) créée(s), puis une erreur : ${err.message}`); }
+        throw err;
+      }
+      bill.invoices.unshift(...made.reverse()); redraw(); refreshAll().catch(() => {});
+      ctx.toast(made.length === 1 ? `Facture ${made[0].number} créée.` : `${made.length} factures créées.`);
     }, { submit: 'Créer la facture', draft: 'invoice' });
-    const sel = document.getElementById('inv-client'), ev = document.getElementById('inv-event');
-    const filter = () => { ev.querySelectorAll('option[data-c]').forEach((o) => { o.hidden = o.dataset.c !== sel.value; o.disabled = o.hidden; }); if (ev.selectedOptions[0]?.disabled) ev.value = ''; };
-    sel?.addEventListener('change', filter); filter();
+    const ev = document.getElementById('inv-event'), box = document.getElementById('inv-pick-list');
+    const existing = document.getElementById('inv-existing'), guestBox = document.getElementById('inv-guest'), count = document.getElementById('inv-pick-count');
+    const ticked = () => [...box.querySelectorAll('input:checked')].map((c) => c.value);
+    // Galerie : seulement quand UN client inscrit est coché (une galerie appartient à un client).
+    const filter = () => {
+      const one = !document.querySelector('[name=who][value=guest]').checked && ticked().length === 1;
+      ev.closest('label').hidden = !one; ev.disabled = !one;
+      ev.querySelectorAll('option[data-c]').forEach((o) => { o.hidden = !one || o.dataset.c !== ticked()[0]; o.disabled = o.hidden; });
+      if (ev.selectedOptions[0]?.disabled) ev.value = '';
+      const n = ticked().length;
+      count.textContent = n > 1 ? `${n} clients cochés : une facture (même montant) sera créée pour chacun.` : n === 1 ? '1 client coché.' : 'Cochez un ou plusieurs clients.';
+    };
+    const mode = () => {
+      const guest = document.querySelector('[name=who][value=guest]').checked;
+      existing.hidden = guest; guestBox.hidden = !guest;
+      guestBox.querySelector('[name=gname]').required = guest;
+      filter();
+    };
+    document.querySelectorAll('[name=who]').forEach((r) => r.addEventListener('change', mode));
+    box.addEventListener('change', filter);
+    document.getElementById('inv-search')?.addEventListener('input', (e) => { const q = e.target.value.trim().toLowerCase(); box.querySelectorAll('.inv-pick').forEach((l) => { l.hidden = !!q && !l.dataset.q.includes(q); }); });
+    mode();
     // Cash : tout est payé maintenant ; Crédit : on peut noter une avance et l'échéance du solde.
     const type = document.getElementById('inv-type'), adv = document.getElementById('inv-advance-row');
     const sync = () => { const cash = type.value === 'cash'; adv.querySelector('label:first-child').hidden = cash; adv.querySelector('input').disabled = cash; };

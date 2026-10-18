@@ -57,7 +57,13 @@ billingRouter.get('/billing', async (req, res) => {
 
 // ---------- Factures ----------
 const invoiceSchema = z.object({
-  clientId: uuid,
+  // Soit un client inscrit (clientId), soit un client hors système (guest : nom obligatoire, e-mail et téléphone facultatifs).
+  clientId: z.union([uuid, z.literal('')]).optional().transform((v) => v || null),
+  guest: z.object({
+    name: z.string().trim().min(2, 'Entrez le nom du client.').max(120),
+    email: z.union([z.literal(''), z.string().trim().toLowerCase().email('Adresse e-mail invalide.').max(190)]).optional().transform((v) => v || null),
+    phone: z.string().trim().max(40).optional().transform((v) => v || null),
+  }).optional(),
   eventId: z.union([uuid, z.literal('')]).optional().transform((v) => v || null),
   title: text(200, 'Le titre de la facture est obligatoire.'),
   amount: money,
@@ -74,9 +80,14 @@ const invoiceSchema = z.object({
 billingRouter.post('/invoices', async (req, res) => {
   const data = invoiceSchema.parse(req.body);
   if (data.paymentType === 'credit' && data.advance > data.amount) throw httpError(400, 'L’avance ne peut pas dépasser le total de la facture.');
-  const [as, ap] = accountScope(req);
-  const [client] = await query(`SELECT u.id FROM users u WHERE u.id = ? AND u.role = 'client' AND ${as}`, [data.clientId, ...ap]);
-  if (!client) throw httpError(404, 'Client introuvable.');
+  if (!data.clientId === !data.guest) throw httpError(400, 'Choisissez un client existant, ou entrez un nouveau client.');
+  if (data.clientId) {
+    const [as, ap] = accountScope(req);
+    const [client] = await query(`SELECT u.id FROM users u WHERE u.id = ? AND u.role = 'client' AND ${as}`, [data.clientId, ...ap]);
+    if (!client) throw httpError(404, 'Client introuvable.');
+  } else if (data.eventId) {
+    throw httpError(400, 'Une galerie ne peut être liée qu’à un client inscrit.');
+  }
   if (data.eventId) {
     const [es, ep] = eventScope(req);
     const [event] = await query(`SELECT e.id FROM events e WHERE e.id = ? AND e.client_id = ? AND ${es}`, [data.eventId, data.clientId, ...ep]);
@@ -87,9 +98,10 @@ billingRouter.post('/invoices', async (req, res) => {
     id = crypto.randomUUID();
     try {
       await query(
-        `INSERT INTO invoices (id, staff_id, client_id, event_id, number, title, notes, currency, total, issued_at, due_date, public_token, payment_type)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, CURRENT_DATE), ?, ?, ?)`,
-        [id, req.user.id, data.clientId, data.eventId, await nextNumber(req.user.id), data.title, data.notes, data.currency, data.amount, data.issuedAt, data.dueDate, newToken(), data.paymentType],
+        `INSERT INTO invoices (id, staff_id, client_id, event_id, number, title, notes, currency, total, issued_at, due_date, public_token, payment_type, guest_name, guest_email, guest_phone)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, CURRENT_DATE), ?, ?, ?, ?, ?, ?)`,
+        [id, req.user.id, data.clientId, data.eventId, await nextNumber(req.user.id), data.title, data.notes, data.currency, data.amount, data.issuedAt, data.dueDate, newToken(), data.paymentType,
+          data.guest?.name ?? null, data.guest?.email ?? null, data.guest?.phone ?? null],
       );
       break;
     } catch (err) {
@@ -103,7 +115,7 @@ billingRouter.post('/invoices', async (req, res) => {
       crypto.randomUUID(), id, first, data.advanceMethod, data.issuedAt, data.paymentType === 'cash' ? 'Paiement comptant' : 'Avance à la commande',
     ]);
   }
-  audit(req, 'invoice.create', { entity: 'invoice', entityId: id, details: { client: data.clientId, amount: data.amount, currency: data.currency, type: data.paymentType, advance: first } });
+  audit(req, 'invoice.create', { entity: 'invoice', entityId: id, details: { client: data.clientId || `hors système : ${data.guest?.name}`, amount: data.amount, currency: data.currency, type: data.paymentType, advance: first } });
   res.status(201).json({ invoice: (await loadInvoice(req, id)).invoice });
 });
 
@@ -194,6 +206,7 @@ async function mailInvoice(req, res, kind, template) {
   const { row, invoice } = await loadInvoice(req, req.params.id);
   if (invoice.status === 'cancelled') throw httpError(400, 'Cette facture est annulée.');
   if (kind === 'invoice_reminder' && invoice.status === 'paid') throw httpError(400, 'Cette facture est déjà payée : aucun rappel à envoyer.');
+  if (!invoice.client.email) throw httpError(400, 'Ce client n’a pas d’adresse e-mail : envoyez le lien de la facture par WhatsApp.');
   const tpl = template({
     name: invoice.client.name, studio: req.user.sender_name || req.user.name, invoice, url: invoiceUrl(row.public_token),
   });

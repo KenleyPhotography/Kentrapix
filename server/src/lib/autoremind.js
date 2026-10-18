@@ -31,7 +31,7 @@ export function reminderPhase(dueDate, day = today()) {
 export async function sendAutoReminders() {
   const rows = await query(
     `${INVOICE_SELECT} JOIN users s ON s.id = i.staff_id AND s.active = 1 AND s.auto_reminders = 1
-     WHERE i.cancelled = 0 AND i.due_date IS NOT NULL AND u.active = 1 AND u.email IS NOT NULL`,
+     WHERE i.cancelled = 0 AND i.due_date IS NOT NULL AND (u.id IS NULL OR u.active = 1) AND COALESCE(u.email, i.guest_email) IS NOT NULL`,
   );
   let sent = 0;
   for (const row of rows) {

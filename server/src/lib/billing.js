@@ -20,10 +20,12 @@ export function invoiceStatus(i, day = today()) {
 
 export const invoiceUrl = (token) => `${config.appUrl}/facture?t=${token}`;
 
-export const INVOICE_SELECT = `SELECT i.*, u.name AS client_name, u.email AS client_email, u.phone AS client_phone, u.whatsapp AS client_whatsapp,
+// Client inscrit (users) ou client « hors système » (guest_* sur la facture) : mêmes colonnes client_* dans les deux cas.
+export const INVOICE_SELECT = `SELECT i.*, COALESCE(u.name, i.guest_name) AS client_name, COALESCE(u.email, i.guest_email) AS client_email,
+    COALESCE(u.phone, i.guest_phone) AS client_phone, COALESCE(u.whatsapp, i.guest_phone) AS client_whatsapp,
     e.name AS event_name,
     COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.invoice_id = i.id), 0) AS paid
-  FROM invoices i JOIN users u ON u.id = i.client_id LEFT JOIN events e ON e.id = i.event_id`;
+  FROM invoices i LEFT JOIN users u ON u.id = i.client_id LEFT JOIN events e ON e.id = i.event_id`;
 
 export const mapPayment = (p) => ({
   id: p.id, invoiceId: p.invoice_id, amount: Number(p.amount), method: p.method, paidAt: String(p.paid_at).slice(0, 10), note: p.note || '',
@@ -49,7 +51,7 @@ export function mapInvoice(i, payments = []) {
     sentAt: i.sent_at ? `${i.sent_at.replace(' ', 'T')}Z` : null,
     remindedAt: i.reminded_at ? `${i.reminded_at.replace(' ', 'T')}Z` : null,
     url: invoiceUrl(i.public_token),
-    client: { id: i.client_id, name: i.client_name, email: i.client_email, phone: i.client_phone || '', whatsapp: i.client_whatsapp || i.client_phone || '' },
+    client: { id: i.client_id || null, guest: !i.client_id, name: i.client_name, email: i.client_email || '', phone: i.client_phone || '', whatsapp: i.client_whatsapp || i.client_phone || '' },
     payments: payments.map(mapPayment),
   };
 }
