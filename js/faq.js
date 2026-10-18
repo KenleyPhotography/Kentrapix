@@ -1,3 +1,4 @@
+import { hello } from './service.js';
 // Assistant d'aide KentraPix : répond aux questions fréquentes des clients (sans serveur, sans IA).
 // Pour ajouter une question : ajoutez une ligne dans FAQ.
 //   t = étiquette courte du bouton, q = question complète, k = mots-clés (minuscules, sans accents), a = réponse courte.
@@ -100,7 +101,7 @@ export function initFaq(getPhotographers) {
     fab.setAttribute('aria-expanded', String(on));
     fab.classList.toggle('on', on);
     if (on) {
-      if (!log.children.length) { say('Bonjour 👋 Comment puis-je vous aider ?<br>Touchez un sujet ou écrivez votre question.'); suggest(items().slice(0, 6)); }
+      if (!log.children.length) { say(hello() + ' 👋 Comment puis-je vous aider ?<br>Touchez un sujet ou écrivez votre question.'); suggest(items().slice(0, 6)); }
       input.focus();
     } else fab.focus();
   };

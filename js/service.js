@@ -21,3 +21,5 @@ togglePick(eventId,photoId){const ids=this.picks(eventId);return this.setPicks(e
 async toggleFavorite(id){if(this.readOnly)throw Error('Aperçu : les favoris ne sont pas enregistrés.');const on=data.favorites.includes(id);const flip=()=>{const n=data.favorites.indexOf(id);n<0?data.favorites.push(id):data.favorites.splice(n,1)};flip();try{await api(`/api/client/favorites/${id}`,{method:on?'DELETE':'PUT'})}catch(e){flip();throw e}}};
 export const date=d=>new Date(d+'T12:00:00').toLocaleDateString('fr-FR',{month:'short',day:'numeric',year:'numeric'});
 export const escape=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+// Salutation du moment : « Bonjour » le matin, « Bonsoir » à partir de midi (heure de l'appareil).
+export const hello=()=>new Date().getHours()>=12?'Bonsoir':'Bonjour';

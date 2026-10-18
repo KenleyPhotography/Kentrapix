@@ -1,6 +1,6 @@
 // Espace client : mes factures, avec « Payer par MonCash / NatCash ». Aucun paiement ne passe par le site :
 // on montre le numéro du photographe, le montant et la référence ; le client envoie l'argent puis prévient son photographe.
-import { api, escape } from './service.js';
+import { api, escape, hello } from './service.js';
 import { icon } from './icons.js';
 
 const STATUS = { paid: ['Payée', 'is-live'], partial: ['Partielle', 'is-draft'], unpaid: ['À payer', 'is-draft'], overdue: ['En retard', 'is-late'] };
@@ -32,7 +32,7 @@ export async function bindClientInvoices({ toast, modal }) {
     const i = list.find((x) => x.id === b.dataset.invPay);
     const amount = money(i.balance, i.currency);
     const method = (name, num) => num ? `<div class="pay-method"><strong>${name}</strong><span class="pay-num">${escape(num)}</span><button type="button" class="btn sm" data-copy-pay="${escape(num)}">${icon('copy')} Copier le numéro</button></div>` : '';
-    const wa = digits(i.pay.whatsapp) ? `https://wa.me/${digits(i.pay.whatsapp)}?text=${encodeURIComponent(`Bonjour, j’ai envoyé ${amount} pour la facture ${i.number}. Voici la preuve de paiement.`)}` : '';
+    const wa = digits(i.pay.whatsapp) ? `https://wa.me/${digits(i.pay.whatsapp)}?text=${encodeURIComponent(`${hello()}, j’ai envoyé ${amount} pour la facture ${i.number}. Voici la preuve de paiement.`)}` : '';
     modal(`Payer la facture ${i.number}`, `<div class="pay-box">
       <p class="pay-amount">À envoyer : <strong>${escape(amount)}</strong></p>
       <ol class="pay-steps"><li>Ouvrez MonCash ou NatCash sur votre téléphone.</li><li>Envoyez <strong>${escape(amount)}</strong> à l’un des numéros ci-dessous.</li><li>Écrivez <strong>${escape(i.number)}</strong> comme référence si l’application le permet.</li><li>Prévenez ${escape(i.studio || 'votre photographe')} avec la capture d’écran : il enregistrera votre paiement.</li></ol>

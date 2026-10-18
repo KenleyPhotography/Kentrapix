@@ -1,5 +1,5 @@
 // Rendez-vous : le client choisit un jour et une heure ; le photographe confirme, bloque des jours et règle ses horaires.
-import { api, escape } from './service.js';
+import { api, escape, hello } from './service.js';
 import { icon } from './icons.js';
 import { waBtn, firstName, siteUrl } from './whatsapp.js';
 
@@ -134,7 +134,7 @@ export async function bindAdminBooking({ toast, modal, clients }) {
   const pendingHtml = () => {
     const list = d.bookings.filter((b) => b.status === 'pending' && b.day >= d.today);
     if (!list.length) return '';
-    return `<section class="settings bill-block"><h2>Demandes à confirmer <span class="count-pill">${list.length}</span></h2><ul class="rem-list">${list.map((b) => `<li class="rem-row is-late"><span class="rem-ico">${icon('bell')}</span><div><strong>${escape(b.client.name)}</strong><span style="text-transform:capitalize">${escape(fday(b.day))}</span><span>${escape(b.start)} – ${escape(b.end)}${b.sessionType ? ` · ${escape(b.sessionType)}` : ''}${b.note ? ` · « ${escape(b.note)} »` : ''}</span></div><div class="actions"><button type="button" class="btn sm primary" data-bka-ok="${b.id}">Confirmer</button><button type="button" class="btn sm" data-bka-no="${b.id}">Refuser</button>${waBtn(b.client.whatsapp, `Bonjour ${firstName(b.client.name)}, à propos de votre demande de rendez-vous du ${fday(b.day)} à ${b.start}.`)}</div></li>`).join('')}</ul></section>`;
+    return `<section class="settings bill-block"><h2>Demandes à confirmer <span class="count-pill">${list.length}</span></h2><ul class="rem-list">${list.map((b) => `<li class="rem-row is-late"><span class="rem-ico">${icon('bell')}</span><div><strong>${escape(b.client.name)}</strong><span style="text-transform:capitalize">${escape(fday(b.day))}</span><span>${escape(b.start)} – ${escape(b.end)}${b.sessionType ? ` · ${escape(b.sessionType)}` : ''}${b.note ? ` · « ${escape(b.note)} »` : ''}</span></div><div class="actions"><button type="button" class="btn sm primary" data-bka-ok="${b.id}">Confirmer</button><button type="button" class="btn sm" data-bka-no="${b.id}">Refuser</button>${waBtn(b.client.whatsapp, `${hello()} ${firstName(b.client.name)}, à propos de votre demande de rendez-vous du ${fday(b.day)} à ${b.start}.`)}</div></li>`).join('')}</ul></section>`;
   };
 
   const calendarHtml = () => {
@@ -151,7 +151,7 @@ export async function bindAdminBooking({ toast, modal, clients }) {
     return `<section class="settings bill-block"><h2>Calendrier</h2>${monthNav(st.year, st.month, true)}<div class="bk-week">${WEEK.map((w) => `<span>${w}</span>`).join('')}</div><div class="bk-grid">${cells}</div>
       <p class="small bk-legend"><span class="bk-dot has"></span> rendez-vous <span class="bk-dot blk"></span> jour bloqué</p>
       ${sel ? `<div class="bk-slots"><strong style="text-transform:capitalize">${escape(fday(sel))}</strong>
-        ${dayList.length ? `<ul class="rem-list">${dayList.map((b) => `<li class="rem-row"><span class="rem-ico">${icon('clock')}</span><div><strong>${escape(b.start)} – ${escape(b.end)} · ${escape(b.client.name)}</strong><span>${escape(b.sessionType || '')}${b.client.whatsapp ? ` · ${escape(b.client.whatsapp)}` : ''}</span></div><div class="actions">${pill(b.status)}${waBtn(b.client.whatsapp, `Bonjour ${firstName(b.client.name)}, rappel de votre rendez-vous le ${fday(b.day)} à ${b.start}. À bientôt !`, 'Rappeler par WhatsApp')}<button type="button" class="btn sm" data-bka-cancel="${b.id}">Annuler</button></div></li>`).join('')}</ul>` : '<p class="small">Aucun rendez-vous ce jour-là.</p>'}
+        ${dayList.length ? `<ul class="rem-list">${dayList.map((b) => `<li class="rem-row"><span class="rem-ico">${icon('clock')}</span><div><strong>${escape(b.start)} – ${escape(b.end)} · ${escape(b.client.name)}</strong><span>${escape(b.sessionType || '')}${b.client.whatsapp ? ` · ${escape(b.client.whatsapp)}` : ''}</span></div><div class="actions">${pill(b.status)}${waBtn(b.client.whatsapp, `${hello()} ${firstName(b.client.name)}, rappel de votre rendez-vous le ${fday(b.day)} à ${b.start}. À bientôt !`, 'Rappeler par WhatsApp')}<button type="button" class="btn sm" data-bka-cancel="${b.id}">Annuler</button></div></li>`).join('')}</ul>` : '<p class="small">Aucun rendez-vous ce jour-là.</p>'}
         <div class="row"><button type="button" class="btn sm" data-bka-toggle="${sel}">${d.blocked.includes(sel) ? 'Débloquer ce jour' : 'Bloquer ce jour'}</button><button type="button" class="btn sm" data-bka-add="${sel}">${icon('plus')} Ajouter un rendez-vous</button></div></div>` : '<p class="small">Touchez un jour pour le bloquer ou voir ses rendez-vous.</p>'}
       </section>`;
   };

@@ -1,6 +1,6 @@
 // Administration du studio : factures, paiements, soldes clients, rappels — et statistiques avec graphiques.
 // Les graphiques sont en SVG pur (aucune bibliothèque), avec infobulles, légende et vue « tableau » pour l'accessibilité.
-import { service, api, escape } from './service.js';
+import { service, api, escape, hello } from './service.js';
 import { icon } from './icons.js';
 import { auth } from './auth.js';
 import { openSignatureModal, loadMySignature } from './signature.js';
@@ -30,8 +30,8 @@ const person = (name, sub, avatar) => `<div class="person">${avatar ? `<img clas
 const daysBetween = (a, b) => Math.round((Date.parse(`${a}T12:00:00Z`) - Date.parse(`${b}T12:00:00Z`)) / 864e5);
 
 const waLink = (number, text) => (digits(number) ? `https://wa.me/${digits(number)}?text=${encodeURIComponent(text)}` : '');
-const reminderText = (inv) => `Bonjour ${first(inv.client.name)}, c’est ${studioName()}. Petit rappel : il reste ${money(inv.balance, inv.currency)} à régler pour « ${inv.title} » (facture ${inv.number}). Vous pouvez la consulter ici : ${inv.url}. Merci !`;
-const invoiceText = (inv) => `Bonjour ${first(inv.client.name)}, c’est ${studioName()}. Voici votre facture ${inv.number} (« ${inv.title} ») : ${money(inv.total, inv.currency)}. Vous pouvez la consulter ici : ${inv.url}. Merci !`;
+const reminderText = (inv) => `${hello()} ${first(inv.client.name)}, c’est ${studioName()}. Petit rappel : il reste ${money(inv.balance, inv.currency)} à régler pour « ${inv.title} » (facture ${inv.number}). Vous pouvez la consulter ici : ${inv.url}. Merci !`;
+const invoiceText = (inv) => `${hello()} ${first(inv.client.name)}, c’est ${studioName()}. Voici votre facture ${inv.number} (« ${inv.title} ») : ${money(inv.total, inv.currency)}. Vous pouvez la consulter ici : ${inv.url}. Merci !`;
 
 async function load() {
   bill = await api('/api/admin/billing');

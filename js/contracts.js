@@ -1,6 +1,6 @@
 // Contrats avec signature électronique : le photographe rédige (modèle prêt à adapter), envoie le lien au client, suit les signatures.
 // Règle du studio : pas de séance sans contrat signé — les séances confirmées sans papier signé sont signalées en haut.
-import { api, escape } from './service.js';
+import { api, escape, hello } from './service.js';
 import { icon } from './icons.js';
 import { auth } from './auth.js';
 import { waLink, firstName } from './whatsapp.js';
@@ -60,7 +60,7 @@ export async function bindAdminContracts({ toast, modal, clients }) {
   const pill = (s) => `<span class="badge ${STATUS[s][1]}">${STATUS[s][0]}</span>`;
 
   const card = (c) => {
-    const text = `Bonjour ${firstName(c.client.name)}, c’est ${studioName()}. Voici le contrat « ${c.title} » à lire et signer en ligne (1 minute). Connectez-vous d’abord à votre compte KentraPix : ${c.url}`;
+    const text = `${hello()} ${firstName(c.client.name)}, c’est ${studioName()}. Voici le contrat « ${c.title} » à lire et signer en ligne (1 minute). Connectez-vous d’abord à votre compte KentraPix : ${c.url}`;
     const wa = waLink(c.client.whatsapp, text);
     return `<article class="inv-card ${c.status === 'cancelled' ? 'is-off' : ''}">
       <header><span class="inv-ico">${icon('file')}</span><div><strong>${escape(c.title)}</strong><span>${escape(c.client.name)}${c.bookingDay ? ` · séance du ${escape(fday(c.bookingDay))}` : ''}</span></div>${pill(c.status)}</header>

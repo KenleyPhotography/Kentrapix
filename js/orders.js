@@ -1,5 +1,5 @@
 // Albums et tirages : le photographe publie un catalogue ; le client choisit un produit et ses photos, puis envoie sa commande.
-import { api, escape, service } from './service.js';
+import { api, escape, service, hello } from './service.js';
 import { icon } from './icons.js';
 import { waLink, firstName, siteUrl } from './whatsapp.js';
 
@@ -102,7 +102,7 @@ export async function bindAdminOrders({ toast, modal, navigate, clients }) {
   const orderCard = (o) => {
     const nums = o.photos.map((p) => p.number).sort((a, b) => a - b).join(', ');
     const say = { new: 'Merci pour votre commande', accepted: 'Votre commande est acceptée', production: 'Votre commande est en préparation', ready: o.delivery === 'delivery' ? 'Votre commande est prête, elle va vous être livrée' : 'Votre commande est prête, vous pouvez venir la récupérer', delivered: 'Votre commande a été remise, merci !', cancelled: 'Votre commande a été annulée' }[o.status];
-    const link = waLink(o.client.whatsapp, `Bonjour ${firstName(o.client.name)}, ${say} : « ${o.product} ». ${siteUrl('/client')}`);
+    const link = waLink(o.client.whatsapp, `${hello()} ${firstName(o.client.name)}, ${say} : « ${o.product} ». ${siteUrl('/client')}`);
     return `<article class="inv-card ${o.status === 'new' ? 'is-late' : ''} ${o.status === 'cancelled' ? 'is-off' : ''}">
       <header>${o.cover ? `<img class="ord-cover" src="${escape(o.cover.url)}" alt="">` : `<span class="inv-ico">${icon('albums')}</span>`}<div><strong>${escape(o.product)} × ${o.quantity}</strong><span>${escape(o.client.name)} · ${escape(when(o.createdAt))}${o.source === 'studio' ? ' · créée par vous' : ''}</span></div>${pill(o.status)}</header>
       <dl class="inv-amounts"><div><dt>Total</dt><dd>${escape(money(o.total, o.currency))}</dd></div><div><dt>Photos</dt><dd>${o.photos.length}</dd></div><div><dt>Remise</dt><dd>${o.delivery === 'delivery' ? 'Livraison' : 'Retrait'}</dd></div></dl>
