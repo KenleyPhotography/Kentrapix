@@ -2571,3 +2571,11 @@ div.ord-photo { cursor: pointer; }
 @media (max-width: 380px) {
   .viewer .filename { font-size: 0.75rem; }
 }
+
+/* Barre du haut sur téléphone : accès direct à Statistiques et Administration (propriétaire et admins). */
+.topbar .icon.is-current { background: var(--blue-soft); color: var(--blue); }
+@media (max-width: 800px) {
+  .topbar .row { gap: 2px; }
+  .topbar .icon.mobile-only { flex: none; width: 38px; height: 38px; }
+  .topbar .search { min-width: 0; flex: 1 1 0; }
+}
