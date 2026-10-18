@@ -2661,3 +2661,16 @@ div.ord-photo { cursor: pointer; }
   .topbar .burger { width: 38px; height: 38px; border-radius: 12px; }
   .topbar { gap: 6px; }
 }
+
+/* Hamburger : bleu uni, sans halo ni ombre bleue dessous. */
+@media (max-width: 800px) {
+  .topbar .burger,
+  .topbar .burger:hover,
+  .topbar .burger:active,
+  .topbar .burger:focus-visible {
+    background: #1265d8; box-shadow: none; filter: none; border: 0;
+    width: 42px; height: 42px; border-radius: 12px; flex: none; align-self: center;
+  }
+  .topbar .burger:active { background: #0f55b5; }
+  .topbar .burger:focus-visible { outline: 2px solid #1265d8; outline-offset: 2px; }
+}
