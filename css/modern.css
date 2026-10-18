@@ -2674,3 +2674,18 @@ div.ord-photo { cursor: pointer; }
   .topbar .burger:active { background: #0f55b5; }
   .topbar .burger:focus-visible { outline: 2px solid #1265d8; outline-offset: 2px; }
 }
+
+/* Hamburger : tuile bleue arrondie, double cadre fin, trois traits parfaitement centrés. */
+@media (max-width: 800px) {
+  .topbar .burger {
+    display: inline-grid; place-items: center; padding: 0; margin: 0 2px 0 0;
+    width: 44px; height: 44px; border-radius: 14px; line-height: 0;
+    background: #1265d8;
+    box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.28), inset 0 0 0 4px #1265d8, inset 0 0 0 5px rgba(255, 255, 255, 0.16);
+  }
+  .topbar .burger svg { display: block; width: 20px; height: 20px; margin: 0; stroke-width: 2.4; stroke-linecap: round; }
+  .topbar .burger:hover, .topbar .burger:active {
+    box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.28), inset 0 0 0 4px #1265d8, inset 0 0 0 5px rgba(255, 255, 255, 0.16);
+  }
+}
+@media (max-width: 360px) { .topbar .burger { width: 40px; height: 40px; border-radius: 12px; } }
