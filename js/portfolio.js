@@ -239,44 +239,52 @@
     (s.sessionTypes || []).forEach(function (t) { var o = document.createElement('option'); o.value = o.textContent = t; $('types').appendChild(o); });
   }).catch(function () {});
 
-  // Dates déjà prises : refusées tout de suite, avec les prochaines dates libres à choisir d'un clic.
-  var taken = [], today = '';
+  // Date + heure déjà prises : on le dit tout de suite et on propose d'autres moments à choisir d'un clic.
   var frDate = function (d) { return new Date(d + 'T12:00:00Z').toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'long', timeZone: 'UTC' }); };
-  function showAlt(list, text) {
+  var checking = 0;
+  function showAlt(c, date) {
     var box = $('alt'); box.innerHTML = '';
-    if (!list || !list.length) { box.hidden = true; return; }
-    var t = document.createElement('span'); t.textContent = text || 'Dates libres :'; box.appendChild(t);
-    list.forEach(function (d) {
-      var b = document.createElement('button'); b.type = 'button'; b.textContent = frDate(d);
-      b.onclick = function () { $('wish').value = d; checkDate(); };
+    var opts = (c.times || []).map(function (t) { return { label: t, day: date, time: t }; })
+      .concat((c.dates || []).map(function (d) { return { label: frDate(d.day) + ' à ' + d.time, day: d.day, time: d.time }; }));
+    if (!opts.length) { box.hidden = true; return; }
+    var t = document.createElement('span'); t.textContent = 'Moments libres :'; box.appendChild(t);
+    opts.forEach(function (o) {
+      var b = document.createElement('button'); b.type = 'button'; b.textContent = o.label;
+      b.onclick = function () { $('wish').value = o.day; $('wishtime').value = o.time; checkSlot(); };
       box.appendChild(b);
     });
     box.hidden = false;
   }
-  function checkDate() {
-    var v = $('wish').value, msg = $('msg');
-    if (!v || taken.indexOf(v) < 0) { if (msg.dataset.taken) { msg.textContent = ''; msg.className = 'pf-msg'; delete msg.dataset.taken; } $('alt').hidden = true; return true; }
-    var free = []; for (var i = 1; i < 60 && free.length < 3; i++) { var d = new Date(v + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + i); var s = d.toISOString().slice(0, 10); if (taken.indexOf(s) < 0) free.push(s); }
-    msg.className = 'pf-msg err'; msg.dataset.taken = '1'; msg.textContent = 'Cette date est déjà réservée. Choisissez une autre date.';
-    showAlt(free); return false;
+  // Vérifie la date et l'heure choisies (promesse : true = libre ou pas encore complet).
+  function checkSlot() {
+    var d = $('wish').value, t = $('wishtime').value, msg = $('msg'), id = ++checking;
+    var clear = function () { if (msg.dataset.taken) { msg.textContent = ''; msg.className = 'pf-msg'; delete msg.dataset.taken; } $('alt').hidden = true; };
+    if (!d || !t) { clear(); return Promise.resolve(true); }
+    return fetch('/api/public/slot-check?date=' + encodeURIComponent(d) + '&time=' + encodeURIComponent(t))
+      .then(function (r) { return r.ok ? r.json() : { ok: true }; })
+      .then(function (j) {
+        if (id !== checking) return true;
+        if (j.ok) { clear(); return true; }
+        msg.className = 'pf-msg err'; msg.dataset.taken = '1'; msg.textContent = j.error; showAlt(j, d); return false;
+      })
+      .catch(function () { return true; });
   }
-  fetch('/api/public/taken-days').then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
-    if (!j) return; taken = j.taken || []; today = j.today; $('wish').min = j.today; checkDate();
-  }).catch(function () {});
-  $('wish').addEventListener('change', checkDate);
+  $('wish').addEventListener('change', checkSlot);
+  $('wishtime').addEventListener('change', checkSlot);
+  $('wish').min = new Date().toISOString().slice(0, 10);
 
   $('form').addEventListener('submit', function (e) {
     e.preventDefault();
     var f = e.target, msg = $('msg'), btn = $('send');
     var data = {}; new FormData(f).forEach(function (v, k) { data[k] = v; });
     if (!data.name || String(data.phone || '').replace(/\D/g, '').length < 6) { msg.className = 'pf-msg err'; msg.textContent = 'Entrez votre nom et votre numéro de téléphone.'; return; }
-    if (!checkDate()) return;
+    if (data.date && !data.time) { msg.className = 'pf-msg err'; msg.textContent = 'Choisissez aussi l’heure souhaitée.'; return; }
     btn.disabled = true; msg.className = 'pf-msg'; msg.textContent = 'Envoi…';
     fetch('/api/public/inquiry', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
       .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { return { ok: r.ok, j: j }; }); })
       .then(function (r) {
         if (r.ok) { f.reset(); msg.className = 'pf-msg ok'; msg.textContent = 'Merci ! Votre demande est envoyée, on vous répond très vite.'; }
-        else { msg.className = 'pf-msg err'; msg.textContent = (r.j && (r.j.error || r.j.message)) || 'Envoi impossible. Écrivez-nous sur WhatsApp.'; if (r.j && r.j.suggestions) { if (data.date) taken.push(data.date); showAlt(r.j.suggestions); } }
+        else { msg.className = 'pf-msg err'; msg.textContent = (r.j && (r.j.error || r.j.message)) || 'Envoi impossible. Écrivez-nous sur WhatsApp.'; if (r.j && (r.j.times || r.j.dates)) showAlt(r.j, data.date); }
       })
       .catch(function () { msg.className = 'pf-msg err'; msg.textContent = 'Connexion impossible. Réessayez.'; })
       .then(function () { btn.disabled = false; });

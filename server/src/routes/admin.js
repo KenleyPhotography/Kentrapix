@@ -34,6 +34,7 @@ import { staffReviews } from './reviews.js';
 import { staffTodo } from './todo.js';
 import { staffBooking } from './booking.js';
 import { staffPortfolio } from './portfolio.js';
+import { visitStats } from '../lib/visits.js';
 import { staffOrders } from './orders.js';
 import { config } from '../config.js';
 import { BCRYPT_COST, passwordRule } from './auth.js';
@@ -50,6 +51,8 @@ router.use(requireStudio);
 router.use(billingRouter);
 router.use('/booking', staffBooking);
 router.use('/portfolio', staffPortfolio);
+// Visites du site public : réservé au propriétaire.
+router.get('/visits', requireOwner, async (req, res) => { res.set('Cache-Control', 'no-store').json(await visitStats()); });
 router.use('/contracts', staffContracts);
 router.use('/reviews', staffReviews);
 router.use('/todo', staffTodo);

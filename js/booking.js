@@ -142,15 +142,15 @@ export async function bindAdminBooking({ toast, modal, clients }) {
     const list = d.requests || [];
     if (!list.length) return '';
     const open = list.filter((r) => r.status === 'pending');
-    const label = { accepted: 'Acceptée', declined: 'Refusée' };
-    return `<section class="settings bill-block"><h2>Demandes du portfolio ${open.length ? `<span class="count-pill">${open.length}</span>` : ''}</h2><ul class="rem-list">${list.map((r) => `<li class="rem-row ${r.status === 'pending' ? 'is-late' : ''}"><span class="rem-ico">${icon(r.status === 'pending' ? 'bell' : 'check')}</span><div><strong>${escape(r.name)}</strong><span>${escape(r.sessionType || 'Séance')}${r.date ? ` · souhaitée le ${escape(r.date)}` : ''}</span><span>${escape(r.phone || '')}${r.email ? ` · ${escape(r.email)}` : ' · pas d’e-mail'}</span>${r.message ? `<span>« ${escape(r.message)} »</span>` : ''}</div><div class="actions">${r.status === 'pending' ? `<button type="button" class="btn sm primary" data-req-ok="${r.id}">Accepter</button><button type="button" class="btn sm" data-req-no="${r.id}">Refuser</button>${waBtn(r.phone, `${hello()} ${firstName(r.name)}, à propos de votre demande de séance.`)}` : `<span class="pill">${label[r.status]}</span>`}</div></li>`).join('')}</ul><p class="small">Quand vous acceptez ou refusez, la personne est prévenue par e-mail (si elle en a donné un) ou par WhatsApp.</p></section>`;
+    const label = { accepted: 'Acceptée', declined: 'Refusée', cancelled: 'Annulée' };
+    return `<section class="settings bill-block"><h2>Demandes du portfolio ${open.length ? `<span class="count-pill">${open.length}</span>` : ''}</h2><ul class="rem-list">${list.map((r) => `<li class="rem-row ${r.status === 'pending' ? 'is-late' : ''}"><span class="rem-ico">${icon(r.status === 'pending' ? 'bell' : 'check')}</span><div><strong>${escape(r.name)}</strong><span>${escape(r.sessionType || 'Séance')}${r.date ? ` · souhaitée le ${escape(r.date)}${r.time ? ` à ${escape(r.time)}` : ''}` : ''}</span><span>${escape(r.phone || '')}${r.email ? ` · ${escape(r.email)}` : ' · pas d’e-mail'}</span>${r.message ? `<span>« ${escape(r.message)} »</span>` : ''}</div><div class="actions">${r.status === 'pending' ? `<button type="button" class="btn sm primary" data-req-ok="${r.id}">Accepter</button><button type="button" class="btn sm" data-req-no="${r.id}">Refuser</button>${waBtn(r.phone, `${hello()} ${firstName(r.name)}, à propos de votre demande de séance${r.date ? ` du ${fday(r.date)}${r.time ? ` à ${r.time}` : ''}` : ''}.`)}` : `<span class="pill">${label[r.status]}</span>${r.status === 'accepted' ? `<button type="button" class="btn sm" data-req-cancel="${r.id}">Annuler</button>` : ''}`}</div></li>`).join('')}</ul><p class="small">Quand vous acceptez ou refusez, la personne est prévenue par e-mail (si elle en a donné un) ou par WhatsApp.</p></section>`;
   };
 
   const calendarHtml = () => {
     const key = ym(st.year, st.month);
     const byDay = {};
     for (const b of d.bookings) if (b.day.startsWith(key) && ['pending', 'confirmed', 'proposed'].includes(b.status)) (byDay[b.day] ??= []).push(b);
-    for (const r of d.requests || []) if (r.date && r.date.startsWith(key) && r.status !== 'declined') (byDay[r.date] ??= []).push(r);
+    for (const r of d.requests || []) if (r.date && r.date.startsWith(key) && !['declined', 'cancelled'].includes(r.status)) (byDay[r.date] ??= []).push(r);
     const cells = grid(st.year, st.month).map((c) => {
       if (!c.day) return '<span class="bk-cell is-empty"></span>';
       const list = byDay[c.day] || []; const blocked = d.blocked.includes(c.day);
@@ -158,11 +158,11 @@ export async function bindAdminBooking({ toast, modal, clients }) {
     }).join('');
     const sel = st.day;
     const dayList = sel ? d.bookings.filter((b) => b.day === sel && ['pending', 'confirmed', 'proposed'].includes(b.status)) : [];
-    const dayReqs = sel ? (d.requests || []).filter((r) => r.date === sel && r.status !== 'declined') : [];
+    const dayReqs = sel ? (d.requests || []).filter((r) => r.date === sel && !['declined', 'cancelled'].includes(r.status)) : [];
     return `<section class="settings bill-block"><h2>Calendrier</h2>${monthNav(st.year, st.month, true)}<div class="bk-week">${WEEK.map((w) => `<span>${w}</span>`).join('')}</div><div class="bk-grid">${cells}</div>
       <p class="small bk-legend"><span class="bk-dot has"></span> rendez-vous <span class="bk-dot blk"></span> jour bloqué</p>
       ${sel ? `<div class="bk-slots"><strong style="text-transform:capitalize">${escape(fday(sel))}</strong>
-        ${dayReqs.length ? `<ul class="rem-list">${dayReqs.map((r) => `<li class="rem-row ${r.status === 'pending' ? 'is-late' : ''}"><span class="rem-ico">${icon('calendar')}</span><div><strong>${escape(r.name)} · demande du portfolio</strong><span>${escape(r.sessionType || 'Séance')}${r.phone ? ` · ${escape(r.phone)}` : ''}</span></div><div class="actions"><span class="pill">${r.status === 'pending' ? 'À traiter' : 'Acceptée'}</span>${waBtn(r.phone, `${hello()} ${firstName(r.name)}, à propos de votre demande de séance du ${fday(sel)}.`)}</div></li>`).join('')}</ul>` : ''}
+        ${dayReqs.length ? `<ul class="rem-list">${dayReqs.map((r) => `<li class="rem-row ${r.status === 'pending' ? 'is-late' : ''}"><span class="rem-ico">${icon('calendar')}</span><div><strong>${escape(r.name)} · demande du portfolio</strong><span>${escape(r.sessionType || 'Séance')}${r.time ? ` · ${escape(r.time)}` : ''}${r.phone ? ` · ${escape(r.phone)}` : ''}</span></div><div class="actions"><span class="pill">${r.status === 'pending' ? 'À traiter' : 'Acceptée'}</span>${waBtn(r.phone, `${hello()} ${firstName(r.name)}, à propos de votre demande de séance du ${fday(sel)}.`)}</div></li>`).join('')}</ul>` : ''}
         ${dayList.length ? `<ul class="rem-list">${dayList.map((b) => `<li class="rem-row"><span class="rem-ico">${icon('clock')}</span><div><strong>${escape(b.start)} – ${escape(b.end)} · ${escape(b.client.name)}</strong><span>${escape(b.sessionType || '')}${b.client.whatsapp ? ` · ${escape(b.client.whatsapp)}` : ''}</span></div><div class="actions">${pill(b.status)}${waBtn(b.client.whatsapp, `${hello()} ${firstName(b.client.name)}, rappel de votre rendez-vous le ${fday(b.day)} à ${b.start}. À bientôt !`, 'Rappeler par WhatsApp')}<button type="button" class="btn sm" data-bka-cancel="${b.id}">Annuler</button></div></li>`).join('')}</ul>` : (dayReqs.length ? '' : '<p class="small">Aucun rendez-vous ce jour-là.</p>')}
         <div class="row"><button type="button" class="btn sm" data-bka-toggle="${sel}">${d.blocked.includes(sel) ? 'Débloquer ce jour' : 'Bloquer ce jour'}</button><button type="button" class="btn sm" data-bka-add="${sel}">${icon('plus')} Ajouter un rendez-vous</button></div></div>` : '<p class="small">Touchez un jour pour le bloquer ou voir ses rendez-vous.</p>'}
       </section>`;
@@ -186,14 +186,15 @@ export async function bindAdminBooking({ toast, modal, clients }) {
     root.querySelector('[data-bk-prev]')?.addEventListener('click', () => { st.month -= 1; if (st.month < 0) { st.month = 11; st.year -= 1; } draw(); });
     root.querySelector('[data-bk-next]')?.addEventListener('click', () => { st.month += 1; if (st.month > 11) { st.month = 0; st.year += 1; } draw(); });
     root.querySelectorAll('[data-bka-day]').forEach((b) => b.addEventListener('click', () => { st.day = b.dataset.bkaDay; draw(); }));
-    const answer = (id, status, reply = '', proposedDate = '') => api(`/api/admin/booking/requests/${id}`, { method: 'PATCH', body: { status, reply, ...(proposedDate ? { proposedDate } : {}) } });
+    const answer = (id, status, reply = '', proposedDate = '', proposedTime = '') => api(`/api/admin/booking/requests/${id}`, { method: 'PATCH', body: { status, reply, ...(proposedDate ? { proposedDate } : {}), ...(proposedDate && proposedTime ? { proposedTime } : {}) } });
     // Sans e-mail, aucun message ne part tout seul : on propose d'ouvrir WhatsApp avec le texte déjà écrit (un clic pour envoyer).
-    const waNotify = (r, status, reply = '', pdate = '') => {
+    const waNotify = (r, status, reply = '', pdate = '', ptime = '') => {
       const href = waLink(r.phone, [
         `${hello()} ${firstName(r.name)},`,
         status === 'accepted'
           ? `votre demande de séance${r.date ? ` du ${fday(r.date)}` : ''} est acceptée. On vous contacte très vite pour les détails.`
-          : `votre demande de séance${r.date ? ` du ${fday(r.date)}` : ''} n’est malheureusement pas disponible.${pdate ? ` Je vous propose plutôt le ${fday(pdate)}.` : ''}`,
+          : status === 'cancelled' ? `la séance${r.date ? ` du ${fday(r.date)}${r.time ? ` à ${r.time}` : ''}` : ''} est malheureusement annulée. Écrivez-moi pour choisir un autre moment.`
+          : `votre demande de séance${r.date ? ` du ${fday(r.date)}` : ''} n’est malheureusement pas disponible.${pdate ? ` Je vous propose plutôt le ${fday(pdate)}${ptime ? ` à ${ptime}` : ''}.` : ''}`,
         reply,
       ].filter(Boolean).join(' '));
       if (!href) return;
@@ -201,10 +202,16 @@ export async function bindAdminBooking({ toast, modal, clients }) {
         async () => { window.open(href, '_blank', 'noopener'); }, { submit: 'Ouvrir WhatsApp' });
     };
     root.querySelectorAll('[data-req-ok]').forEach((b) => { b.onclick = guard(async () => { b.disabled = true; const r = await answer(b.dataset.reqOk, 'accepted'); const req = d.requests.find((x) => x.id === b.dataset.reqOk); toast(r.accountCreated ? 'Demande acceptée : compte client créé, accès envoyés par e-mail.' : req && !req.email ? 'Demande acceptée.' : 'Demande acceptée : la personne est prévenue par e-mail.'); await reload(); if (req && !req.email) waNotify(req, 'accepted'); }); });
+    root.querySelectorAll('[data-req-cancel]').forEach((b) => { b.onclick = guard(async () => {
+      if (!confirm('Annuler cette séance ? L’heure redevient libre et la personne est prévenue.')) return;
+      const id = b.dataset.reqCancel; const r = d.requests.find((x) => x.id === id);
+      await answer(id, 'cancelled'); toast('Séance annulée : l’heure est de nouveau libre.'); await reload();
+      if (r && !r.email) waNotify(r, 'cancelled');
+    }); });
     root.querySelectorAll('[data-req-no]').forEach((b) => { b.onclick = () => {
       const id = b.dataset.reqNo; const r = d.requests.find((x) => x.id === id);
-      modal('Refuser cette demande', `<p class="small">${escape(r.name)} · ${escape(r.sessionType || 'Séance')}${r.date ? ` · date demandée : ${escape(r.date)}` : ''}</p><label>Autre date proposée <span class="optional">(facultatif)</span><input type="date" name="pdate" min="${d.today}"></label><label>Message <span class="optional">(facultatif)</span><input name="reply" maxlength="500" placeholder="Ex. Je suis pris à cette date, écrivez-moi pour une autre."></label>`,
-        async (v) => { await answer(id, 'declined', v.reply || '', v.pdate || ''); toast(r.email ? 'Demande refusée : la personne est prévenue par e-mail.' : 'Demande refusée.'); await reload(); if (!r.email) waNotify(r, 'declined', v.reply || '', v.pdate || ''); }, { submit: 'Envoyer' });
+      modal('Refuser cette demande', `<p class="small">${escape(r.name)} · ${escape(r.sessionType || 'Séance')}${r.date ? ` · date demandée : ${escape(r.date)}` : ''}</p><label>Autre date proposée <span class="optional">(facultatif)</span><input type="date" name="pdate" min="${d.today}"></label><label>Heure proposée <span class="optional">(facultatif)</span><input type="time" name="ptime"></label><label>Message <span class="optional">(facultatif)</span><input name="reply" maxlength="500" placeholder="Ex. Je suis pris à cette date, écrivez-moi pour une autre."></label>`,
+        async (v) => { await answer(id, 'declined', v.reply || '', v.pdate || '', v.ptime || ''); toast(r.email ? 'Demande refusée : la personne est prévenue par e-mail.' : 'Demande refusée.'); await reload(); if (!r.email) waNotify(r, 'declined', v.reply || '', v.pdate || '', v.ptime || ''); }, { submit: 'Envoyer' });
     }; });
     root.querySelectorAll('[data-bka-ok]').forEach((b) => { b.onclick = guard(async () => { b.disabled = true; await api(`/api/admin/booking/bookings/${b.dataset.bkaOk}`, { method: 'PATCH', body: { status: 'confirmed' } }); toast('Rendez-vous confirmé : le client est prévenu.'); await reload(); }); });
     root.querySelectorAll('[data-bka-no]').forEach((b) => { b.onclick = () => {

@@ -21,6 +21,7 @@ const money = z.coerce.number({ invalid_type_error: 'Prix invalide.' }).min(0, '
 const mapProduct = (p) => ({
   id: p.id, name: p.name, description: p.description || '', price: Number(p.price), currency: p.currency,
   minPhotos: Number(p.min_photos), maxPhotos: Number(p.max_photos), active: !!p.active,
+  cover: p.cover_key ? `/media/product-cover/${p.id}?v=${String(p.cover_key).split('/').pop().split('.')[0]}` : null,
 });
 
 const ORDER_SELECT = `SELECT o.*, c.name AS client_name, c.email AS client_email, c.phone AS client_phone, c.whatsapp AS client_whatsapp,
@@ -97,9 +98,34 @@ staffOrders.put('/products/:id', async (req, res) => {
   res.json({ product: mapProduct(row) });
 });
 
+// Photo de couverture d'un produit (albums, tirages) : affichée aux clients dans le catalogue.
+staffOrders.post('/products/:id/cover', upload.single('cover'), async (req, res) => {
+  let product;
+  try {
+    [product] = await query('SELECT * FROM print_products WHERE id = ? AND staff_id = ?', [uuid.parse(req.params.id), req.user.id]);
+    if (!product) throw httpError(404, 'Produit introuvable.');
+    if (!req.file) throw httpError(400, 'Choisissez une image.');
+  } catch (err) { if (req.file) await fs.rm(req.file.path, { force: true }); throw err; }
+  const key = await storeCover(req.file);
+  await query('UPDATE print_products SET cover_key = ? WHERE id = ?', [key, product.id]);
+  await removeKeys([product.cover_key]);
+  const [row] = await query('SELECT * FROM print_products WHERE id = ?', [product.id]);
+  res.json({ product: mapProduct(row) });
+});
+
+staffOrders.delete('/products/:id/cover', async (req, res) => {
+  const [product] = await query('SELECT * FROM print_products WHERE id = ? AND staff_id = ?', [uuid.parse(req.params.id), req.user.id]);
+  if (!product) throw httpError(404, 'Produit introuvable.');
+  await query('UPDATE print_products SET cover_key = NULL WHERE id = ?', [product.id]);
+  await removeKeys([product.cover_key]);
+  res.status(204).end();
+});
+
 staffOrders.delete('/products/:id', async (req, res) => {
-  const r = await query('DELETE FROM print_products WHERE id = ? AND staff_id = ?', [uuid.parse(req.params.id), req.user.id]);
+  const [old] = await query('SELECT cover_key FROM print_products WHERE id = ? AND staff_id = ?', [uuid.parse(req.params.id), req.user.id]);
+  const r = await query('DELETE FROM print_products WHERE id = ? AND staff_id = ?', [req.params.id, req.user.id]);
   if (!r.affectedRows) throw httpError(404, 'Produit introuvable.');
+  await removeKeys([old?.cover_key]);
   res.status(204).end();
 });
 

@@ -2709,3 +2709,31 @@ div.ord-photo { cursor: pointer; }
 .pfa-item { position: relative; margin: 0; aspect-ratio: 4 / 5; border-radius: 12px; overflow: hidden; background: var(--blue-soft, #e8f1ff); }
 .pfa-item img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .pfa-item .btn { position: absolute; right: 6px; top: 6px; min-height: 32px; padding: 6px; background: rgba(255, 255, 255, 0.92); }
+
+/* Commandes : catalogue en cartes avec photo de couverture (même style que les galeries). */
+.ord-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+.ord-card { position: relative; display: flex; flex-direction: column; justify-content: flex-end; min-height: 340px; border-radius: 26px; overflow: hidden; background: linear-gradient(160deg, #0c4088, #1265d8); color: #fff; box-shadow: 0 14px 34px rgba(8, 36, 69, 0.16); isolation: isolate; }
+.ord-card > img { position: absolute; inset: 0; z-index: -2; width: 100%; height: 100%; object-fit: cover; transition: transform 0.5s; }
+.ord-card::after { content: ""; position: absolute; inset: 0; z-index: -1; background: linear-gradient(180deg, rgba(8, 36, 69, 0) 25%, rgba(8, 36, 69, 0.55) 60%, rgba(8, 36, 69, 0.92) 100%); }
+@media (hover: hover) { .ord-card:hover > img { transform: scale(1.05); } }
+.ord-card-ico { position: absolute; inset: 0; z-index: -2; display: grid; place-items: center; opacity: 0.22; }
+.ord-card-ico svg { width: 96px; height: 96px; }
+.ord-card-tag { position: absolute; top: 16px; left: 16px; padding: 7px 13px; border-radius: 10px; background: #1265d8; color: #fff; font-size: 0.85rem; font-weight: 700; }
+.ord-card-body { display: grid; gap: 8px; padding: 20px 20px 22px; }
+.ord-card-body h3 { margin: 0; font-size: 1.4rem; line-height: 1.2; color: #fff; }
+.ord-card-body p { margin: 0; color: rgba(255, 255, 255, 0.86); font-size: 0.95rem; line-height: 1.5; }
+.ord-card-body .ord-card-meta { display: flex; align-items: center; gap: 8px; color: rgba(255, 255, 255, 0.78); font-size: 0.88rem; }
+.ord-card-meta svg { width: 16px; height: 16px; }
+.ord-card-body .btn { justify-self: start; margin-top: 6px; }
+.ord-thumb { flex: none; width: 48px; height: 48px; border-radius: 12px; object-fit: cover; background: var(--blue-soft, #e8f1ff); }
+@media (max-width: 520px) { .ord-cards { grid-template-columns: 1fr; } .ord-card { min-height: 320px; } }
+
+/* Propriétaire : visites du site. */
+.vis-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin: 12px 0 18px; }
+.vis-tiles > div { display: grid; gap: 2px; padding: 14px 16px; border: 1px solid var(--border, #e0eaf8); border-radius: 14px; background: var(--blue-soft, #e8f1ff); }
+.vis-tiles strong { font-size: 1.7rem; line-height: 1.1; color: var(--blue); }
+.vis-tiles span { color: var(--muted, #5a6b85); font-size: 0.85rem; }
+.vis-bars { display: flex; align-items: flex-end; gap: 3px; height: 110px; padding: 4px 0; }
+.vis-bars i { flex: 1; min-width: 3px; border-radius: 4px 4px 0 0; background: var(--blue); opacity: 0.85; }
+.vis-bars i:hover { opacity: 1; }
+.vis-axis { display: flex; justify-content: space-between; gap: 8px; margin-top: 4px; }

@@ -102,6 +102,19 @@ router.get('/order-cover/:id', async (req, res) => {
   await sendPrivate(res, o.cover_key);
 });
 
+// Couverture d'un produit du catalogue (albums, tirages) : le photographe et ses clients.
+router.get('/product-cover/:id', async (req, res) => {
+  const [p] = await query('SELECT cover_key, staff_id FROM print_products WHERE id = ?', [uuid.parse(req.params.id)]);
+  if (!p?.cover_key) throw httpError(404, 'Image introuvable.');
+  let allowed = req.user.id === p.staff_id || ['owner', 'admin'].includes(req.user.role);
+  if (!allowed) {
+    const [link] = await query('SELECT 1 AS ok FROM client_photographers WHERE client_id = ? AND staff_id = ?', [req.user.id, p.staff_id]);
+    allowed = !!link;
+  }
+  if (!allowed) throw httpError(404, 'Image introuvable.');
+  await sendPrivate(res, p.cover_key);
+});
+
 // Musique du diaporama d'une galerie.
 router.get('/music/:id', async (req, res) => {
   const [event] = await query(`SELECT e.id, e.music_key, e.client_id, (SELECT STRING_AGG(ec.client_id, ',') FROM event_clients ec WHERE ec.event_id = e.id) AS extra_client_ids, e.created_by, e.expires_at, e.published, e.archived FROM events e WHERE e.id = ?`, [

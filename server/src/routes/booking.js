@@ -11,7 +11,7 @@ import { sendMail } from '../lib/mailer.js';
 import { accountScope } from '../lib/scope.js';
 import { bookingRequestEmail, bookingStatusEmail, inquiryReplyEmail } from '../lib/emails.js';
 import {
-  takenDays, nextFreeDays, settingsOf, mapSettings, monthSlots, slotsForDay, mapBooking, BOOKING_SELECT, studioToday, addDays, minutesOf, hhmm,
+  slotConflict, settingsOf, mapSettings, monthSlots, slotsForDay, mapBooking, BOOKING_SELECT, studioToday, addDays, minutesOf, hhmm,
 } from '../lib/booking.js';
 
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date invalide.');
@@ -47,12 +47,12 @@ staffBooking.get('/', async (req, res) => {
     query('SELECT day FROM booking_blocked_days WHERE staff_id = ? AND day >= ? ORDER BY day', [req.user.id, today]),
     query(`${BOOKING_SELECT} WHERE b.staff_id = ? AND b.day >= ? ORDER BY b.day, b.start_time`, [req.user.id, addDays(today, -30)]),
     // Demandes du portfolio public (visiteurs sans compte) ; vide si la migration n'est pas encore appliquée.
-    query(`SELECT id, name, email, phone, session_type, wished_date, message, status, reply, created_at FROM portfolio_requests
+    query(`SELECT id, name, email, phone, session_type, wished_date, wished_time, message, status, reply, created_at FROM portfolio_requests
            WHERE staff_id = ? AND (status = 'pending' OR created_at > CURRENT_TIMESTAMP - INTERVAL '30 days') ORDER BY created_at DESC LIMIT 50`, [req.user.id]).catch(() => []),
   ]);
   res.json({
     today, settings, blocked: blocked.map((b) => String(b.day).slice(0, 10)), bookings: rows.map(mapBooking),
-    requests: requests.map((r) => ({ id: r.id, name: r.name, email: r.email, phone: r.phone, sessionType: r.session_type, date: r.wished_date, message: r.message, status: r.status, reply: r.reply, createdAt: r.created_at })),
+    requests: requests.map((r) => ({ id: r.id, name: r.name, email: r.email, phone: r.phone, sessionType: r.session_type, date: r.wished_date, time: r.wished_time || '', message: r.message, status: r.status, reply: r.reply, createdAt: r.created_at })),
   });
 });
 
@@ -83,16 +83,17 @@ staffBooking.delete('/blocked/:day', async (req, res) => {
 
 // Demande du portfolio : accepter ou refuser ; le visiteur reçoit un e-mail (réponse directe au studio).
 staffBooking.patch('/requests/:id', async (req, res) => {
-  const { status, reply, proposedDate } = z.object({ status: z.enum(['accepted', 'declined']), reply: z.string().trim().max(500).optional().default(''), proposedDate: day.optional() }).parse(req.body);
+  const { status, reply, proposedDate, proposedTime } = z.object({ status: z.enum(['accepted', 'declined', 'cancelled']), reply: z.string().trim().max(500).optional().default(''), proposedDate: day.optional(), proposedTime: time.optional() }).parse(req.body);
   const [row] = await query('SELECT * FROM portfolio_requests WHERE id = ? AND staff_id = ?', [uuid.parse(req.params.id), req.user.id]);
   if (!row) throw httpError(404, 'Demande introuvable.');
-  if (row.status !== 'pending') throw httpError(400, 'Cette demande a déjà reçu une réponse.');
-  // Accepter une date déjà prise (séance confirmée ou autre demande acceptée) : refusé, avec les prochaines dates libres.
-  if (status === 'accepted' && /^\d{4}-\d{2}-\d{2}$/.test(row.wished_date)) {
-    const taken = await takenDays(req.user.id, row.wished_date, row.wished_date);
-    if (taken.has(row.wished_date)) {
-      const all = await takenDays(req.user.id, row.wished_date, addDays(row.wished_date, 120));
-      throw httpError(409, `Cette date est déjà prise. Refusez la demande en proposant une autre date (libres : ${nextFreeDays(all, addDays(row.wished_date, 1), 3).join(', ')}).`);
+  // Annuler : seulement une demande déjà acceptée ; l'heure redevient libre tout de suite.
+  if (status === 'cancelled' ? row.status !== 'accepted' : row.status !== 'pending') throw httpError(400, status === 'cancelled' ? 'Seule une demande acceptée peut être annulée.' : 'Cette demande a déjà reçu une réponse.');
+  // Accepter une heure déjà prise (séance confirmée, autre demande acceptée, jour bloqué) : refusé, avec des propositions.
+  if (status === 'accepted' && /^\d{4}-\d{2}-\d{2}$/.test(row.wished_date) && row.wished_time) {
+    const c = await slotConflict(req.user.id, row.wished_date, row.wished_time, { excludeRequestId: row.id });
+    if (c) {
+      const hint = [...c.times.map((t) => `${row.wished_date} à ${t}`), ...c.dates.map((d) => `${d.day} à ${d.time}`)].slice(0, 4).join(' · ');
+      throw httpError(409, `Cette heure est déjà prise. Refusez la demande en proposant un autre moment${hint ? ` (libres : ${hint})` : ''}.`);
     }
   }
   await query('UPDATE portfolio_requests SET status = ?, reply = ? WHERE id = ?', [status, reply || null, row.id]);
@@ -113,7 +114,7 @@ staffBooking.patch('/requests/:id', async (req, res) => {
   if (row.email) fire(sendMail({
     to: row.email, userId: req.user.id, sentBy: req.user.id, kind: 'inquiry-reply',
     fromName: studioName(req.user), replyTo: req.user.email,
-    ...inquiryReplyEmail({ name: row.name, email: row.email, password, studio: studioName(req.user), accepted: status === 'accepted', sessionType: row.session_type, date: row.wished_date, reply, proposedDate }),
+    ...inquiryReplyEmail({ name: row.name, email: row.email, password, studio: studioName(req.user), accepted: status === 'accepted', cancelled: status === 'cancelled', sessionType: row.session_type, date: row.wished_date, time: row.wished_time, reply, proposedDate, proposedTime }),
   }));
   audit(req, `inquiry.${status}`, { entity: 'portfolio_request', entityId: row.id });
   res.json({ ok: true, status, accountCreated: !!password });

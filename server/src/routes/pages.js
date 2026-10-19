@@ -3,6 +3,7 @@ import express from 'express';
 import path from 'node:path';
 import { config, frontendRoot } from '../config.js';
 import { portfolioMedia } from './portfolio.js';
+import { recordVisit } from '../lib/visits.js';
 
 // Sert le frontend. Seuls css/, js/, logo/, img/ et les pages listées sont publics :
 // le dossier server/ (code, .env, photos) n'est jamais exposé.
@@ -73,10 +74,10 @@ router.get('/favicon.ico', (req, res) => res.type('image/png').set('Cache-Contro
 // Photos ajoutées au portfolio depuis le studio (lues sur GitHub, puis gardées par le CDN).
 router.get('/portfolio-media/:file', ...portfolioMedia);
 // Portfolio public du studio : vitrine + demande de séance (sans compte).
-router.get('/studio', (req, res) => res.sendFile(page('portfolio.html')));
+router.get('/studio', (req, res) => { recordVisit(req, '/studio'); res.sendFile(page('portfolio.html')); });
 // Une page par catégorie (même vitrine, filtre présélectionné par js/portfolio.js).
 ['outdoor', 'graduation', 'evenement', 'mariage', 'studio'].forEach((slug) => {
-  router.get(`/studio/${slug}`, (req, res) => res.sendFile(page('portfolio.html')));
+  router.get(`/studio/${slug}`, (req, res) => { recordVisit(req, `/studio/${slug}`); res.sendFile(page('portfolio.html')); });
   if (slug !== 'studio') router.get(`/${slug}`, (req, res) => res.redirect(301, `/studio/${slug}`));
 });
 router.get('/gaduation', (req, res) => res.redirect(301, '/studio/graduation'));
@@ -112,6 +113,7 @@ router.get('/login', (req, res) => {
 router.get(['/', '/client', '/gallery'], (req, res) => {
   // Visiteur (et Google) sur « / » : la page de connexion directement, sans redirection,
   // pour que l'adresse principale du site soit celle qui est indexée.
+  if (!ready(req.user) && req.path === '/') recordVisit(req, '/');
   if (!ready(req.user) && req.path === '/') return res.set({ 'Cache-Control': 'no-cache', Vary: 'Cookie' }).sendFile(page('login.html'));
   if (!ready(req.user)) return res.redirect('/login');
   if (staff(req.user) && req.path === '/') return res.redirect('/admin');

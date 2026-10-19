@@ -1,5 +1,6 @@
 // Administration du studio : factures, paiements, soldes clients, rappels — et statistiques avec graphiques.
 // Les graphiques sont en SVG pur (aucune bibliothèque), avec infobulles, légende et vue « tableau » pour l'accessibilité.
+import { visitsBlock, bindVisits } from './visits.js';
 import { service, api, escape, hello } from './service.js';
 import { icon } from './icons.js';
 import { auth } from './auth.js';
@@ -464,11 +465,12 @@ function statsHtml() {
 }
 
 export function statsPage() {
-  return `${head('Statistiques', `${btn('Administration', 'data-nav="Billing"', 'star')}`)}<div id="stats-root">${bill ? statsHtml() : '<div class="empty"><h2>Chargement…</h2></div>'}</div>`;
+  return `${head('Statistiques', `${btn('Administration', 'data-nav="Billing"', 'star')}`)}${visitsBlock()}<div id="stats-root">${bill ? statsHtml() : '<div class="empty"><h2>Chargement…</h2></div>'}</div>`;
 }
 
 export async function bindStats(c) {
   ctx = c;
+  bindVisits();
   const root = document.getElementById('stats-root');
   if (!root) return;
   if (!bill) { try { await load(); } catch (e) { root.innerHTML = `<div class="empty"><h2>${escape(e.message)}</h2></div>`; return; } }

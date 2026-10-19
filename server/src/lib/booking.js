@@ -77,21 +77,43 @@ export async function monthSlots(staffId, month) {
   return { settings, days };
 }
 
-/** Jours déjà pris (séance confirmée, demande du portfolio acceptée ou jour bloqué) entre deux dates 'YYYY-MM-DD'. */
-export async function takenDays(staffId, from, to) {
+/** Heures déjà prises entre deux dates : séances confirmées, demandes du portfolio acceptées (jour entier si sans heure), jours bloqués. */
+async function busyBetween(staffId, from, to, dur, excludeRequestId) {
   const [booked, blocked, accepted] = await Promise.all([
-    query("SELECT day FROM bookings WHERE staff_id = ? AND status = 'confirmed' AND day BETWEEN ? AND ?", [staffId, from, to]),
+    query("SELECT day, start_time, duration_min FROM bookings WHERE staff_id = ? AND status = 'confirmed' AND day BETWEEN ? AND ?", [staffId, from, to]),
     query('SELECT day FROM booking_blocked_days WHERE staff_id = ? AND day BETWEEN ? AND ?', [staffId, from, to]),
-    query("SELECT wished_date FROM portfolio_requests WHERE staff_id = ? AND status = 'accepted' AND wished_date BETWEEN ? AND ?", [staffId, from, to]).catch(() => []),
+    query("SELECT id, wished_date, wished_time FROM portfolio_requests WHERE staff_id = ? AND status = 'accepted' AND wished_date BETWEEN ? AND ?", [staffId, from, to]).catch(() => []),
   ]);
-  return new Set([...booked, ...blocked].map((r) => String(r.day).slice(0, 10)).concat(accepted.map((r) => r.wished_date)));
+  const byDay = {};
+  const add = (day, a, b) => (byDay[day] ??= []).push([a, b]);
+  for (const b of booked) add(String(b.day).slice(0, 10), minutesOf(b.start_time), minutesOf(b.start_time) + Number(b.duration_min));
+  for (const r of accepted) if (r.id !== excludeRequestId) (r.wished_time ? add(r.wished_date, minutesOf(r.wished_time), minutesOf(r.wished_time) + dur) : add(r.wished_date, 0, 1440));
+  return { byDay, blocked: new Set(blocked.map((b) => String(b.day).slice(0, 10))) };
 }
 
-/** Les n prochaines dates libres à partir de `from` (comprise). */
-export function nextFreeDays(taken, from, n = 3, span = 120) {
-  const out = [];
-  for (let i = 0; i < span && out.length < n; i++) { const d = addDays(from, i); if (!taken.has(d)) out.push(d); }
-  return out;
+const isFree = (busy, day, from, dur) => !busy.blocked.has(day) && !(busy.byDay[day] || []).some(([a, b]) => from < b && from + dur > a);
+
+/**
+ * Une heure précise est-elle libre ? null si oui ; sinon des propositions : autres heures le même jour, puis prochains jours.
+ * (Se base sur la durée d'une séance et les heures d'ouverture réglées dans les disponibilités.)
+ */
+export async function slotConflict(staffId, day, time, { excludeRequestId = null } = {}) {
+  const settings = await settingsOf(staffId);
+  const dur = settings.durationMin;
+  const from = minutesOf(time);
+  const busy = await busyBetween(staffId, day, addDays(day, 60), dur, excludeRequestId);
+  if (isFree(busy, day, from, dur)) return null;
+  const open = settings.days.length ? settings.days : [0, 1, 2, 3, 4, 5, 6];
+  const first = minutesOf(settings.start), last = minutesOf(settings.end);
+  const times = [];
+  for (let t = first; t + dur <= last && times.length < 4; t += dur) if (isFree(busy, day, t, dur)) times.push(hhmm(t));
+  const dates = [];
+  for (let n = 1; n <= 60 && dates.length < 3; n++) {
+    const d = addDays(day, n);
+    if (!open.includes(weekdayOf(d))) continue;
+    for (let t = first; t + dur <= last; t += dur) if (isFree(busy, d, t, dur)) { dates.push({ day: d, time: hhmm(t) }); break; }
+  }
+  return { times, dates };
 }
 
 export const mapBooking = (b) => ({

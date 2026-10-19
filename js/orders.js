@@ -24,7 +24,7 @@ export async function bindClientOrders({ toast, modal }) {
   const draw = () => {
     const shops = data.photographers.filter((p) => p.products.length);
     const catalogue = shops.length
-      ? shops.map((s) => `<section class="settings bill-block"><h2>${escape(s.name)}</h2><div class="ord-products">${s.products.map((p) => `<article class="ord-product"><div><strong>${escape(p.name)}</strong>${p.description ? `<span>${escape(p.description)}</span>` : ''}<span class="ord-meta">${escape(range(p))}</span></div><div class="ord-buy"><b>${escape(money(p.price, p.currency))}</b><button type="button" class="btn sm primary" data-ord-new="${s.id}:${p.id}">Commander</button></div></article>`).join('')}</div></section>`).join('')
+      ? shops.map((s) => `<section class="settings bill-block"><h2>${escape(s.name)}</h2><div class="ord-cards">${s.products.map((p) => `<article class="ord-card ${p.cover ? '' : 'no-cover'}">${p.cover ? `<img src="${escape(p.cover)}" alt="" loading="lazy">` : `<span class="ord-card-ico">${icon('albums')}</span>`}<span class="ord-card-tag">${escape(money(p.price, p.currency))}</span><div class="ord-card-body"><h3>${escape(p.name)}</h3>${p.description ? `<p>${escape(p.description)}</p>` : ''}<p class="ord-card-meta">${icon('photos')} ${escape(range(p))}</p><button type="button" class="btn primary" data-ord-new="${s.id}:${p.id}">Commander</button></div></article>`).join('')}</div></section>`).join('')
       : `<div class="empty">${icon('albums')}<h2>Aucun album ni tirage proposé</h2><p class="small">Votre photographe n’a pas encore publié de catalogue. Revenez bientôt ou écrivez-lui directement.</p></div>`;
     const mine = data.orders.length
       ? `<section class="settings bill-block"><h2>Mes commandes</h2><ul class="rem-list">${data.orders.map((o) => `<li class="rem-row">${o.cover ? `<img class="ord-cover" src="${escape(o.cover.url)}" alt="">` : `<span class="rem-ico">${icon('albums')}</span>`}<div><strong>${escape(o.product)} × ${o.quantity}</strong><span>${escape(when(o.createdAt))} · ${o.photos.length} photo${o.photos.length > 1 ? 's' : ''} · ${escape(money(o.total, o.currency))} · ${escape(o.staff.name)}${o.reply ? ` · « ${escape(o.reply)} »` : ''}</span></div><div class="actions">${pill(o.status)}${o.status === 'new' ? `<button type="button" class="btn sm" data-ord-cancel="${o.id}">Annuler</button>` : ''}</div></li>`).join('')}</ul></section>`
@@ -118,7 +118,7 @@ export async function bindAdminOrders({ toast, modal, navigate, clients }) {
     </article>`;
   };
 
-  const productRow = (p) => `<li class="rem-row ${p.active ? '' : 'is-done'}"><span class="rem-ico">${icon('albums')}</span><div><strong>${escape(p.name)}</strong><span>${escape(money(p.price, p.currency))} · ${escape(range(p))}${p.active ? '' : ' · masqué'}</span></div><div class="actions"><button type="button" class="btn sm" data-orda-edit="${p.id}">Modifier</button><button type="button" class="btn sm icon-btn danger" data-orda-del="${p.id}" aria-label="Supprimer" title="Supprimer">${icon('trash')}</button></div></li>`;
+  const productRow = (p) => `<li class="rem-row ${p.active ? '' : 'is-done'}">${p.cover ? `<img class="ord-thumb" src="${escape(p.cover)}" alt="">` : `<span class="rem-ico">${icon('albums')}</span>`}<div><strong>${escape(p.name)}</strong><span>${escape(money(p.price, p.currency))} · ${escape(range(p))}${p.active ? '' : ' · masqué'}</span></div><div class="actions"><button type="button" class="btn sm" data-orda-edit="${p.id}">Modifier</button><button type="button" class="btn sm icon-btn danger" data-orda-del="${p.id}" aria-label="Supprimer" title="Supprimer">${icon('trash')}</button></div></li>`;
 
   const draw = () => {
     const open = d.orders.filter((o) => !['delivered', 'cancelled'].includes(o.status));
@@ -232,10 +232,13 @@ export async function bindAdminOrders({ toast, modal, navigate, clients }) {
       <label>Description <span class="optional">(facultatif)</span><input name="description" maxlength="400" value="${escape(p?.description || '')}" placeholder="Ex. Couverture rigide, papier mat"></label>
       <div class="row2"><label>Prix<input name="price" type="number" min="0" step="0.01" required value="${p?.price ?? ''}"></label><label>Devise<select name="currency">${d.currencies.map((c) => `<option ${((p?.currency) || 'USD') === c ? 'selected' : ''}>${c}</option>`).join('')}</select></label></div>
       <div class="row2"><label>Photos minimum<input name="minPhotos" type="number" min="1" max="500" required value="${p?.minPhotos ?? 1}"></label><label>Photos maximum<input name="maxPhotos" type="number" min="1" max="500" required value="${p?.maxPhotos ?? 30}"></label></div>
+      <label>Photo de couverture <span class="optional">(facultatif)</span><input type="file" name="cover" accept="image/*"></label>
+      <p class="small">${p?.cover ? 'Une couverture est déjà en place : choisissez une nouvelle image pour la remplacer. ' : ''}Cette image s’affiche en grand dans le catalogue de vos clients, avec le nom, la description et le prix. Choisissez une belle photo en format portrait ou carré.</p>
       <label class="share-toggle"><span><strong>Visible pour les clients</strong></span><input class="switch" type="checkbox" name="active" ${p?.active === false ? '' : 'checked'}></label>`,
     async (v) => {
       const body = { name: v.name, description: v.description || '', price: v.price, currency: v.currency, minPhotos: Number(v.minPhotos), maxPhotos: Number(v.maxPhotos), active: v.active === 'on' };
-      await api(p ? `/api/admin/orders/products/${p.id}` : '/api/admin/orders/products', { method: p ? 'PUT' : 'POST', body });
+      const saved = await api(p ? `/api/admin/orders/products/${p.id}` : '/api/admin/orders/products', { method: p ? 'PUT' : 'POST', body });
+      if (v.cover && v.cover.size) { const form = new FormData(); form.append('cover', v.cover); await api(`/api/admin/orders/products/${saved.product.id}/cover`, { method: 'POST', form }); }
       toast('Produit enregistré.'); await reload();
     }, { submit: 'Enregistrer' });
   }
