@@ -210,7 +210,7 @@ async function mailInvoice(req, res, kind, template) {
   const tpl = template({
     name: invoice.client.name, studio: req.user.sender_name || req.user.name, invoice, url: invoiceUrl(row.public_token),
   });
-  pushLater(row.client_id, { title: kind === 'invoice' ? 'Nouvelle facture' : 'Rappel de paiement', body: `${invoice.number} · reste ${invoice.balance} ${invoice.currency}`, url: invoiceUrl(row.public_token).replace(config.appUrl, ''), tag: `invoice-${row.id}` });
+  pushLater(row.client_id, { title: kind === 'invoice' ? 'Nouvelle facture' : 'Rappel de paiement', body: `${invoice.number} · reste ${invoice.balance} ${invoice.currency}`, url: invoiceUrl(row.public_token).replace(/^https?:\/\/[^/]+/, ''), tag: `invoice-${row.id}` });
   const email = await sendMail({ to: invoice.client.email, userId: row.client_id, sentBy: req.user.id, kind, ...sender(req.user), ...tpl });
   if (email.status === 'sent') {
     await query(`UPDATE invoices SET ${kind === 'invoice' ? 'sent_at' : 'reminded_at'} = CURRENT_TIMESTAMP WHERE id = ?`, [row.id]);
