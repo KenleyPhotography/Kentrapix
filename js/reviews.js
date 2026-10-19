@@ -9,7 +9,7 @@ export const stars = (n) => `<span class="stars" role="img" aria-label="${n} sur
 // ====================================================================================================
 //  Espace client
 // ====================================================================================================
-export const clientReviewsPage = () => '<div class="greeting"><h1>Mon avis</h1><p>Votre avis aide votre photographe à progresser.</p></div><div id="rvC-root"><div class="empty small"><p>Chargement…</p></div></div>';
+export const clientReviewsPage = () => '<div class="greeting"><h1>Mon avis</h1></div><div id="rvC-root"><div class="empty small"><p>Chargement…</p></div></div>';
 
 export async function bindClientReviews({ toast }) {
   const root = document.getElementById('rvC-root');
@@ -47,7 +47,7 @@ export async function bindClientReviews({ toast }) {
 // ====================================================================================================
 //  Studio
 // ====================================================================================================
-export const adminReviewsPage = () => '<div class="greeting"><h1>Avis</h1><p>Choisissez les avis (4 étoiles et plus, avec commentaire) à afficher sur la page de connexion.</p></div><div id="rvA-root"><div class="empty small"><p>Chargement…</p></div></div>';
+export const adminReviewsPage = () => '<div class="greeting"><h1>Avis</h1></div><div id="rvA-root"><div class="empty small"><p>Chargement…</p></div></div>';
 
 export async function bindAdminReviews({ toast }) {
   const root = document.getElementById('rvA-root');

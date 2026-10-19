@@ -12,7 +12,6 @@ function html(info) {
     <button type="button" class="btn sm" data-bk-restore="${escape(b.key)}">Restaurer</button>
     <button type="button" class="btn sm icon-btn danger" data-bk-del="${escape(b.key)}" title="Supprimer" aria-label="Supprimer">${icon('trash')}</button></div></li>`).join('');
   return `<h2>Sauvegardes</h2>
-    <p class="small">Une sauvegarde de toute la base (clients, galeries, factures, sélections) est faite automatiquement chaque jour. Les ${info.keep} dernières sont gardées.</p>
     <div class="row"><button class="btn primary" id="bk-now">Sauvegarder maintenant</button>${info.mirror.enabled ? `<button class="btn" id="bk-mirror">${icon('copy')} Copier les photos</button>` : ''}</div>
     <p class="small" id="bk-msg" role="status">${info.mirror.enabled ? 'Copie des photos vers un 2e emplacement : activée.' : 'Copie des photos vers un 2e emplacement : désactivée.'}</p>
     ${rows ? `<ul class="rem-list bk-list">${rows}</ul>` : '<div class="empty small"><p>Aucune sauvegarde pour le moment.</p></div>'}`;

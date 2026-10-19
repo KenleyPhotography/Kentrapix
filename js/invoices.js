@@ -8,7 +8,7 @@ const money = (n, c) => { try { return new Intl.NumberFormat('fr-FR', { style: '
 const fday = (iso) => (iso ? new Date(`${iso}T12:00:00Z`).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }) : '—');
 const digits = (s) => String(s || '').replace(/[^0-9]/g, '');
 
-export const clientInvoicesPage = () => '<div class="greeting"><h1>Mes factures</h1><p>Consultez vos factures et réglez-les par MonCash ou NatCash.</p></div><div id="invC-root"><div class="empty small"><p>Chargement…</p></div></div>';
+export const clientInvoicesPage = () => '<div class="greeting"><h1>Mes factures</h1></div><div id="invC-root"><div class="empty small"><p>Chargement…</p></div></div>';
 
 export async function bindClientInvoices({ toast, modal }) {
   const root = document.getElementById('invC-root');

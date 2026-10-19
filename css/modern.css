@@ -2748,3 +2748,12 @@ div.ord-photo { cursor: pointer; }
 .gallery-rate .star { width: 44px; height: 44px; font-size: 1.9rem; line-height: 1; }
 .gallery-rate .text-link { flex-basis: 100%; justify-self: start; text-align: left; }
 @media (max-width: 480px) { .gallery-rate { flex-direction: column; align-items: flex-start; } .gallery-rate .star { width: 48px; height: 48px; } }
+
+/* Profil : titres simples avec une icône ; plus de sous-titres. */
+.profile-panel h2 { display: flex; align-items: center; gap: 10px; }
+.profile-panel h2 > svg { flex: none; width: 22px; height: 22px; padding: 4px; box-sizing: content-box; border-radius: 10px; background: var(--blue-soft, #e8f1ff); color: var(--blue, #1265d8); }
+.profile-action > svg { flex: none; }
+.profile-action > span { display: block; }
+
+/* Titres de page : pas de sous-titre (moins de texte). */
+.greeting > p, .greeting-sub { display: none; }

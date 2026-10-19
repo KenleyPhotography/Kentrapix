@@ -145,7 +145,7 @@ const fillTemplate = (text, vars) => text.replace(/\{\{(\w+)\}\}/g, (all, k) => 
 const unfillTemplate = (text, vars) => Object.entries(vars).filter(([, v]) => v && v.length > 1).sort((x, y) => y[1].length - x[1].length)
   .reduce((t, [k, v]) => t.split(v).join(`{{${k}}}`), text);
 
-export const adminContractsPage = () => '<div class="greeting"><h1>Contrats</h1><p>Contrats à signer en ligne : plus de séance sans papier signé.</p></div><div id="ctr-root"><div class="empty small"><p>Chargement…</p></div></div>';
+export const adminContractsPage = () => '<div class="greeting"><h1>Contrats</h1></div><div id="ctr-root"><div class="empty small"><p>Chargement…</p></div></div>';
 
 export async function bindAdminContracts({ toast, modal, clients }) {
   const root = document.getElementById('ctr-root');
@@ -178,7 +178,7 @@ export async function bindAdminContracts({ toast, modal, clients }) {
     const off = d.contracts.filter((c) => c.status === 'cancelled');
     root.innerHTML = `<div class="actions" style="margin:0 0 18px"><button type="button" class="btn primary" id="ctr-new">${icon('plus')} Nouveau contrat</button><button type="button" class="btn" id="ctr-sign">${icon('edit')} Ma signature ${d.mySignature ? '✓' : ''}</button></div>
       ${d.mySignature ? '' : '<p class="small" style="margin:-6px 0 14px">Enregistrez <strong>votre signature</strong> (bouton ci-dessus) : elle sera apposée automatiquement sur chaque contrat. Sinon, vous signez sur la page du contrat.</p>'}
-      ${d.unsigned.length ? `<section class="settings bill-block"><h2>${icon('bell')} Séances sans contrat signé</h2><p class="small">Ne commencez pas ces séances avant d’avoir le contrat signé.</p><ul class="rem-list">${d.unsigned.map((u) => `<li class="rem-row is-late"><span class="rem-ico">${icon('bell')}</span><div><strong>${escape(u.clientName)}</strong><span>${escape(fday(u.day))} à ${escape(u.start)}${u.sessionType ? ` · ${escape(u.sessionType)}` : ''}${u.hasPending ? ' · contrat envoyé, pas encore signé' : ''}</span></div><div class="actions"><button type="button" class="btn sm primary" data-ctr-for="${u.bookingId}">Créer le contrat</button></div></li>`).join('')}</ul></section>` : ''}
+      ${d.unsigned.length ? `<section class="settings bill-block"><h2>${icon('bell')} Séances sans contrat signé</h2><ul class="rem-list">${d.unsigned.map((u) => `<li class="rem-row is-late"><span class="rem-ico">${icon('bell')}</span><div><strong>${escape(u.clientName)}</strong><span>${escape(fday(u.day))} à ${escape(u.start)}${u.sessionType ? ` · ${escape(u.sessionType)}` : ''}${u.hasPending ? ' · contrat envoyé, pas encore signé' : ''}</span></div><div class="actions"><button type="button" class="btn sm primary" data-ctr-for="${u.bookingId}">Créer le contrat</button></div></li>`).join('')}</ul></section>` : ''}
       <section class="settings bill-block"><h2>À signer</h2>${open.length ? `<div class="inv-grid">${open.map(card).join('')}</div>` : '<div class="empty small"><p>Aucun contrat en attente.</p></div>'}</section>
       <section class="settings bill-block"><h2>Signés</h2>${signed.length ? `<div class="inv-grid">${signed.map(card).join('')}</div>` : '<div class="empty small"><p>Aucun contrat signé pour le moment.</p></div>'}</section>
       ${off.length ? `<details class="acc"><summary><span>Contrats annulés</span><small>${off.length}</small></summary><div class="acc-body inv-grid">${off.map(card).join('')}</div></details>` : ''}`;
@@ -335,7 +335,7 @@ export async function bindAdminContracts({ toast, modal, clients }) {
 // ====================================================================================================
 //  Espace client : ses contrats (à signer, puis signés)
 // ====================================================================================================
-export const clientContractsPage = () => '<div class="greeting"><h1>Mes contrats</h1><p>Lisez et signez vos contrats en ligne.</p></div><div id="ctrC-root"><div class="empty small"><p>Chargement…</p></div></div>';
+export const clientContractsPage = () => '<div class="greeting"><h1>Mes contrats</h1></div><div id="ctrC-root"><div class="empty small"><p>Chargement…</p></div></div>';
 
 export async function bindClientContracts() {
   const root = document.getElementById('ctrC-root');

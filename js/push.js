@@ -1,7 +1,8 @@
 // Notifications sur ce téléphone (Web Push) : activer / désactiver / tester, dans la page « Profil ».
 import { api, escape } from './service.js';
+import { icon } from './icons.js';
 
-export const pushSection = () => '<section class="settings profile-panel" id="push-box"><header><h2>Notifications sur ce téléphone</h2></header><div id="push-body"><p class="small">Chargement…</p></div></section>';
+export const pushSection = () => `<section class="settings profile-panel" id="push-box"><header><h2>${icon('bell')} Notifications</h2></header><div id="push-body"><p class="small">Chargement…</p></div></section>`;
 
 const keyBytes = (b64) => {
   const pad = '='.repeat((4 - (b64.length % 4)) % 4);
@@ -62,7 +63,7 @@ export async function bindPush({ toast }) {
     let devices = '?';
     try { devices = (await api('/api/push')).devices; } catch { /* hors connexion */ }
     say(ok
-      ? `<p class="small">${devices > 0 ? 'Activées : vous serez prévenu sur ce téléphone (photos prêtes, rendez-vous, commandes, rappels).' : 'Autorisées, mais cet appareil n’est pas encore enregistré. Fermez puis rouvrez l’application.'}</p><p class="small">Appareils enregistrés : <b>${devices}</b>${nativeError ? ` · Erreur : ${escape(nativeError)}` : ''}</p><div class="row"><button class="btn sm" id="push-test">Envoyer un essai</button></div>`
+      ? `<p class="small">${devices > 0 ? 'Activées sur cet appareil.' : 'Autorisées, mais cet appareil n’est pas encore enregistré. Fermez puis rouvrez l’application.'}</p><p class="small">Appareils enregistrés : <b>${devices}</b>${nativeError ? ` · Erreur : ${escape(nativeError)}` : ''}</p><div class="row"><button class="btn sm" id="push-test">Envoyer un essai</button></div>`
       : `<p class="small">Les notifications sont bloquées ou indisponibles : autorisez-les dans Réglages Android → Applications → KentraPix → Notifications.${nativeError ? ` (${escape(nativeError)})` : ''}</p>`);
     body.querySelector('#push-test')?.addEventListener('click', async () => {
       try { await api('/api/push/test', { method: 'POST', body: { delay: 8 } }); toast('Essai dans 8 secondes : appuyez sur le bouton Accueil pour fermer l’application et voir la notification.'); } catch (err) { toast(err.message); }
@@ -84,7 +85,7 @@ export async function bindPush({ toast }) {
     const reg = await navigator.serviceWorker.ready;
     const sub = await reg.pushManager.getSubscription();
     const denied = Notification.permission === 'denied';
-    say(`<p class="small">${sub ? 'Activées : vous serez prévenu sur ce téléphone (photos prêtes, rendez-vous, commandes, rappels).' : 'Recevez une alerte sur ce téléphone, sans ouvrir vos e-mails.'}</p>
+    say(`<p class="small">${sub ? 'Activées sur cet appareil.' : 'Désactivées sur cet appareil.'}</p>
       ${denied ? '<p class="small">Les notifications sont bloquées pour ce site : autorisez-les dans les réglages du navigateur, puis revenez ici.</p>' : ''}
       <div class="row">${sub
         ? '<button class="btn sm" id="push-test">Envoyer un essai</button><button class="btn sm" id="push-off">Désactiver</button>'
