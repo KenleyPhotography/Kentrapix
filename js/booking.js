@@ -173,7 +173,7 @@ export async function bindAdminBooking({ toast, modal, clients }) {
       <p class="small bk-legend"><span class="bk-dot has"></span> rendez-vous <span class="bk-dot blk"></span> jour bloqué</p>
       ${sel ? `<div class="bk-slots"><strong style="text-transform:capitalize">${escape(fday(sel))}</strong>
         ${dayReqs.length ? `<ul class="rem-list">${dayReqs.map((r) => `<li class="rem-row ${r.status === 'pending' ? 'is-late' : ''}"><span class="rem-ico">${icon('calendar')}</span><div><strong>${escape(r.name)} · demande du portfolio</strong><span>${escape(r.sessionType || 'Séance')}${r.time ? ` · ${escape(r.time)}` : ''}${r.phone ? ` · ${escape(r.phone)}` : ''}</span></div><div class="actions"><span class="pill">${r.status === 'pending' ? 'À traiter' : 'Acceptée'}</span>${waBtn(r.phone, `${hello()} ${firstName(r.name)}, à propos de votre demande de séance du ${fday(sel)}.`)}</div></li>`).join('')}</ul>` : ''}
-        ${dayList.length ? `<ul class="rem-list">${dayList.map((b) => `<li class="rem-row"><span class="rem-ico">${icon('clock')}</span><div><strong>${escape(b.start)} – ${escape(b.end)} · ${escape(b.client.name)}</strong><span>${escape(b.sessionType || '')}${b.client.whatsapp ? ` · ${escape(b.client.whatsapp)}` : ''}${b.client.guest ? ' · sans compte' : ''}</span>${b.status === 'confirmed' ? `<span>${b.delivered ? 'Photos remises' : b.deliveryDate ? `Remise des photos : ${escape(fday(b.deliveryDate))}` : 'Remise des photos : date à fixer'}</span>` : ''}</div><div class="actions">${pill(b.status)}${b.status === 'confirmed' ? `<button type="button" class="btn sm" data-bka-deliv="${b.id}">Remise</button>` : ''}${waBtn(b.client.whatsapp, `${hello()} ${firstName(b.client.name)}, rappel de votre rendez-vous le ${fday(b.day)} à ${b.start}. À bientôt !`, 'Rappeler par WhatsApp')}<button type="button" class="btn sm" data-bka-cancel="${b.id}">Annuler</button></div></li>`).join('')}</ul>` : (dayReqs.length ? '' : '<p class="small">Aucun rendez-vous ce jour-là.</p>')}
+        ${dayList.length ? `<ul class="rem-list">${dayList.map((b) => `<li class="rem-row"><span class="rem-ico">${icon('clock')}</span><div><strong>${escape(b.start)} – ${escape(b.end)} · ${escape(b.client.name)}</strong><span>${escape(b.sessionType || '')}${b.client.whatsapp ? ` · ${escape(b.client.whatsapp)}` : ''}${b.client.guest ? ' · sans compte' : ''}${b.location ? ` · Lieu : ${escape(b.location)}` : ''}</span>${b.status === 'confirmed' ? `<span>${b.delivered ? 'Photos remises' : b.deliveryDate ? `Remise des photos : ${escape(fday(b.deliveryDate))}` : 'Remise des photos : date à fixer'}</span>` : ''}</div><div class="actions">${pill(b.status)}${b.status === 'confirmed' ? `<button type="button" class="btn sm" data-bka-deliv="${b.id}">Remise</button>` : ''}${waBtn(b.client.whatsapp, `${hello()} ${firstName(b.client.name)}, rappel de votre rendez-vous le ${fday(b.day)} à ${b.start}. À bientôt !`, 'Rappeler par WhatsApp')}<button type="button" class="btn sm" data-bka-cancel="${b.id}">Annuler</button></div></li>`).join('')}</ul>` : (dayReqs.length ? '' : '<p class="small">Aucun rendez-vous ce jour-là.</p>')}
         <div class="row"><button type="button" class="btn sm" data-bka-toggle="${sel}">${d.blocked.includes(sel) ? 'Débloquer ce jour' : 'Bloquer ce jour'}</button><button type="button" class="btn sm" data-bka-add="${sel}">${icon('plus')} Ajouter un rendez-vous</button></div></div>` : '<p class="small">Touchez un jour pour le bloquer ou voir ses rendez-vous.</p>'}
       </section>`;
   };
@@ -268,11 +268,14 @@ export async function bindAdminBooking({ toast, modal, clients }) {
         <div id="bka-guest" hidden><label>Nom<input name="gname" id="bka-gname" maxlength="80" placeholder="Ex. Marie Joseph"></label>
         <div class="row2"><label>Téléphone / WhatsApp<input name="gphone" type="tel" maxlength="40"></label><label>E-mail <span class="optional">(facultatif)</span><input name="gemail" type="email" maxlength="190"></label></div></div>
         <label>Heure<input type="time" name="start" value="${d.settings.start}" required></label>
-        <label>Type de séance <span class="optional">(facultatif)</span><input name="sessionType" maxlength="80"></label>
+        <label>Type de séance <span class="optional">(facultatif)</span><input name="sessionType" id="bka-type" maxlength="80" placeholder="Ex. Portrait, Mariage…"></label>
+        <label>Lieu (local) du rendez-vous <span id="bka-place-req" class="pf-req" style="color:#c0392b">*</span><input name="location" id="bka-place" maxlength="120" placeholder="Ex. Au studio, Pétion-Ville, Église Saint-Pierre…" list="bka-places"><datalist id="bka-places"><option value="Au studio"></datalist></label>
         <label>Date de remise des photos <span class="optional">(facultatif)</span><input type="date" name="delivery" min="${day}"></label>
-        <p class="small">Si vous indiquez une date de remise, vous recevez un rappel ce jour-là.</p>`,
+        <p class="small">Rappels pour vous : 2 jours avant, la veille, le matin même et 1 heure avant. Si vous indiquez une date de remise des photos, vous recevez aussi un rappel ce jour-là.</p>`,
         async (v) => {
-          const body = { day, start: v.start, sessionType: v.sessionType || '', ...(v.delivery ? { deliveryDate: v.delivery } : {}) };
+          const STUDIO = /portrait|studio|anniv|birthday/i;
+          if (!(v.location || '').trim() && !STUDIO.test(v.sessionType || '')) throw Error('Indiquez le lieu du rendez-vous (ex. « Au studio »).');
+          const body = { day, start: v.start, sessionType: v.sessionType || '', location: (v.location || '').trim(), ...(v.delivery ? { deliveryDate: v.delivery } : {}) };
           if (v.clientId) body.clientId = v.clientId;
           else {
             if (!v.gname || v.gname.trim().length < 2) throw Error('Entrez le nom de la personne.');
@@ -284,6 +287,9 @@ export async function bindAdminBooking({ toast, modal, clients }) {
       const who = host.querySelector('#bka-who');
       const sync = () => { const guest = !who.value; host.querySelector('#bka-guest').hidden = !guest; if (guest) host.querySelector('#bka-gname').focus(); };
       who.addEventListener('change', sync); sync();
+      const typeEl = host.querySelector('#bka-type');
+      const syncPlace = () => { host.querySelector('#bka-place-req').hidden = /portrait|studio|anniv|birthday/i.test(typeEl.value); };
+      typeEl.addEventListener('input', syncPlace); syncPlace();
     });
     root.querySelectorAll('.bk-days .chip').forEach((c) => c.addEventListener('click', (e) => { e.preventDefault(); const i = c.querySelector('input'); i.checked = !i.checked; c.classList.toggle('active', i.checked); }));
     root.querySelector('#bka-form')?.addEventListener('submit', guard(async (e) => {

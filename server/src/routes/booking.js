@@ -195,6 +195,7 @@ staffBooking.post('/bookings', async (req, res) => {
     clientId: uuid.optional(), day, start: time, durationMin: z.number().int().min(15).max(720).optional(),
     sessionType: z.string().trim().max(80).optional().default(''), note: z.string().trim().max(500).optional().default(''),
     deliveryDate: day.optional(),
+    location: z.string().trim().max(120).optional().default(''), // lieu du rendez-vous : obligatoire sauf portrait / studio
     // Personne sans compte : nom et téléphone suffisent (l'e-mail est facultatif).
     guest: z.object({
       name: z.string().trim().min(2, 'Entrez le nom de la personne.').max(80),
@@ -204,6 +205,7 @@ staffBooking.post('/bookings', async (req, res) => {
   }).parse(req.body);
   if (!data.clientId && !data.guest) throw httpError(400, 'Choisissez un client ou entrez le nom de la personne.');
   if (data.deliveryDate && data.deliveryDate < data.day) throw httpError(400, 'La remise des photos doit être après la séance.');
+  if (!data.location && !/portrait|studio|anniv|birthday/i.test(data.sessionType)) throw httpError(400, 'Indiquez le lieu du rendez-vous (ex. « Au studio »).');
   let client = null;
   if (data.clientId) {
     const [as, ap] = accountScope(req);
@@ -214,8 +216,8 @@ staffBooking.post('/bookings', async (req, res) => {
   const id = crypto.randomUUID();
   try {
     await query(
-      `INSERT INTO bookings (id, staff_id, client_id, guest_name, guest_phone, guest_email, day, start_time, duration_min, session_type, note, delivery_date, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'confirmed')`,
-      [id, req.user.id, client?.id || null, client ? null : data.guest.name, client ? null : data.guest.phone || null, client ? null : data.guest.email || null, data.day, data.start, data.durationMin || settings.durationMin, data.sessionType, data.note || null, data.deliveryDate || null],
+      `INSERT INTO bookings (id, staff_id, client_id, guest_name, guest_phone, guest_email, day, start_time, duration_min, session_type, note, delivery_date, location, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'confirmed')`,
+      [id, req.user.id, client?.id || null, client ? null : data.guest.name, client ? null : data.guest.phone || null, client ? null : data.guest.email || null, data.day, data.start, data.durationMin || settings.durationMin, data.sessionType, data.note || null, data.deliveryDate || null, data.location || null],
     );
   } catch (err) {
     if (err.code === '23505') throw httpError(409, 'Ce créneau est déjà pris.');

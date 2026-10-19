@@ -129,6 +129,7 @@ export const mapBooking = (b) => ({
   originalDay: b.orig_day ? String(b.orig_day).slice(0, 10) : null,
   originalStart: b.orig_start || null,
   staff: b.staff_name ? { id: b.staff_id, name: b.staff_name } : undefined,
+  location: b.location || '',
   deliveryDate: b.delivery_date ? String(b.delivery_date).slice(0, 10) : null,
   delivered: !!b.delivered_at,
   client: b.client_name ? { id: b.client_id || null, guest: !b.client_id, name: b.client_name, email: b.client_email || '', phone: b.client_phone || '', whatsapp: b.client_whatsapp || b.client_phone || '' } : undefined,
