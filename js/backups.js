@@ -14,7 +14,7 @@ function html(info) {
   return `<h2>Sauvegardes</h2>
     <p class="small">Une sauvegarde de toute la base (clients, galeries, factures, sélections) est faite automatiquement chaque jour. Les ${info.keep} dernières sont gardées.</p>
     <div class="row"><button class="btn primary" id="bk-now">Sauvegarder maintenant</button>${info.mirror.enabled ? `<button class="btn" id="bk-mirror">${icon('copy')} Copier les photos</button>` : ''}</div>
-    <p class="small" id="bk-msg" role="status">${info.mirror.enabled ? 'Copie des photos vers un 2e emplacement : activée.' : 'Copie des photos vers un 2e emplacement : non configurée (ajoutez BACKUP_S3_BUCKET sur Render).'}</p>
+    <p class="small" id="bk-msg" role="status">${info.mirror.enabled ? 'Copie des photos vers un 2e emplacement : activée.' : 'Copie des photos vers un 2e emplacement : désactivée.'}</p>
     ${rows ? `<ul class="rem-list bk-list">${rows}</ul>` : '<div class="empty small"><p>Aucune sauvegarde pour le moment.</p></div>'}`;
 }
 

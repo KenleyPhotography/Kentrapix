@@ -18,8 +18,9 @@ const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date invalide.');
 const time = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Heure invalide.');
 const month = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, 'Mois invalide.');
 const studioName = (u) => u.sender_name || u.name;
-// Mot de passe initial d'un compte créé à l'acceptation d'une demande du portfolio ; la personne doit le changer à sa première connexion.
-const INITIAL_PASSWORD = '12345678';
+// Mot de passe temporaire d'un compte créé à l'acceptation d'une demande du portfolio : aléatoire, envoyé seulement à l'e-mail de la personne,
+// à changer à la première connexion (un mot de passe fixe permettrait de prendre le compte de quelqu'un en saisissant son e-mail).
+const tempPassword = () => crypto.randomBytes(9).toString('base64url');
 const fire = (promise) => promise.catch((err) => console.error('E-mail rendez-vous :', err.message));
 
 // ====================================================================================================
@@ -101,7 +102,7 @@ staffBooking.patch('/requests/:id', async (req, res) => {
     const [known] = await query('SELECT id FROM users WHERE lower(email) = ?', [row.email.toLowerCase()]);
     if (!known) {
       const id = crypto.randomUUID();
-      password = INITIAL_PASSWORD;
+      password = tempPassword();
       await query(
         `INSERT INTO users (id, role, created_by, name, email, phone, password_hash, must_change_password) VALUES (?, 'client', ?, ?, ?, ?, ?, 1)`,
         [id, req.user.id, row.name, row.email.toLowerCase(), row.phone || null, await bcrypt.hash(password, 10)],

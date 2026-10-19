@@ -71,7 +71,7 @@ router.get('/favicon.ico', (req, res) => res.type('image/png').set('Cache-Contro
 
 // Conditions d'utilisation : page publique (liée depuis la connexion et la barre latérale).
 // Photos ajoutées au portfolio depuis le studio (lues sur GitHub, puis gardées par le CDN).
-router.get('/portfolio-media/:file', portfolioMedia);
+router.get('/portfolio-media/:file', ...portfolioMedia);
 // Portfolio public du studio : vitrine + demande de séance (sans compte).
 router.get('/studio', (req, res) => res.sendFile(page('portfolio.html')));
 // Une page par catégorie (même vitrine, filtre présélectionné par js/portfolio.js).

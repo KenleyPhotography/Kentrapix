@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import rateLimit from 'express-rate-limit';
 import crypto from 'node:crypto';
 import multer from 'multer';
 import sharp from 'sharp';
@@ -14,7 +15,7 @@ export const CATEGORIES = ['Studio', 'Outdoor', 'Événement', 'Graduation', 'Ma
 const MAX_FILES = 12;
 
 // Photos en mémoire le temps de les réduire ; rien n'est écrit sur le disque du serveur.
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024, files: MAX_FILES } });
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024, files: MAX_FILES, fields: 5 } });
 const mapPhoto = (r) => ({ id: r.id, category: r.category, src: `/portfolio-media/${r.file}`, createdAt: r.created_at });
 
 // ---------- Studio (propriétaire) ----------
@@ -27,7 +28,7 @@ staffPortfolio.get('/', async (req, res) => {
 });
 
 staffPortfolio.post('/', upload.array('photos', MAX_FILES), async (req, res) => {
-  if (!githubReady()) throw httpError(503, 'GitHub n’est pas configuré (variable GITHUB_TOKEN manquante sur le serveur).');
+  if (!githubReady()) throw httpError(503, 'L’ajout de photos n’est pas disponible pour le moment.');
   const { category } = z.object({ category: z.enum(CATEGORIES) }).parse(req.body);
   const files = req.files || [];
   if (!files.length) throw httpError(400, 'Choisissez au moins une photo.');
@@ -38,7 +39,7 @@ staffPortfolio.post('/', upload.array('photos', MAX_FILES), async (req, res) => 
     const buf = await sharp(f.buffer).rotate().resize({ width: 1600, height: 1600, fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 80, mozjpeg: true }).toBuffer();
     const id = crypto.randomUUID();
     const file = `${id}.jpg`;
-    const sha = await putFile(file, buf, `Portfolio : ${category}`);
+    const sha = await putFile(file, buf, `Portfolio : ${category}`).catch((err) => { console.error('Portfolio :', err.message); throw httpError(502, 'Envoi impossible pour le moment. Réessayez dans un instant.'); });
     await query('INSERT INTO portfolio_photos (id, staff_id, category, file, sha) VALUES (?, ?, ?, ?, ?)', [id, req.user.id, category, file, sha]);
     added.push({ id, category, src: `/portfolio-media/${file}` });
   }
@@ -49,7 +50,7 @@ staffPortfolio.post('/', upload.array('photos', MAX_FILES), async (req, res) => 
 staffPortfolio.delete('/:id', async (req, res) => {
   const [row] = await query('SELECT * FROM portfolio_photos WHERE id = ? AND staff_id = ?', [uuid.parse(req.params.id), req.user.id]);
   if (!row) throw httpError(404, 'Photo introuvable.');
-  if (githubReady()) await deleteFile(row.file, row.sha);
+  if (githubReady()) await deleteFile(row.file, row.sha).catch((err) => { console.error('Portfolio :', err.message); throw httpError(502, 'Suppression impossible pour le moment. Réessayez dans un instant.'); });
   await query('DELETE FROM portfolio_photos WHERE id = ?', [row.id]);
   audit(req, 'portfolio.delete', { entity: 'portfolio', entityId: row.id });
   res.status(204).end();
@@ -65,10 +66,21 @@ publicPortfolio.get('/portfolio', async (req, res) => {
 });
 
 // Fichier d'une photo : lu sur GitHub une fois, puis gardé par Cloudflare et le navigateur (nom unique = jamais modifié).
-export const portfolioMedia = async (req, res) => {
+const mediaLimiter = rateLimit({ windowMs: 60 * 1000, limit: 240, standardHeaders: 'draft-7', legacyHeaders: false });
+const cache = new Map(); // petites photos gardées en mémoire (évite de rappeler GitHub)
+const CACHE_MAX = 40;
+export const portfolioMedia = [mediaLimiter, async (req, res) => {
   const file = req.params.file;
   if (!/^[0-9a-f-]{36}\.jpg$/.test(file) || !githubReady()) return res.status(404).end();
-  const buf = await readFile(file);
-  if (!buf) return res.status(404).end();
-  res.set({ 'Content-Type': 'image/jpeg', 'Cache-Control': 'public, max-age=31536000, immutable' }).send(buf);
-};
+  // Seulement les photos enregistrées : un visiteur ne peut pas faire appeler GitHub avec des noms inventés.
+  const [known] = await query('SELECT 1 AS ok FROM portfolio_photos WHERE file = ?', [file]);
+  if (!known) return res.status(404).end();
+  let buf = cache.get(file);
+  if (!buf) {
+    buf = await readFile(file);
+    if (!buf) return res.status(404).end();
+    cache.set(file, buf);
+    if (cache.size > CACHE_MAX) cache.delete(cache.keys().next().value);
+  }
+  res.set({ 'Content-Type': 'image/jpeg', 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'public, max-age=31536000, immutable' }).send(buf);
+}];

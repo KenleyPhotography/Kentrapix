@@ -37,7 +37,7 @@ export async function sendMail({ to, subject, html, text, kind, userId = null, e
   let error = null;
 
   if (!mailConfigured()) {
-    error = 'E-mails désactivés : RESEND_API_KEY ou MAIL_FROM manquant dans server/.env.';
+    error = 'E-mails désactivés pour le moment.'; // détail technique : RESEND_API_KEY ou MAIL_FROM manquant
   } else {
     try {
       const reply = replyTo || config.mail.replyTo;
