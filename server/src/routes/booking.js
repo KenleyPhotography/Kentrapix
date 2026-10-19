@@ -45,7 +45,7 @@ staffBooking.get('/', async (req, res) => {
   const [settings, blocked, rows, requests] = await Promise.all([
     settingsOf(req.user.id),
     query('SELECT day FROM booking_blocked_days WHERE staff_id = ? AND day >= ? ORDER BY day', [req.user.id, today]),
-    query(`${BOOKING_SELECT} WHERE b.staff_id = ? AND b.day >= ? ORDER BY b.day, b.start_time`, [req.user.id, addDays(today, -30)]),
+    query(`${BOOKING_SELECT} WHERE b.staff_id = ? AND (b.day >= ? OR (b.status = 'confirmed' AND b.delivery_date IS NOT NULL AND b.delivered_at IS NULL)) ORDER BY b.day, b.start_time`, [req.user.id, addDays(today, -30)]),
     // Demandes du portfolio public (visiteurs sans compte) ; vide si la migration n'est pas encore appliquée.
     query(`SELECT id, name, email, phone, session_type, wished_date, wished_time, message, status, reply, created_at FROM portfolio_requests
            WHERE staff_id = ? AND (status = 'pending' OR created_at > CURRENT_TIMESTAMP - INTERVAL '30 days') ORDER BY created_at DESC LIMIT 50`, [req.user.id]).catch(() => []),
@@ -164,7 +164,7 @@ staffBooking.patch('/bookings/:id', async (req, res) => {
     await query('UPDATE bookings SET status = ?, reply = ? WHERE id = ?', [status, reply || null, row.id]);
   }
   const booking = mapBooking({ ...row, ...moved, status, reply });
-  pushLater(row.client_id, { title: { confirmed: 'Rendez-vous confirmé', declined: 'Rendez-vous non disponible', cancelled: 'Rendez-vous annulé', proposed: 'Autre date proposée' }[status], body: `${studioName(req.user)} · ${booking.day} à ${booking.start}`, url: '/client', tag: `booking-${row.id}` });
+  if (row.client_id) pushLater(row.client_id, { title: { confirmed: 'Rendez-vous confirmé', declined: 'Rendez-vous non disponible', cancelled: 'Rendez-vous annulé', proposed: 'Autre date proposée' }[status], body: `${studioName(req.user)} · ${booking.day} à ${booking.start}`, url: '/client', tag: `booking-${row.id}` });
   if (row.client_email) {
     fire(sendMail({
       to: row.client_email, userId: row.client_id, sentBy: req.user.id, kind: 'booking',
@@ -176,21 +176,46 @@ staffBooking.patch('/bookings/:id', async (req, res) => {
   res.json({ booking });
 });
 
+// Date de remise des photos d'un rendez-vous (ou « photos remises ») : sert aux rappels du studio.
+staffBooking.patch('/bookings/:id/delivery', async (req, res) => {
+  const body = z.object({ deliveryDate: day.nullable().optional(), delivered: z.boolean().optional() }).parse(req.body);
+  const row = await loadOwn(req, req.params.id);
+  if (body.deliveryDate !== undefined) {
+    if (body.deliveryDate && body.deliveryDate < String(row.day).slice(0, 10)) throw httpError(400, 'La remise des photos doit être après la séance.');
+    await query('UPDATE bookings SET delivery_date = ?, delivery_reminded_at = NULL WHERE id = ?', [body.deliveryDate, row.id]);
+  }
+  if (body.delivered !== undefined) await query(`UPDATE bookings SET delivered_at = ${body.delivered ? 'CURRENT_TIMESTAMP' : 'NULL'} WHERE id = ?`, [row.id]);
+  const [fresh] = await query(`${BOOKING_SELECT} WHERE b.id = ?`, [row.id]);
+  res.json({ booking: mapBooking(fresh) });
+});
+
 // Le photographe ajoute lui-même un rendez-vous (appel, WhatsApp…) : confirmé tout de suite.
 staffBooking.post('/bookings', async (req, res) => {
   const data = z.object({
-    clientId: uuid, day, start: time, durationMin: z.number().int().min(15).max(720).optional(),
+    clientId: uuid.optional(), day, start: time, durationMin: z.number().int().min(15).max(720).optional(),
     sessionType: z.string().trim().max(80).optional().default(''), note: z.string().trim().max(500).optional().default(''),
+    deliveryDate: day.optional(),
+    // Personne sans compte : nom et téléphone suffisent (l'e-mail est facultatif).
+    guest: z.object({
+      name: z.string().trim().min(2, 'Entrez le nom de la personne.').max(80),
+      phone: z.string().trim().max(40).optional().default(''),
+      email: z.union([z.literal(''), z.string().trim().toLowerCase().email('E-mail invalide.').max(190)]).optional().default(''),
+    }).optional(),
   }).parse(req.body);
-  const [as, ap] = accountScope(req);
-  const [client] = await query(`SELECT u.* FROM users u WHERE u.id = ? AND u.role = 'client' AND ${as}`, [data.clientId, ...ap]);
-  if (!client) throw httpError(404, 'Client introuvable.');
+  if (!data.clientId && !data.guest) throw httpError(400, 'Choisissez un client ou entrez le nom de la personne.');
+  if (data.deliveryDate && data.deliveryDate < data.day) throw httpError(400, 'La remise des photos doit être après la séance.');
+  let client = null;
+  if (data.clientId) {
+    const [as, ap] = accountScope(req);
+    [client] = await query(`SELECT u.* FROM users u WHERE u.id = ? AND u.role = 'client' AND ${as}`, [data.clientId, ...ap]);
+    if (!client) throw httpError(404, 'Client introuvable.');
+  }
   const settings = await settingsOf(req.user.id);
   const id = crypto.randomUUID();
   try {
     await query(
-      `INSERT INTO bookings (id, staff_id, client_id, day, start_time, duration_min, session_type, note, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'confirmed')`,
-      [id, req.user.id, client.id, data.day, data.start, data.durationMin || settings.durationMin, data.sessionType, data.note || null],
+      `INSERT INTO bookings (id, staff_id, client_id, guest_name, guest_phone, guest_email, day, start_time, duration_min, session_type, note, delivery_date, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'confirmed')`,
+      [id, req.user.id, client?.id || null, client ? null : data.guest.name, client ? null : data.guest.phone || null, client ? null : data.guest.email || null, data.day, data.start, data.durationMin || settings.durationMin, data.sessionType, data.note || null, data.deliveryDate || null],
     );
   } catch (err) {
     if (err.code === '23505') throw httpError(409, 'Ce créneau est déjà pris.');

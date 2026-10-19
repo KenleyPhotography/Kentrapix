@@ -316,6 +316,21 @@ Mot de passe temporaire : ${password}` : ''}`,
   };
 }
 
+/** Au photographe : des photos sont à remettre aujourd'hui (ou en retard). */
+export function deliveryReminderEmail({ staffName, clientName, bookingDay, deliveryDate }) {
+  return {
+    subject: `Photos à remettre : ${clientName}`,
+    html: layout({
+      preheader: `${clientName} · séance du ${frDay(bookingDay)}`,
+      title: 'Photos à remettre',
+      body: `Bonjour ${esc(firstName(staffName))},<br><br>C’est le moment de remettre les photos de <strong style="color:#082445">${esc(clientName)}</strong> (séance du ${esc(frDay(bookingDay))}, remise prévue le ${esc(frDay(deliveryDate))}).`,
+      cta: { label: 'Ouvrir mes rendez-vous', url: `${config.appUrl}/admin` },
+    }),
+    text: `Photos à remettre : ${clientName} (séance du ${frDay(bookingDay)}, remise prévue le ${frDay(deliveryDate)}).
+${config.appUrl}/admin`,
+  };
+}
+
 /** Rappel la veille, au client et au photographe. */
 export function bookingReminderEmail({ name, studio = defaultStudio(), booking, forStaff = false, clientName = '' }) {
   return {

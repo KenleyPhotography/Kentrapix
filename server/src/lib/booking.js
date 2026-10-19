@@ -129,9 +129,13 @@ export const mapBooking = (b) => ({
   originalDay: b.orig_day ? String(b.orig_day).slice(0, 10) : null,
   originalStart: b.orig_start || null,
   staff: b.staff_name ? { id: b.staff_id, name: b.staff_name } : undefined,
-  client: b.client_name ? { id: b.client_id, name: b.client_name, email: b.client_email || '', phone: b.client_phone || '', whatsapp: b.client_whatsapp || b.client_phone || '' } : undefined,
+  deliveryDate: b.delivery_date ? String(b.delivery_date).slice(0, 10) : null,
+  delivered: !!b.delivered_at,
+  client: b.client_name ? { id: b.client_id || null, guest: !b.client_id, name: b.client_name, email: b.client_email || '', phone: b.client_phone || '', whatsapp: b.client_whatsapp || b.client_phone || '' } : undefined,
 });
 
-export const BOOKING_SELECT = `SELECT b.*, c.name AS client_name, c.email AS client_email, c.phone AS client_phone, c.whatsapp AS client_whatsapp,
+// Le client peut ne pas avoir de compte (rendez-vous ajouté par le studio) : ses coordonnées sont alors dans guest_*.
+export const BOOKING_SELECT = `SELECT b.*, COALESCE(c.name, b.guest_name) AS client_name, COALESCE(c.email, b.guest_email) AS client_email,
+    COALESCE(c.phone, b.guest_phone) AS client_phone, COALESCE(c.whatsapp, b.guest_phone) AS client_whatsapp,
     COALESCE(NULLIF(s.sender_name, ''), s.name) AS staff_name
-  FROM bookings b JOIN users c ON c.id = b.client_id JOIN users s ON s.id = b.staff_id`;
+  FROM bookings b LEFT JOIN users c ON c.id = b.client_id JOIN users s ON s.id = b.staff_id`;

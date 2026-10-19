@@ -17,6 +17,7 @@ export async function bindTodo({ navigate }) {
     { nav: 'Contracts', ico: 'file', late: true, title: 'Séances sans contrat signé', rows: t.unsignedBookings.map((b) => [b.client, `${fday(b.day)} à ${b.start}${b.sessionType ? ` · ${b.sessionType}` : ''}`]) },
     { nav: 'Contracts', ico: 'file', title: 'Contrats en attente de signature', rows: t.contracts.map((c) => [c.client, `${c.title}${c.bookingDay ? ` · séance ${fday(c.bookingDay)}` : ''}`]) },
     { nav: 'Billing', ico: 'bell', late: true, title: 'Factures en retard', rows: t.overdueInvoices.map((i) => [i.client, `${i.number} · reste ${money(i.balance, i.currency)} · échue ${fday(i.dueDate)}`]) },
+    { nav: 'Booking', ico: 'upload', late: true, title: 'Photos à remettre', rows: (t.deliveries || []).map((b) => [b.client, `${b.late ? 'En retard · ' : ''}remise ${fday(b.deliveryDate)} · séance du ${fday(b.day)}`]) },
     { nav: 'Booking', ico: 'clock', title: 'Rendez-vous demain', rows: t.tomorrow.map((b) => [b.client, `${b.start}${b.sessionType ? ` · ${b.sessionType}` : ''}`]) },
     { nav: 'Booking', ico: 'clock', title: 'Demandes de rendez-vous à confirmer', rows: t.bookingRequests.map((b) => [b.client, `${fday(b.day)} à ${b.start}`]) },
     { nav: 'Selections', ico: 'check', title: 'Sélections reçues (14 derniers jours)', rows: t.selections.map((s) => [s.client, `${s.event} · ${s.count} photo${s.count > 1 ? 's' : ''}`]) },

@@ -14,7 +14,7 @@ staffTodo.get('/', async (req, res) => {
   const today = studioToday();
   const tomorrow = addDays(today, 1);
   const [es, ep] = eventScope(req);
-  const [pending, unsigned, invoices, selections, tomorrowRows, requests, orders, reviews] = await Promise.all([
+  const [pending, unsigned, invoices, selections, tomorrowRows, requests, orders, reviews, deliveries] = await Promise.all([
     query(`${CONTRACT_SELECT} WHERE c.staff_id = ? AND c.status = 'pending' ORDER BY c.created_at`, [req.user.id]),
     unsignedBookings(req.user.id, today),
     query(`${INVOICE_SELECT} WHERE i.staff_id = ? AND i.cancelled = 0 AND i.due_date IS NOT NULL AND i.due_date < ?`, [req.user.id, today]),
@@ -26,12 +26,12 @@ staffTodo.get('/', async (req, res) => {
       ep,
     ),
     query(
-      `SELECT b.id, b.start_time, b.session_type, u.name AS client_name FROM bookings b JOIN users u ON u.id = b.client_id
+      `SELECT b.id, b.start_time, b.session_type, COALESCE(u.name, b.guest_name) AS client_name FROM bookings b LEFT JOIN users u ON u.id = b.client_id
        WHERE b.staff_id = ? AND b.day = ? AND b.status = 'confirmed' ORDER BY b.start_time`,
       [req.user.id, tomorrow],
     ),
     query(
-      `SELECT b.id, b.day, b.start_time, u.name AS client_name FROM bookings b JOIN users u ON u.id = b.client_id
+      `SELECT b.id, b.day, b.start_time, COALESCE(u.name, b.guest_name) AS client_name FROM bookings b LEFT JOIN users u ON u.id = b.client_id
        WHERE b.staff_id = ? AND b.status = 'pending' AND b.day >= ? ORDER BY b.day, b.start_time LIMIT 20`,
       [req.user.id, today],
     ),
@@ -45,6 +45,12 @@ staffTodo.get('/', async (req, res) => {
        WHERE r.staff_id = ? AND r.is_public = 0 ORDER BY r.updated_at DESC LIMIT 20`,
       [req.user.id],
     ),
+    // Photos à remettre : date de remise dépassée ou dans les 3 jours.
+    query(
+      `SELECT b.id, b.day, b.delivery_date, COALESCE(u.name, b.guest_name) AS client_name FROM bookings b LEFT JOIN users u ON u.id = b.client_id
+       WHERE b.staff_id = ? AND b.status = 'confirmed' AND b.delivery_date IS NOT NULL AND b.delivered_at IS NULL AND b.delivery_date <= ? ORDER BY b.delivery_date LIMIT 20`,
+      [req.user.id, addDays(today, 3)],
+    ),
   ]);
   const late = invoices.map((i) => mapInvoice(i)).filter((i) => i.balance > 0);
   res.json({
@@ -57,5 +63,6 @@ staffTodo.get('/', async (req, res) => {
     bookingRequests: requests.map((b) => ({ id: b.id, day: String(b.day).slice(0, 10), start: b.start_time, client: b.client_name })),
     newOrders: orders.map((o) => ({ id: o.id, client: o.client_name, at: iso(o.created_at) })),
     reviews: reviews.map((r) => ({ id: r.id, rating: Number(r.rating), client: r.client_name })),
+    deliveries: deliveries.map((b) => ({ id: b.id, client: b.client_name, day: String(b.day).slice(0, 10), deliveryDate: String(b.delivery_date).slice(0, 10), late: String(b.delivery_date).slice(0, 10) < today })),
   });
 });
