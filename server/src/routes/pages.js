@@ -59,6 +59,10 @@ router.get('/robots.txt', (req, res) => res.type('text').send([
   'Disallow: /client',
   'Disallow: /gallery',
   'Disallow: /share',
+  'Disallow: /s/',
+  'Disallow: /c/',
+  'Disallow: /f/',
+  'Disallow: /contrat',
   'Disallow: /facture',
   '',
   `Sitemap: ${config.appUrl}/sitemap.xml`,
@@ -85,17 +89,17 @@ router.get('/conditions', (req, res) => res.sendFile(page('conditions.html')));
 
 // Lien de partage famille : page publique, le mot de passe est vérifié par l'API.
 // Facture : page publique ouverte avec le lien secret reçu par e-mail (les données viennent de /api/invoice/:token).
-router.get('/facture', (req, res) => {
+router.get(['/facture', '/f/:t'], (req, res) => {
   res.set('Referrer-Policy', 'no-referrer').sendFile(page('facture.html'));
 });
 
 // Contrat : page publique de lecture et de signature (lien secret reçu par e-mail).
-router.get('/contrat', (req, res) => {
-  if (!ready(req.user)) return res.redirect('/login'); // le contrat n'est lisible que connecté avec le compte du destinataire
+router.get(['/contrat', '/c/:t'], (req, res) => {
+  // La page s'ouvre sans connexion ; l'API exige le compte du destinataire (sauf contrat pour une personne hors système : le lien secret suffit).
   res.set('Referrer-Policy', 'no-referrer').sendFile(page('contrat.html'));
 });
 
-router.get('/share', (req, res) => {
+router.get(['/share', '/s/:t'], (req, res) => {
   res.set('Referrer-Policy', 'no-referrer').sendFile(page('share.html'));
 });
 

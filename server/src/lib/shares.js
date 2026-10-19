@@ -19,7 +19,7 @@ export const SHARE_SELECT = `SELECT l.*, s.name AS created_by_name,
 export const mapShare = (l) => ({
   id: l.id,
   label: l.label || '',
-  url: `${config.appUrl}/share?t=${l.token}`,
+  url: `${config.appUrl}/s/${l.token}`,
   allowDownload: !!l.allow_download,
   allowComments: !!l.allow_comments,
   photoNumbers: l.photo_numbers || null, // null : toutes les photos ouvertes au client
@@ -61,7 +61,7 @@ export async function createShare({ eventId, ownerId, createdBy = null, data, bc
   await query(
     `INSERT INTO share_links (id, event_id, user_id, token, password_hash, label, allow_download, allow_comments, created_by, photo_numbers)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [id, eventId, ownerId, crypto.randomBytes(24).toString('base64url'), await bcrypt.hash(data.password, bcryptCost),
+    [id, eventId, ownerId, crypto.randomBytes(9).toString('base64url'), await bcrypt.hash(data.password, bcryptCost),
       data.label || null, data.allowDownload ? 1 : 0, data.allowComments ? 1 : 0, createdBy, photoNumbers],
   );
   const [row] = await query(`${SHARE_SELECT} WHERE l.id = ?`, [id]);

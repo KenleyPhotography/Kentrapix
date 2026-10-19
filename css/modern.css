@@ -2737,3 +2737,14 @@ div.ord-photo { cursor: pointer; }
 .vis-bars i { flex: 1; min-width: 3px; border-radius: 4px 4px 0 0; background: var(--blue); opacity: 0.85; }
 .vis-bars i:hover { opacity: 1; }
 .vis-axis { display: flex; justify-content: space-between; gap: 8px; margin-top: 4px; }
+
+/* Galerie du client : cinq étoiles pour donner son avis d'un toucher. */
+.gallery-rate { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; margin: 14px 0; padding: 14px 18px; border: 1px solid var(--border, #e0eaf8); border-radius: 18px; background: var(--blue-soft, #e8f1ff); }
+.gallery-rate:empty { display: none; }
+.gallery-rate .gr-text { display: grid; gap: 2px; min-width: 0; }
+.gallery-rate .gr-text strong { color: var(--ink, #082445); }
+.gallery-rate .gr-text span { color: var(--muted, #5a6b85); font-size: 0.875rem; }
+.gallery-rate .star-input { display: flex; gap: 2px; }
+.gallery-rate .star { width: 44px; height: 44px; font-size: 1.9rem; line-height: 1; }
+.gallery-rate .text-link { flex-basis: 100%; justify-self: start; text-align: left; }
+@media (max-width: 480px) { .gallery-rate { flex-direction: column; align-items: flex-start; } .gallery-rate .star { width: 48px; height: 48px; } }

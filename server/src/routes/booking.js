@@ -47,12 +47,12 @@ staffBooking.get('/', async (req, res) => {
     query('SELECT day FROM booking_blocked_days WHERE staff_id = ? AND day >= ? ORDER BY day', [req.user.id, today]),
     query(`${BOOKING_SELECT} WHERE b.staff_id = ? AND (b.day >= ? OR (b.status = 'confirmed' AND b.delivery_date IS NOT NULL AND b.delivered_at IS NULL)) ORDER BY b.day, b.start_time`, [req.user.id, addDays(today, -30)]),
     // Demandes du portfolio public (visiteurs sans compte) ; vide si la migration n'est pas encore appliquée.
-    query(`SELECT id, name, email, phone, session_type, wished_date, wished_time, message, status, reply, created_at FROM portfolio_requests
+    query(`SELECT id, name, email, phone, session_type, location, wished_date, wished_time, message, status, reply, created_at FROM portfolio_requests
            WHERE staff_id = ? AND (status = 'pending' OR created_at > CURRENT_TIMESTAMP - INTERVAL '30 days') ORDER BY created_at DESC LIMIT 50`, [req.user.id]).catch(() => []),
   ]);
   res.json({
     today, settings, blocked: blocked.map((b) => String(b.day).slice(0, 10)), bookings: rows.map(mapBooking),
-    requests: requests.map((r) => ({ id: r.id, name: r.name, email: r.email, phone: r.phone, sessionType: r.session_type, date: r.wished_date, time: r.wished_time || '', message: r.message, status: r.status, reply: r.reply, createdAt: r.created_at })),
+    requests: requests.map((r) => ({ id: r.id, name: r.name, email: r.email, phone: r.phone, sessionType: r.session_type, location: r.location || '', date: r.wished_date, time: r.wished_time || '', message: r.message, status: r.status, reply: r.reply, createdAt: r.created_at })),
   });
 });
 

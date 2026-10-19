@@ -129,6 +129,7 @@ const inquiry = z.object({
   email: z.union([z.literal(''), z.string().trim().toLowerCase().email('E-mail invalide.').max(190)]).optional().default(''), // facultatif
   phone: oneLine(40).refine((v) => v.replace(/\D/g, '').length >= 6, 'Entrez votre numéro de téléphone.'), // obligatoire
   sessionType: oneLine(80).optional().default(''),
+  location: oneLine(120).optional().default(''), // lieu de la séance : obligatoire sauf portrait / studio
   date: oneLine(40).optional().default(''),
   time: z.union([z.literal(''), z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Heure invalide.')]).optional().default(''),
   message: z.string().trim().max(1000).optional().default(''),
@@ -151,6 +152,8 @@ publicApi.post('/inquiry', inquiryLimiter, async (req, res) => {
   if (d.website) return res.status(201).json({ ok: true }); // robot : on fait semblant
   const o = await owner();
   if (!o) throw httpError(503, 'Studio indisponible.');
+  if (!d.sessionType) throw httpError(400, 'Choisissez le type de séance.');
+  if (!/portrait|studio|anniv|birthday/i.test(d.sessionType) && d.location.length < 2) throw httpError(400, 'Indiquez le lieu de la séance.');
   if (d.date) {
     const today = studioToday();
     if (!/^\d{4}-\d{2}-\d{2}$/.test(d.date) || d.date < today) throw httpError(400, 'Choisissez une date à venir.');
@@ -160,8 +163,8 @@ publicApi.post('/inquiry', inquiryLimiter, async (req, res) => {
   }
   try {
     await query(
-      'INSERT INTO portfolio_requests (id, staff_id, name, email, phone, session_type, wished_date, wished_time, message) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [crypto.randomUUID(), o.id, d.name, d.email, d.phone, d.sessionType, d.date, d.time, d.message],
+      'INSERT INTO portfolio_requests (id, staff_id, name, email, phone, session_type, location, wished_date, wished_time, message) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [crypto.randomUUID(), o.id, d.name, d.email, d.phone, d.sessionType, d.location, d.date, d.time, d.message],
     );
   } catch (err) { console.error('Demande portfolio non enregistrée (migration 039 appliquée ?) :', err.message); }
   pushLater(o.id, { title: 'Nouvelle demande de séance', body: `${d.name}${d.sessionType ? ` · ${d.sessionType}` : ''}`, url: '/admin', tag: `inquiry-${Date.now()}` });

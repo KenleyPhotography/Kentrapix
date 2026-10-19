@@ -203,3 +203,22 @@
 .modal form label.inv-pick:has(> input[type="checkbox"]):hover { background: var(--blue-soft, #eaf2ff); }
 .modal form label.inv-pick:has(> input:checked) { background: var(--blue-soft, #eaf2ff); }
 .modal form label.inv-pick strong { font-weight: 700; color: var(--ink, #0b2a5b); }
+
+/* Contrats : le statut (« En attente de signature ») garde son icône et sa place, même sur petit écran. */
+.badge.ctr-status { display: inline-flex; align-items: center; gap: 6px; flex: none; white-space: nowrap; }
+.badge.ctr-status svg { width: 14px; height: 14px; flex: none; }
+@media (max-width: 560px) {
+  .inv-card header { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 8px 12px; }
+  .inv-card header > .badge { grid-column: 1 / -1; justify-self: start; }
+  .inv-card header strong { overflow-wrap: anywhere; }
+  .inv-card header span:not(.badge) { white-space: normal; }
+  .inv-card .actions .btn { flex: 1 1 auto; justify-content: center; }
+}
+
+/* Formulaire de contrat de mariage : produits inclus. */
+.ctr-products { margin: 8px 0; padding: 12px 14px; border: 1px solid var(--border, #e0eaf8); border-radius: 14px; }
+.ctr-products legend { padding: 0 6px; font-weight: 700; font-size: 0.85rem; color: var(--blue); }
+.ctr-check { display: flex; align-items: center; gap: 8px; margin: 4px 0; font-weight: 500; }
+.ctr-check input { width: 18px; height: 18px; accent-color: var(--blue); }
+
+.ctr-reserve { color: #b42318 !important; font-weight: 600; }

@@ -2,7 +2,7 @@ import{icon}from'./icons.js';import{openSlideshow}from'./slideshow.js';
 // Galerie partagée par un client à sa famille : mot de passe, puis photos + diaporama, téléchargement si permis,
 // et commentaires sous les photos si le lien les autorise (prénom retenu sur l'appareil).
 const app=document.getElementById('app');
-const token=new URLSearchParams(location.search).get('t')||'';
+const token=(location.pathname.match(/^\/s\/([A-Za-z0-9_-]+)/)||[])[1]||new URLSearchParams(location.search).get('t')||'';
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const toast=m=>{const t=document.getElementById('toast');t.textContent=m;t.style.display='block';clearTimeout(toast.t);toast.t=setTimeout(()=>t.style.display='none',3600)};
 const brand=`<a class="share-brand" href="/login" aria-label="KentraPix"><img src="/logo/kentrapix-icon.svg" alt="" width="34" height="34"><span>Kentra<b>Pix</b></span></a>`;
@@ -52,7 +52,7 @@ async function fetchList(){const p=d.photos[at];try{const r=await call(`/api/sha
 document.addEventListener('keydown',key);draw();fetchList()}
 
 async function load(){
-if(!/^[A-Za-z0-9_-]{32}$/.test(token))return message('Lien incomplet','Vérifiez que vous avez copié l’adresse en entier.');
+if(!/^[A-Za-z0-9_-]{12,32}$/.test(token))return message('Lien incomplet','Vérifiez que vous avez copié l’adresse en entier.');
 try{const d=await call(`/api/share/${encodeURIComponent(token)}`);d.locked?gate(d.studio):gallery(d)}
 catch(err){err.status===404?message('Lien indisponible','Ce lien n’existe pas ou la galerie n’est plus disponible.'):message('Oups','Impossible de charger la galerie. Réessayez plus tard.')}}
 load();

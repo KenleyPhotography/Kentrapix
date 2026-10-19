@@ -263,7 +263,7 @@ billingRouter.delete('/reminders/:id', async (req, res) => {
 export const invoiceApi = Router();
 
 invoiceApi.get('/:token', async (req, res) => {
-  const token = z.string().regex(/^[A-Za-z0-9_-]{32}$/, 'Lien invalide.').parse(req.params.token);
+  const token = z.string().regex(/^[A-Za-z0-9_-]{12,32}$/, 'Lien invalide.').parse(req.params.token);
   const [row] = await query(
     `${INVOICE_SELECT} WHERE i.public_token = ?`, [token],
   );
@@ -287,7 +287,7 @@ invoiceApi.get('/:token', async (req, res) => {
 
 // Logo / photo du photographe sur la facture (accessible seulement avec le lien secret de cette facture).
 invoiceApi.get('/:token/avatar', async (req, res) => {
-  const token = z.string().regex(/^[A-Za-z0-9_-]{32}$/, 'Lien invalide.').parse(req.params.token);
+  const token = z.string().regex(/^[A-Za-z0-9_-]{12,32}$/, 'Lien invalide.').parse(req.params.token);
   const [row] = await query('SELECT u.avatar_key FROM invoices i JOIN users u ON u.id = i.staff_id WHERE i.public_token = ?', [token]);
   if (!row?.avatar_key) throw httpError(404, 'Image introuvable.');
   await sendPrivate(res, row.avatar_key);

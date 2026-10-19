@@ -21,10 +21,10 @@ export function openSignatureModal({ modal, toast, current = null, onSaved }) {
   const ctx = canvas.getContext('2d');
   const r = canvas.getBoundingClientRect(), ratio = Math.max(1, window.devicePixelRatio || 1);
   canvas.width = Math.round(r.width * ratio); canvas.height = Math.round(r.height * ratio);
-  ctx.setTransform(ratio, 0, 0, ratio, 0, 0); ctx.lineWidth = 2.6; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#082445';
+  ctx.setTransform(ratio, 0, 0, ratio, 0, 0); ctx.lineWidth = 1.4; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#082445';
   let ink = 0, last = null;
   const pos = (e) => { const b = canvas.getBoundingClientRect(); return { x: e.clientX - b.left, y: e.clientY - b.top }; };
-  canvas.addEventListener('pointerdown', (e) => { e.preventDefault(); canvas.setPointerCapture(e.pointerId); last = pos(e); ctx.beginPath(); ctx.arc(last.x, last.y, 1.2, 0, 6.3); ctx.fillStyle = '#082445'; ctx.fill(); ink += 2; });
+  canvas.addEventListener('pointerdown', (e) => { e.preventDefault(); canvas.setPointerCapture(e.pointerId); last = pos(e); ctx.beginPath(); ctx.arc(last.x, last.y, 0.7, 0, 6.3); ctx.fillStyle = '#082445'; ctx.fill(); ink += 2; });
   canvas.addEventListener('pointermove', (e) => { if (!last) return; e.preventDefault(); const p = pos(e); ctx.beginPath(); ctx.moveTo(last.x, last.y); ctx.lineTo(p.x, p.y); ctx.stroke(); ink += Math.abs(p.x - last.x) + Math.abs(p.y - last.y); last = p; });
   ['pointerup', 'pointercancel', 'pointerleave'].forEach((t) => canvas.addEventListener(t, () => { last = null; }));
   document.getElementById('sig-pad-clear').onclick = () => { ctx.clearRect(0, 0, canvas.width, canvas.height); ink = 0; };

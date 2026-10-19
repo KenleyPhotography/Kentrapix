@@ -269,6 +269,14 @@
       })
       .catch(function () { return true; });
   }
+  // Lieu : obligatoire pour toute séance qui n'est pas un portrait ou une séance studio (anniversaire au studio…).
+  var STUDIO = /portrait|studio|anniv|birthday/i;
+  function syncPlace() {
+    var t = $('types').value, studio = !t || STUDIO.test(t);
+    $('placeRow').hidden = studio; $('place').required = !studio; $('placeHint').hidden = !t || !studio;
+    if (studio) $('place').value = '';
+  }
+  $('types').addEventListener('change', syncPlace);
   $('wish').addEventListener('change', checkSlot);
   $('wishtime').addEventListener('change', checkSlot);
   $('wish').min = new Date().toISOString().slice(0, 10);
@@ -278,6 +286,8 @@
     var f = e.target, msg = $('msg'), btn = $('send');
     var data = {}; new FormData(f).forEach(function (v, k) { data[k] = v; });
     if (!data.name || String(data.phone || '').replace(/\D/g, '').length < 6) { msg.className = 'pf-msg err'; msg.textContent = 'Entrez votre nom et votre numéro de téléphone.'; return; }
+    if (!data.sessionType) { msg.className = 'pf-msg err'; msg.textContent = 'Choisissez le type de séance.'; return; }
+    if (!STUDIO.test(data.sessionType) && !String(data.location || '').trim()) { msg.className = 'pf-msg err'; msg.textContent = 'Indiquez le lieu de la séance.'; $('place').focus(); return; }
     if (data.date && !data.time) { msg.className = 'pf-msg err'; msg.textContent = 'Choisissez aussi l’heure souhaitée.'; return; }
     btn.disabled = true; msg.className = 'pf-msg'; msg.textContent = 'Envoi…';
     fetch('/api/public/inquiry', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })

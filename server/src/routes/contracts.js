@@ -11,7 +11,7 @@ import { sendPrivate } from '../lib/storage.js';
 import { contractEmail } from '../lib/emails.js';
 import { accountScope } from '../lib/scope.js';
 import { studioToday } from '../lib/booking.js';
-import { CONTRACT_SELECT, mapContract, contractUrl, newContractToken, bodyHash, unsignedBookings } from '../lib/contracts.js';
+import { CONTRACT_SELECT, mapContract, contractUrl, newContractToken, bodyHash, unsignedBookings, parseChoices } from '../lib/contracts.js';
 
 // ====================================================================================================
 //  Photographe : rédiger, envoyer et suivre les contrats (monté dans le routeur du studio)
@@ -60,7 +60,13 @@ staffContracts.get('/', async (req, res) => {
 });
 
 const createSchema = z.object({
-  clientId: uuid,
+  clientId: uuid.optional(),
+  // Personne sans compte : nom + téléphone suffisent (e-mail facultatif) ; elle signe depuis le lien, sans se connecter.
+  guest: z.object({
+    name: z.string().trim().min(2, 'Entrez le nom de la personne.').max(80),
+    phone: z.string().trim().max(40).optional().default(''),
+    email: z.union([z.literal(''), z.string().trim().toLowerCase().email('E-mail invalide.').max(190)]).optional().default(''),
+  }).optional(),
   bookingId: z.union([uuid, z.literal('')]).optional().transform((v) => v || null),
   title: z.string().trim().min(1, 'Le titre du contrat est obligatoire.').max(200),
   body: z.string().trim().min(30, 'Le contrat est trop court.').max(20000, 'Le contrat est trop long (20 000 caractères max).'),
@@ -68,20 +74,26 @@ const createSchema = z.object({
 
 staffContracts.post('/', async (req, res) => {
   const data = createSchema.parse(req.body);
-  const [as, ap] = accountScope(req);
-  const [client] = await query(`SELECT u.id FROM users u WHERE u.id = ? AND u.role = 'client' AND ${as}`, [data.clientId, ...ap]);
-  if (!client) throw httpError(404, 'Client introuvable.');
-  if (data.bookingId) {
+  if (!data.clientId && !data.guest) throw httpError(400, 'Choisissez un client ou entrez le nom de la personne.');
+  if (data.clientId) {
+    const [as, ap] = accountScope(req);
+    const [client] = await query(`SELECT u.id FROM users u WHERE u.id = ? AND u.role = 'client' AND ${as}`, [data.clientId, ...ap]);
+    if (!client) throw httpError(404, 'Client introuvable.');
+  }
+  if (data.bookingId && data.clientId) {
     const [b] = await query('SELECT id FROM bookings WHERE id = ? AND staff_id = ? AND client_id = ?', [data.bookingId, req.user.id, data.clientId]);
     if (!b) throw httpError(404, 'Rendez-vous introuvable pour ce client.');
   }
+  // La signature enregistrée du photographe est apposée automatiquement ; sans signature enregistrée, il signe sur la page du contrat.
   const signature = await mySignature(req.user.id);
-  if (!signature) throw httpError(400, 'Dessinez d’abord votre signature (bouton « Ma signature »).');
   const id = crypto.randomUUID();
-  await query('INSERT INTO contracts (id, staff_id, client_id, booking_id, title, body, public_token, staff_signature, staff_signed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)', [
-    id, req.user.id, data.clientId, data.bookingId, data.title, data.body, newContractToken(), signature,
-  ]);
-  audit(req, 'contract.create', { entity: 'contract', entityId: id, details: { client: data.clientId } });
+  await query(
+    `INSERT INTO contracts (id, staff_id, client_id, guest_name, guest_phone, guest_email, booking_id, title, body, public_token, staff_signature, staff_signed_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ${signature ? 'CURRENT_TIMESTAMP' : 'NULL'})`,
+    [id, req.user.id, data.clientId || null, data.clientId ? null : data.guest.name, data.clientId ? null : data.guest.phone || null, data.clientId ? null : data.guest.email || null,
+      data.clientId ? data.bookingId : null, data.title, data.body, newContractToken(), signature],
+  );
+  audit(req, 'contract.create', { entity: 'contract', entityId: id, details: { client: data.clientId || 'hors système' } });
   res.status(201).json({ contract: mapContract(await loadContract(req, id)) });
 });
 
@@ -137,9 +149,11 @@ staffContracts.delete('/:id', async (req, res) => {
 staffContracts.post('/:id/send', async (req, res) => {
   const row = await loadContract(req, req.params.id);
   if (row.status !== 'pending') throw httpError(400, 'Seul un contrat en attente de signature peut être envoyé.');
+  if (!row.staff_signature) throw httpError(400, 'Signez d’abord le contrat : ouvrez l’aperçu et touchez la zone « Le photographe ».');
+  if (!row.client_email) throw httpError(400, 'Cette personne n’a pas d’e-mail : envoyez-lui le lien par WhatsApp ou copiez-le.');
   const studio = req.user.sender_name || req.user.name;
   const url = contractUrl(row.public_token);
-  pushLater(row.client_id, { title: 'Contrat à signer', body: `${studio} · ${row.title}`, url: url.replace(/^https?:\/\/[^/]+/, ''), tag: `contract-${row.id}` });
+  if (row.client_id) pushLater(row.client_id, { title: 'Contrat à signer', body: `${studio} · ${row.title}`, url: url.replace(/^https?:\/\/[^/]+/, ''), tag: `contract-${row.id}` });
   const email = await sendMail({
     to: row.client_email, userId: row.client_id, sentBy: req.user.id, kind: 'contract', fromName: studio, replyTo: req.user.email,
     ...contractEmail({ name: row.client_name, studio, title: row.title, url }),
@@ -153,14 +167,18 @@ staffContracts.post('/:id/send', async (req, res) => {
 //  Page publique d'un contrat (lien secret envoyé au client, sans connexion)
 // ====================================================================================================
 export const contractApi = Router();
-const tokenOf = (req) => z.string().regex(/^[A-Za-z0-9_-]{32}$/, 'Lien invalide.').parse(req.params.token);
+const tokenOf = (req) => z.string().regex(/^[A-Za-z0-9_-]{12,32}$/, 'Lien invalide.').parse(req.params.token);
 
 // Le lien seul ne suffit pas : il faut être connecté avec le compte du client destinataire (ou celui du photographe auteur).
 // Un client qui transmet le lien à un proche ne lui donne donc aucun accès, et personne d'autre ne peut signer à sa place.
 function guard(req, row) {
+  if (!row.client_id) return; // personne sans compte : le lien secret (32 caractères) suffit
   if (!req.user) throw httpError(401, 'Connectez-vous avec votre compte pour ouvrir ce contrat.');
   if (req.user.id !== row.client_id && req.user.id !== row.staff_id) throw httpError(403, 'Ce contrat est réservé à son destinataire. Connectez-vous avec le compte à qui il a été envoyé.');
 }
+
+// Le signataire : le client connecté, ou toute personne qui ouvre le lien d'un contrat « hors système » (sauf le photographe auteur).
+const isClient = (req, row) => (row.client_id ? req.user?.id === row.client_id : req.user?.id !== row.staff_id);
 
 contractApi.get('/:token', async (req, res) => {
   const token = tokenOf(req);
@@ -170,7 +188,10 @@ contractApi.get('/:token', async (req, res) => {
   const [studio] = await query('SELECT name, sender_name, email, phone, whatsapp, website, address, instagram, avatar_key FROM users WHERE id = ?', [row.staff_id]);
   const c = mapContract(row);
   res.set('Cache-Control', 'no-store').json({
-    title: row.title, body: row.body, status: row.status, clientName: row.client_name, canSign: req.user.id === row.client_id,
+    title: row.title, body: row.body, status: row.status, clientName: row.client_name, guest: !row.client_id,
+    canSign: isClient(req, row) && !!row.staff_signature && row.status === 'pending', waitingStaff: isClient(req, row) && !row.staff_signature,
+    canStaffSign: req.user?.id === row.staff_id && row.status === 'pending', savedSignature: req.user?.id === row.staff_id && row.status === 'pending' ? await mySignature(req.user.id) : null,
+    choices: parseChoices(row.client_choices),
     createdAt: c.createdAt, signedAt: c.signedAt, signedName: c.signedName,
     signature: row.status === 'signed' ? row.signature : null,
     staffSignature: row.staff_signature || null, staffSignedAt: mapContract({ ...row, signed_at: row.staff_signed_at }).signedAt,
@@ -181,6 +202,20 @@ contractApi.get('/:token', async (req, res) => {
       avatar: studio?.avatar_key ? `/api/contract/${token}/avatar` : null,
     },
   });
+});
+
+// Le photographe signe depuis la page du contrat (zone cliquable) : la signature est apposée sur ce contrat.
+contractApi.post('/:token/staff-sign', async (req, res) => {
+  const token = tokenOf(req);
+  const { signature, remember } = z.object({ signature: pngData, remember: z.boolean().optional().default(false) }).parse(req.body);
+  const [row] = await query('SELECT * FROM contracts WHERE public_token = ?', [token]);
+  if (!row || row.status === 'cancelled') throw httpError(404, 'Contrat introuvable ou annulé.');
+  guard(req, row);
+  if (req.user?.id !== row.staff_id) throw httpError(403, 'Seul le photographe auteur peut signer ici.');
+  if (row.status !== 'pending') throw httpError(409, 'Ce contrat est déjà signé par le client : il ne peut plus être modifié.');
+  await query('UPDATE contracts SET staff_signature = ?, staff_signed_at = CURRENT_TIMESTAMP WHERE id = ?', [signature, row.id]);
+  if (remember) await query('UPDATE users SET contract_signature = ? WHERE id = ?', [signature, req.user.id]);
+  res.json({ ok: true });
 });
 
 contractApi.get('/:token/avatar', async (req, res) => {
@@ -195,6 +230,12 @@ const signSchema = z.object({
   name: z.string().trim().min(3, 'Écrivez votre nom complet.').max(120),
   agree: z.literal(true, { errorMap: () => ({ message: 'Cochez la case pour accepter le contrat.' }) }),
   signature: pngData,
+  // Réserves : lignes que le client n'accepte pas (soulignées), cases cochées / décochées, remarques.
+  choices: z.object({
+    refused: z.array(z.number().int().min(0).max(1000)).max(300).default([]),
+    checks: z.array(z.boolean()).max(100).default([]),
+    notes: z.string().trim().max(1000).optional().default(''),
+  }).optional(),
 });
 
 contractApi.post('/:token/sign', async (req, res) => {
@@ -203,16 +244,18 @@ contractApi.post('/:token/sign', async (req, res) => {
   const [row] = await query('SELECT * FROM contracts WHERE public_token = ?', [token]);
   if (!row || row.status === 'cancelled') throw httpError(404, 'Contrat introuvable ou annulé.');
   guard(req, row);
-  if (req.user.id !== row.client_id) throw httpError(403, 'Seul le client destinataire peut signer ce contrat.');
+  if (!isClient(req, row)) throw httpError(403, 'Seul le client destinataire peut signer ce contrat.');
+  if (!row.staff_signature) throw httpError(409, 'Le photographe doit d’abord signer ce contrat.');
   if (row.status === 'signed') throw httpError(409, 'Ce contrat est déjà signé.');
   const signedAt = new Date().toISOString().slice(0, 19).replace('T', ' ');
+  const choices = data.choices && (data.choices.refused.length || data.choices.checks.length || data.choices.notes) ? JSON.stringify(data.choices) : null;
   const done = await query(
-    `UPDATE contracts SET status = 'signed', signed_name = ?, signature = ?, signed_at = ?, signed_ip = ?, signed_agent = ?, body_hash = ?
+    `UPDATE contracts SET status = 'signed', signed_name = ?, signature = ?, signed_at = ?, signed_ip = ?, signed_agent = ?, body_hash = ?, client_choices = ?
      WHERE id = ? AND status = 'pending'`,
-    [data.name, data.signature, signedAt, req.ip ?? null, String(req.get('user-agent') || '').slice(0, 300), bodyHash(row.body, data.name, signedAt), row.id],
+    [data.name, data.signature, signedAt, req.ip ?? null, String(req.get('user-agent') || '').slice(0, 300), bodyHash(`${row.body}\n${choices || ''}`, data.name, signedAt), choices, row.id],
   );
   if (!done.affectedRows) throw httpError(409, 'Ce contrat est déjà signé.');
-  pushLater(row.staff_id, { title: 'Contrat signé', body: `${data.name} · ${row.title}`, url: '/admin', tag: `contract-${row.id}` });
+  pushLater(row.staff_id, { title: 'Contrat signé', body: `${data.name} · ${row.title}${data.choices?.refused.length ? ` · ${data.choices.refused.length} point(s) non accepté(s)` : ''}`, url: '/admin', tag: `contract-${row.id}` });
   res.json({ ok: true });
 });
 

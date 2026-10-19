@@ -425,8 +425,8 @@ export function contractReminderEmail({ name, studio = defaultStudio(), title, u
 }
 
 /** Au photographe : un visiteur du portfolio demande un devis / une séance (sans compte). */
-export function inquiryEmail({ staffName, name, email, phone, sessionType, date, time, message }) {
-  const rows = [['Nom', name], email && ['E-mail', email], phone && ['Téléphone', phone], sessionType && ['Séance', sessionType], date && ['Date souhaitée', time ? `${date} à ${time}` : date]].filter(Boolean)
+export function inquiryEmail({ staffName, name, email, phone, sessionType, location, date, time, message }) {
+  const rows = [['Nom', name], email && ['E-mail', email], phone && ['Téléphone', phone], sessionType && ['Séance', sessionType], location && ['Lieu', location], date && ['Date souhaitée', time ? `${date} à ${time}` : date]].filter(Boolean)
     .map(([k, v]) => `<strong>${esc(k)} :</strong> ${esc(v)}`).join('<br>');
   return {
     subject: `Nouvelle demande depuis le portfolio : ${name}`,
@@ -439,7 +439,8 @@ export function inquiryEmail({ staffName, name, email, phone, sessionType, date,
 Nom : ${name}
 E-mail : ${email || '(non fourni)'}${phone ? `
 Téléphone : ${phone}` : ''}${sessionType ? `
-Séance : ${sessionType}` : ''}${date ? `
+Séance : ${sessionType}` : ''}${location ? `
+Lieu : ${location}` : ''}${date ? `
 Date souhaitée : ${date}` : ''}${message ? `
 
 ${message}` : ''}`,

@@ -20,7 +20,7 @@ import { FAMILY_COMMENT_SELECT, familyCommentBody, mapFamilyComment } from '../l
 export const SHARE_COOKIE = 'kp_share';
 const SHARE_HOURS = 12;
 
-const token = z.string().regex(/^[A-Za-z0-9_-]{32}$/, 'Lien invalide.');
+const token = z.string().regex(/^[A-Za-z0-9_-]{12,32}$/, 'Lien invalide.');
 
 /** Lien encore valable : galerie publiée, non archivée, non expirée, toujours au client, partage autorisé. */
 async function findShare(rawToken) {

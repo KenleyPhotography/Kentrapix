@@ -18,7 +18,7 @@ export function invoiceStatus(i, day = today()) {
   return Number(i.paid) > 0 ? 'partial' : 'unpaid';
 }
 
-export const invoiceUrl = (token) => `${config.appUrl}/facture?t=${token}`;
+export const invoiceUrl = (token) => `${config.appUrl}/f/${token}`; // lien court ; /facture?t=… (anciens liens) fonctionne toujours
 
 // Client inscrit (users) ou client « hors système » (guest_* sur la facture) : mêmes colonnes client_* dans les deux cas.
 export const INVOICE_SELECT = `SELECT i.*, COALESCE(u.name, i.guest_name) AS client_name, COALESCE(u.email, i.guest_email) AS client_email,
@@ -63,4 +63,4 @@ export async function nextNumber(staffId) {
   return `F-${year}-${String(Number(n) + 1).padStart(4, '0')}`;
 }
 
-export const newToken = () => crypto.randomBytes(24).toString('base64url'); // 32 caractères
+export const newToken = () => crypto.randomBytes(9).toString('base64url'); // 12 caractères (72 bits) : lien court ; les anciens (32) restent valides

@@ -2,7 +2,7 @@
 (function () {
   'use strict';
   var sheet = document.getElementById('sheet');
-  var token = new URLSearchParams(location.search).get('t') || '';
+  var token = (location.pathname.match(/^\/f\/([A-Za-z0-9_-]+)/) || [])[1] || new URLSearchParams(location.search).get('t') || '';
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
   var money = function (n, cur) { try { return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: cur, minimumFractionDigits: 0, maximumFractionDigits: Number.isInteger(n) ? 0 : 2 }).format(n); } catch (e) { return n + ' ' + cur; } };
   var day = function (iso) { return iso ? new Date(iso + 'T12:00:00Z').toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }) : '—'; };
@@ -24,7 +24,7 @@
   var initials = function (n) { return String(n || '').split(/\s+/).filter(Boolean).map(function (w) { return w[0]; }).join('').slice(0, 2).toUpperCase(); };
 
   document.getElementById('print').addEventListener('click', function () { window.print(); });
-  if (!/^[A-Za-z0-9_-]{32}$/.test(token)) { sheet.innerHTML = '<p class="error">Lien de facture invalide.</p>'; return; }
+  if (!/^[A-Za-z0-9_-]{12,32}$/.test(token)) { sheet.innerHTML = '<p class="error">Lien de facture invalide.</p>'; return; }
 
   fetch('/api/invoice/' + encodeURIComponent(token), { headers: { Accept: 'application/json' }, cache: 'no-store' })
     .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || 'Facture introuvable.'); return j; }); })
