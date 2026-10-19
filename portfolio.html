@@ -24,7 +24,6 @@
     <a class="pf-brand" href="/studio"><img src="/logo/kentrapix-icon.svg" alt="" width="34" height="34"><span>Kentra<b>Pix</b></span></a>
     <nav>
       <a href="#galerie">Portfolio</a>
-      <a href="#reserver" class="pf-cta-sm">Réserver</a>
       <a href="/login" class="pf-ghost">Espace client</a>
     </nav>
   </header>
@@ -32,7 +31,6 @@
   <section class="pf-hero">
     <p class="pf-kicker">Photographe · Haïti</p>
     <h1>Des images qui racontent <em>votre histoire.</em></h1>
-    <p class="pf-lead">Mariage, événement, studio, outdoor, graduation. Réservez votre séance et retrouvez vos photos dans votre espace privé.</p>
     <div class="pf-actions">
       <a class="pf-btn" href="#reserver">Demander une séance</a>
       <a class="pf-btn pf-btn-ghost" href="#galerie">Voir le portfolio</a>
@@ -55,9 +53,9 @@
       </div>
       <form id="form" class="pf-form" novalidate>
         <label>Nom<input name="name" autocomplete="name" required maxlength="80"></label>
-        <label>E-mail<input name="email" type="email" autocomplete="email" required maxlength="190"></label>
+        <label>E-mail <span class="pf-opt">(facultatif)</span><input name="email" type="email" autocomplete="email" maxlength="190"></label>
         <div class="pf-two">
-          <label>Téléphone<input name="phone" type="tel" autocomplete="tel" maxlength="40"></label>
+          <label>Téléphone / WhatsApp<input name="phone" type="tel" autocomplete="tel" inputmode="tel" required maxlength="40" placeholder="+509 …"></label>
           <label>Date souhaitée<input name="date" type="date"></label>
         </div>
         <label>Type de séance<select name="sessionType" id="types"><option value="">Choisir…</option></select></label>
@@ -71,7 +69,7 @@
 
   <footer class="pf-foot">© <span id="year"></span> KentraPix · <a href="/conditions">Conditions</a> · <a href="/login">Espace client</a></footer>
 
-  <div class="pf-lightbox" id="lb" hidden><button id="lb-close" aria-label="Fermer">×</button><img id="lb-img" alt=""></div>
+  <div class="pf-lightbox" id="lb" hidden><button id="lb-close" aria-label="Fermer">×</button><button id="lb-prev" class="lb-nav" aria-label="Précédente">‹</button><button id="lb-next" class="lb-nav lb-next" aria-label="Suivante">›</button><img id="lb-img" alt=""></div>
   <script src="/js/portfolio.js" defer></script>
 </body>
 </html>

@@ -137,6 +137,15 @@ export async function bindAdminBooking({ toast, modal, clients }) {
     return `<section class="settings bill-block"><h2>Demandes à confirmer <span class="count-pill">${list.length}</span></h2><ul class="rem-list">${list.map((b) => `<li class="rem-row is-late"><span class="rem-ico">${icon('bell')}</span><div><strong>${escape(b.client.name)}</strong><span style="text-transform:capitalize">${escape(fday(b.day))}</span><span>${escape(b.start)} – ${escape(b.end)}${b.sessionType ? ` · ${escape(b.sessionType)}` : ''}${b.note ? ` · « ${escape(b.note)} »` : ''}</span></div><div class="actions"><button type="button" class="btn sm primary" data-bka-ok="${b.id}">Confirmer</button><button type="button" class="btn sm" data-bka-no="${b.id}">Refuser</button>${waBtn(b.client.whatsapp, `${hello()} ${firstName(b.client.name)}, à propos de votre demande de rendez-vous du ${fday(b.day)} à ${b.start}.`)}</div></li>`).join('')}</ul></section>`;
   };
 
+  // Demandes envoyées depuis le portfolio public (visiteurs sans compte).
+  const requestsHtml = () => {
+    const list = d.requests || [];
+    if (!list.length) return '';
+    const open = list.filter((r) => r.status === 'pending');
+    const label = { accepted: 'Acceptée', declined: 'Refusée' };
+    return `<section class="settings bill-block"><h2>Demandes du portfolio ${open.length ? `<span class="count-pill">${open.length}</span>` : ''}</h2><ul class="rem-list">${list.map((r) => `<li class="rem-row ${r.status === 'pending' ? 'is-late' : ''}"><span class="rem-ico">${icon(r.status === 'pending' ? 'bell' : 'check')}</span><div><strong>${escape(r.name)}</strong><span>${escape(r.sessionType || 'Séance')}${r.date ? ` · souhaitée le ${escape(r.date)}` : ''}</span><span>${escape(r.phone || '')}${r.email ? ` · ${escape(r.email)}` : ' · pas d’e-mail'}</span>${r.message ? `<span>« ${escape(r.message)} »</span>` : ''}</div><div class="actions">${r.status === 'pending' ? `<button type="button" class="btn sm primary" data-req-ok="${r.id}">Accepter</button><button type="button" class="btn sm" data-req-no="${r.id}">Refuser</button>${waBtn(r.phone, `${hello()} ${firstName(r.name)}, à propos de votre demande de séance.`)}` : `<span class="pill">${label[r.status]}</span>`}</div></li>`).join('')}</ul><p class="small">Quand vous acceptez ou refusez, la personne reçoit un e-mail (si elle en a donné un). À l’acceptation, un compte client est créé automatiquement (mot de passe initial 12345678, à changer à la première connexion).</p></section>`;
+  };
+
   const calendarHtml = () => {
     const key = ym(st.year, st.month);
     const byDay = {};
@@ -170,10 +179,17 @@ export async function bindAdminBooking({ toast, modal, clients }) {
   };
 
   const draw = () => {
-    root.innerHTML = `${pendingHtml()}${calendarHtml()}${settingsHtml()}`;
+    root.innerHTML = `${requestsHtml()}${pendingHtml()}${calendarHtml()}${settingsHtml()}`;
     root.querySelector('[data-bk-prev]')?.addEventListener('click', () => { st.month -= 1; if (st.month < 0) { st.month = 11; st.year -= 1; } draw(); });
     root.querySelector('[data-bk-next]')?.addEventListener('click', () => { st.month += 1; if (st.month > 11) { st.month = 0; st.year += 1; } draw(); });
     root.querySelectorAll('[data-bka-day]').forEach((b) => b.addEventListener('click', () => { st.day = b.dataset.bkaDay; draw(); }));
+    const answer = (id, status, reply = '') => api(`/api/admin/booking/requests/${id}`, { method: 'PATCH', body: { status, reply } });
+    root.querySelectorAll('[data-req-ok]').forEach((b) => { b.onclick = guard(async () => { b.disabled = true; const r = await answer(b.dataset.reqOk, 'accepted'); toast(r.accountCreated ? 'Demande acceptée : compte client créé, accès envoyés par e-mail.' : 'Demande acceptée : la personne est prévenue par e-mail.'); await reload(); }); });
+    root.querySelectorAll('[data-req-no]').forEach((b) => { b.onclick = () => {
+      const id = b.dataset.reqNo; const r = d.requests.find((x) => x.id === id);
+      modal('Refuser cette demande', `<p class="small">${escape(r.name)} · ${escape(r.sessionType || 'Séance')}</p><label>Message <span class="optional">(facultatif)</span><input name="reply" maxlength="500" placeholder="Ex. Je suis pris à cette date, écrivez-moi pour une autre."></label>`,
+        async (v) => { await answer(id, 'declined', v.reply || ''); toast('Demande refusée : la personne est prévenue par e-mail.'); await reload(); }, { submit: 'Envoyer' });
+    }; });
     root.querySelectorAll('[data-bka-ok]').forEach((b) => { b.onclick = guard(async () => { b.disabled = true; await api(`/api/admin/booking/bookings/${b.dataset.bkaOk}`, { method: 'PATCH', body: { status: 'confirmed' } }); toast('Rendez-vous confirmé : le client est prévenu.'); await reload(); }); });
     root.querySelectorAll('[data-bka-no]').forEach((b) => { b.onclick = () => {
       const id = b.dataset.bkaNo; const bk = d.bookings.find((x) => x.id === id);

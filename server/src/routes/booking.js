@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import crypto from 'node:crypto';
+import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { query } from '../db.js';
 import { httpError } from '../lib/errors.js';
@@ -8,7 +9,7 @@ import { audit } from '../lib/audit.js';
 import { pushLater } from '../lib/push.js';
 import { sendMail } from '../lib/mailer.js';
 import { accountScope } from '../lib/scope.js';
-import { bookingRequestEmail, bookingStatusEmail } from '../lib/emails.js';
+import { bookingRequestEmail, bookingStatusEmail, inquiryReplyEmail } from '../lib/emails.js';
 import {
   settingsOf, mapSettings, monthSlots, slotsForDay, mapBooking, BOOKING_SELECT, studioToday, addDays, minutesOf, hhmm,
 } from '../lib/booking.js';
@@ -17,6 +18,8 @@ const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date invalide.');
 const time = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Heure invalide.');
 const month = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, 'Mois invalide.');
 const studioName = (u) => u.sender_name || u.name;
+// Mot de passe initial d'un compte créé à l'acceptation d'une demande du portfolio ; la personne doit le changer à sa première connexion.
+const INITIAL_PASSWORD = '12345678';
 const fire = (promise) => promise.catch((err) => console.error('E-mail rendez-vous :', err.message));
 
 // ====================================================================================================
@@ -38,12 +41,18 @@ const settingsSchema = z.object({
 
 staffBooking.get('/', async (req, res) => {
   const today = studioToday();
-  const [settings, blocked, rows] = await Promise.all([
+  const [settings, blocked, rows, requests] = await Promise.all([
     settingsOf(req.user.id),
     query('SELECT day FROM booking_blocked_days WHERE staff_id = ? AND day >= ? ORDER BY day', [req.user.id, today]),
     query(`${BOOKING_SELECT} WHERE b.staff_id = ? AND b.day >= ? ORDER BY b.day, b.start_time`, [req.user.id, addDays(today, -30)]),
+    // Demandes du portfolio public (visiteurs sans compte) ; vide si la migration n'est pas encore appliquée.
+    query(`SELECT id, name, email, phone, session_type, wished_date, message, status, reply, created_at FROM portfolio_requests
+           WHERE staff_id = ? AND (status = 'pending' OR created_at > CURRENT_TIMESTAMP - INTERVAL '30 days') ORDER BY created_at DESC LIMIT 50`, [req.user.id]).catch(() => []),
   ]);
-  res.json({ today, settings, blocked: blocked.map((b) => String(b.day).slice(0, 10)), bookings: rows.map(mapBooking) });
+  res.json({
+    today, settings, blocked: blocked.map((b) => String(b.day).slice(0, 10)), bookings: rows.map(mapBooking),
+    requests: requests.map((r) => ({ id: r.id, name: r.name, email: r.email, phone: r.phone, sessionType: r.session_type, date: r.wished_date, message: r.message, status: r.status, reply: r.reply, createdAt: r.created_at })),
+  });
 });
 
 staffBooking.put('/settings', async (req, res) => {
@@ -69,6 +78,36 @@ staffBooking.post('/blocked', async (req, res) => {
 staffBooking.delete('/blocked/:day', async (req, res) => {
   await query('DELETE FROM booking_blocked_days WHERE staff_id = ? AND day = ?', [req.user.id, day.parse(req.params.day)]);
   res.status(204).end();
+});
+
+// Demande du portfolio : accepter ou refuser ; le visiteur reçoit un e-mail (réponse directe au studio).
+staffBooking.patch('/requests/:id', async (req, res) => {
+  const { status, reply } = z.object({ status: z.enum(['accepted', 'declined']), reply: z.string().trim().max(500).optional().default('') }).parse(req.body);
+  const [row] = await query('SELECT * FROM portfolio_requests WHERE id = ? AND staff_id = ?', [uuid.parse(req.params.id), req.user.id]);
+  if (!row) throw httpError(404, 'Demande introuvable.');
+  if (row.status !== 'pending') throw httpError(400, 'Cette demande a déjà reçu une réponse.');
+  await query('UPDATE portfolio_requests SET status = ?, reply = ? WHERE id = ?', [status, reply || null, row.id]);
+  // Acceptée : si la personne n'a pas encore de compte, on lui en crée un (mot de passe initial à changer à la première connexion).
+  let password;
+  if (status === 'accepted' && row.email) {
+    const [known] = await query('SELECT id FROM users WHERE lower(email) = ?', [row.email.toLowerCase()]);
+    if (!known) {
+      const id = crypto.randomUUID();
+      password = INITIAL_PASSWORD;
+      await query(
+        `INSERT INTO users (id, role, created_by, name, email, phone, password_hash, must_change_password) VALUES (?, 'client', ?, ?, ?, ?, ?, 1)`,
+        [id, req.user.id, row.name, row.email.toLowerCase(), row.phone || null, await bcrypt.hash(password, 10)],
+      );
+      await query('INSERT INTO client_photographers (client_id, staff_id) VALUES (?, ?) ON CONFLICT DO NOTHING', [id, req.user.id]);
+    }
+  }
+  if (row.email) fire(sendMail({
+    to: row.email, userId: req.user.id, sentBy: req.user.id, kind: 'inquiry-reply',
+    fromName: studioName(req.user), replyTo: req.user.email,
+    ...inquiryReplyEmail({ name: row.name, email: row.email, password, studio: studioName(req.user), accepted: status === 'accepted', sessionType: row.session_type, date: row.wished_date, reply }),
+  }));
+  audit(req, `inquiry.${status}`, { entity: 'portfolio_request', entityId: row.id });
+  res.json({ ok: true, status, accountCreated: !!password });
 });
 
 async function loadOwn(req, id) {

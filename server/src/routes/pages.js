@@ -50,6 +50,7 @@ router.get('/KentraPix.apk', (req, res) => {
 router.get('/robots.txt', (req, res) => res.type('text').send([
   'User-agent: *',
   'Allow: /studio',
+  'Allow: /studio/',
   'Disallow: /api/',
   'Disallow: /media/',
   'Disallow: /admin',
@@ -63,13 +64,19 @@ router.get('/robots.txt', (req, res) => res.type('text').send([
 ].join('\n')));
 router.get('/sitemap.xml', (req, res) => res.type('application/xml').send(
   `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n  <url><loc>${config.appUrl}/</loc><changefreq>monthly</changefreq><priority>1.0</priority></url>\n  <url><loc>${config.appUrl}/studio</loc><changefreq>monthly</changefreq><priority>0.9</priority></url>
-  <url><loc>${config.appUrl}/conditions</loc><changefreq>yearly</changefreq><priority>0.3</priority></url>\n</urlset>\n`,
+${['outdoor', 'graduation', 'evenement', 'mariage', 'studio'].map((s) => `  <url><loc>${config.appUrl}/studio/${s}</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>\n`).join('')}  <url><loc>${config.appUrl}/conditions</loc><changefreq>yearly</changefreq><priority>0.3</priority></url>\n</urlset>\n`,
 ));
 router.get('/favicon.ico', (req, res) => res.type('image/png').set('Cache-Control', 'public, max-age=86400').sendFile(page('logo/icon-192.png')));
 
 // Conditions d'utilisation : page publique (liée depuis la connexion et la barre latérale).
 // Portfolio public du studio : vitrine + demande de séance (sans compte).
 router.get('/studio', (req, res) => res.sendFile(page('portfolio.html')));
+// Une page par catégorie (même vitrine, filtre présélectionné par js/portfolio.js).
+['outdoor', 'graduation', 'evenement', 'mariage', 'studio'].forEach((slug) => {
+  router.get(`/studio/${slug}`, (req, res) => res.sendFile(page('portfolio.html')));
+  if (slug !== 'studio') router.get(`/${slug}`, (req, res) => res.redirect(301, `/studio/${slug}`));
+});
+router.get('/gaduation', (req, res) => res.redirect(301, '/studio/graduation'));
 router.get('/conditions', (req, res) => res.sendFile(page('conditions.html')));
 
 // Lien de partage famille : page publique, le mot de passe est vérifié par l'API.

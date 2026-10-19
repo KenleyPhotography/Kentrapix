@@ -124,8 +124,8 @@ const inquiryLimiter = rateLimit({
 });
 const inquiry = z.object({
   name: z.string().trim().min(2, 'Entrez votre nom.').max(80),
-  email: z.string().trim().toLowerCase().email('E-mail invalide.').max(190),
-  phone: z.string().trim().max(40).optional().default(''),
+  email: z.union([z.literal(''), z.string().trim().toLowerCase().email('E-mail invalide.').max(190)]).optional().default(''), // facultatif
+  phone: z.string().trim().max(40).refine((v) => v.replace(/\D/g, '').length >= 6, 'Entrez votre numéro de téléphone.'), // obligatoire
   sessionType: z.string().trim().max(80).optional().default(''),
   date: z.string().trim().max(40).optional().default(''),
   message: z.string().trim().max(1000).optional().default(''),
@@ -137,8 +137,14 @@ publicApi.post('/inquiry', inquiryLimiter, async (req, res) => {
   if (d.website) return res.status(201).json({ ok: true }); // robot : on fait semblant
   const o = await owner();
   if (!o) throw httpError(503, 'Studio indisponible.');
+  try {
+    await query(
+      'INSERT INTO portfolio_requests (id, staff_id, name, email, phone, session_type, wished_date, message) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [crypto.randomUUID(), o.id, d.name, d.email, d.phone, d.sessionType, d.date, d.message],
+    );
+  } catch (err) { console.error('Demande portfolio non enregistrée (migration 039 appliquée ?) :', err.message); }
   pushLater(o.id, { title: 'Nouvelle demande de séance', body: `${d.name}${d.sessionType ? ` · ${d.sessionType}` : ''}`, url: '/admin', tag: `inquiry-${Date.now()}` });
-  sendMail({ to: o.email, userId: o.id, kind: 'inquiry', replyTo: d.email, ...inquiryEmail({ staffName: o.name, ...d }) })
+  sendMail({ to: o.email, userId: o.id, kind: 'inquiry', replyTo: d.email || undefined, ...inquiryEmail({ staffName: o.name, ...d }) })
     .catch((err) => console.error('E-mail demande portfolio :', err.message));
   res.status(201).json({ ok: true });
 });

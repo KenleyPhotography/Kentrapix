@@ -294,6 +294,27 @@ export function bookingStatusEmail({ clientName, studio = defaultStudio(), booki
   };
 }
 
+/** Au visiteur du portfolio : le studio accepte ou décline sa demande de séance. */
+export function inquiryReplyEmail({ name, email, studio = defaultStudio(), accepted, sessionType, date, reply, password }) {
+  const title = accepted ? 'Demande acceptée' : 'Demande non disponible';
+  const box = (sessionType || date) ? `<div style="margin:16px 0;padding:16px 18px;border-radius:14px;background:#e8f1ff;color:#082445;font-size:15px;line-height:1.7">${sessionType ? `Séance : ${esc(sessionType)}` : ''}${sessionType && date ? '<br>' : ''}${date ? `Date souhaitée : ${esc(date)}` : ''}</div>` : '';
+  return {
+    subject: `${title} — ${studio}`,
+    html: layout({
+      studio, preheader: title, title,
+      body: `Bonjour ${esc(firstName(name))},<br><br>${accepted ? `${esc(studio)} a accepté votre demande de séance. On vous contacte très vite pour confirmer les détails.` : `${esc(studio)} ne peut malheureusement pas donner suite à votre demande telle quelle.`}${box}${reply ? `Message : <em>« ${esc(reply)} »</em><br><br>` : ''}${password ? `Un espace photo privé a été créé pour vous :${credentials(email, password)}` : ''}${accepted ? 'À très bientôt !' : 'N’hésitez pas à écrire pour proposer une autre date.'}`,
+      ...(password ? { cta: { label: 'Me connecter', url: loginUrl() } } : {}),
+    }),
+    text: `${title}
+${accepted ? `${studio} a accepté votre demande de séance.` : `${studio} ne peut pas donner suite à votre demande.`}${reply ? `
+Message : ${reply}` : ''}${password ? `
+
+Votre espace : ${loginUrl()}
+E-mail : ${email}
+Mot de passe temporaire : ${password}` : ''}`,
+  };
+}
+
 /** Rappel la veille, au client et au photographe. */
 export function bookingReminderEmail({ name, studio = defaultStudio(), booking, forStaff = false, clientName = '' }) {
   return {
@@ -389,18 +410,18 @@ export function contractReminderEmail({ name, studio = defaultStudio(), title, u
 
 /** Au photographe : un visiteur du portfolio demande un devis / une séance (sans compte). */
 export function inquiryEmail({ staffName, name, email, phone, sessionType, date, message }) {
-  const rows = [['Nom', name], ['E-mail', email], phone && ['Téléphone', phone], sessionType && ['Séance', sessionType], date && ['Date souhaitée', date]].filter(Boolean)
+  const rows = [['Nom', name], email && ['E-mail', email], phone && ['Téléphone', phone], sessionType && ['Séance', sessionType], date && ['Date souhaitée', date]].filter(Boolean)
     .map(([k, v]) => `<strong>${esc(k)} :</strong> ${esc(v)}`).join('<br>');
   return {
     subject: `Nouvelle demande depuis le portfolio : ${name}`,
     html: layout({
       preheader: `${name}${sessionType ? ` · ${sessionType}` : ''}`,
       title: 'Nouvelle demande',
-      body: `Bonjour ${esc(firstName(staffName))},<br><br>Quelqu’un vous écrit depuis votre portfolio :<div style="margin:16px 0;padding:16px 18px;border-radius:14px;background:#e8f1ff;color:#082445;font-size:15px;line-height:1.7">${rows}${message ? `<br><br><em>« ${esc(message)} »</em>` : ''}</div>Répondez à cet e-mail pour écrire directement à ${esc(firstName(name))}.`,
+      body: `Bonjour ${esc(firstName(staffName))},<br><br>Quelqu’un vous écrit depuis votre portfolio :<div style="margin:16px 0;padding:16px 18px;border-radius:14px;background:#e8f1ff;color:#082445;font-size:15px;line-height:1.7">${rows}${message ? `<br><br><em>« ${esc(message)} »</em>` : ''}</div>${email ? `Répondez à cet e-mail pour écrire directement à ${esc(firstName(name))}.` : `Pas d’e-mail : contactez ${esc(firstName(name))} par téléphone ou WhatsApp.`}`,
     }),
     text: `Nouvelle demande depuis le portfolio
 Nom : ${name}
-E-mail : ${email}${phone ? `
+E-mail : ${email || '(non fourni)'}${phone ? `
 Téléphone : ${phone}` : ''}${sessionType ? `
 Séance : ${sessionType}` : ''}${date ? `
 Date souhaitée : ${date}` : ''}${message ? `
