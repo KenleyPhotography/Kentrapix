@@ -1,7 +1,9 @@
 import jwt from 'jsonwebtoken';
 import { config } from '../config.js';
 import { query } from '../db.js';
+import crypto from 'node:crypto';
 import { httpError } from '../lib/errors.js';
+import { createSession, sessionAlive, revokeSessions } from '../lib/sessions.js';
 
 export const SESSION_COOKIE = 'kp_session';
 
@@ -12,13 +14,17 @@ const cookieOptions = () => ({
   path: '/',
 });
 
-export function issueSession(res, user, remember = false) {
+/** Ouvre une session : cookie signé + une ligne « appareil connecté » (visible dans le profil). revokeOthers : coupe les autres appareils. */
+export async function issueSession(res, user, remember = false, req = null, { revokeOthers = false } = {}) {
   const days = remember ? 30 : config.sessionDays;
-  const token = jwt.sign({ sub: user.id, role: user.role, v: user.token_version }, config.jwtSecret, {
+  const sid = req ? await createSession(req, user.id) : undefined;
+  const token = jwt.sign({ sub: user.id, role: user.role, v: user.token_version, ...(sid ? { sid } : {}) }, config.jwtSecret, {
     algorithm: 'HS256',
     expiresIn: `${days}d`,
   });
   res.cookie(SESSION_COOKIE, token, { ...cookieOptions(), maxAge: days * 24 * 60 * 60 * 1000 });
+  if (revokeOthers && sid) await revokeSessions(user.id, sid);
+  return sid;
 }
 
 export function clearSession(res) {
@@ -56,11 +62,25 @@ export async function loadUser(req, res, next) {
   try {
     const payload = jwt.verify(token, config.jwtSecret, { algorithms: ['HS256'] });
     const [user] = await query(
-      'SELECT id, role, name, email, phone, sender_name, avatar_key, active, must_change_password, token_version, notifications_seen_at, access_code, access_granted, whatsapp, website, instagram, address, bio FROM users WHERE id = ?',
+      'SELECT id, role, name, email, phone, sender_name, avatar_key, active, must_change_password, token_version, legacy_revoked_at, notifications_seen_at, access_code, access_granted, whatsapp, website, instagram, address, bio FROM users WHERE id = ?',
       [payload.sub],
     );
-    if (user && user.active && user.role === payload.role && user.token_version === payload.v) req.user = user;
-    else clearSession(res);
+    if (user && user.active && user.role === payload.role && user.token_version === payload.v) {
+      if (payload.sid) {
+        // Session révoquée depuis « Appareils connectés » : accès coupé tout de suite.
+        if (await sessionAlive(payload.sid, user.id)) { req.user = user; req.sessionId = payload.sid; } else clearSession(res);
+      } else if (user.legacy_revoked_at && payload.iat * 1000 <= new Date(`${String(user.legacy_revoked_at).replace(' ', 'T')}Z`).getTime()) {
+        clearSession(res); // ancienne connexion coupée par « Déconnecter tous les autres appareils »
+      } else {
+        // Connexion antérieure à la liste des appareils : on la rattache à une session (identifiant tiré du cookie, donc sans doublon).
+        const sid = crypto.createHash('sha256').update(token).digest('hex').slice(0, 32).replace(/^(.{8})(.{4})(.{4})(.{4})(.{12}).*$/, '$1-$2-$3-$4-$5');
+        const left = Math.max(60, payload.exp - Math.floor(Date.now() / 1000));
+        await createSession(req, user.id, sid, new Date(payload.iat * 1000).toISOString().slice(0, 19).replace('T', ' '));
+        const fresh = jwt.sign({ sub: user.id, role: user.role, v: user.token_version, sid }, config.jwtSecret, { algorithm: 'HS256', expiresIn: left });
+        res.cookie(SESSION_COOKIE, fresh, { ...cookieOptions(), maxAge: left * 1000 });
+        req.user = user; req.sessionId = sid;
+      }
+    } else clearSession(res);
   } catch {
     clearSession(res);
   }

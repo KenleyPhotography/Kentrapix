@@ -11,6 +11,7 @@ import { sendMail, mailConfigured } from '../lib/mailer.js';
 import { resetLinkEmail, signupEmail, studioResetEmail } from '../lib/emails.js';
 import { audit } from '../lib/audit.js';
 import { upload, storeAvatar, removeKeys } from '../lib/storage.js';
+import { forgetSession, revokeSessions } from '../lib/sessions.js';
 import { issueSession, clearSession, requireAuth, requireRole, requireStaff, issueStudioUnlock, studioUnlocked } from '../middleware/auth.js';
 import { codeRule } from '../lib/accessCode.js';
 
@@ -55,7 +56,7 @@ router.post('/login', loginLimiter, async (req, res) => {
 
   await query('UPDATE users SET last_login_at = CURRENT_TIMESTAMP WHERE id = ?', [user.id]);
   audit(req, 'auth.login', { userId: user.id });
-  issueSession(res, user, remember);
+  await issueSession(res, user, remember, req);
   res.json({ user: publicUser(user) });
 });
 
@@ -96,7 +97,7 @@ router.post('/signup', signupLimiter, async (req, res) => {
   audit(req, 'auth.signup', { userId: id, details: { email: data.email } });
   const [user] = await query('SELECT * FROM users WHERE id = ?', [id]);
   sendMail({ to: user.email, userId: user.id, kind: 'welcome', ...signupEmail(user) });
-  issueSession(res, user);
+  await issueSession(res, user, false, req);
   res.status(201).json({ user: publicUser(user) });
 });
 
@@ -244,7 +245,7 @@ router.post('/reset', resetLimiter, async (req, res) => {
   audit(req, 'auth.reset_done', { userId: reset.user_id });
   const [user] = await query('SELECT * FROM users WHERE id = ? AND active = 1', [reset.user_id]);
   if (!user) throw httpError(403, 'Ce compte est en pause. Contactez votre photographe.');
-  issueSession(res, user);
+  await issueSession(res, user, false, req, { revokeOthers: true });
   res.json({ user: publicUser(user) });
 });
 
@@ -288,8 +289,35 @@ router.post('/notifications/seen', requireAuth, async (req, res) => {
   res.json({ seenAt: toIso(row.notifications_seen_at) });
 });
 
-router.post('/logout', (req, res) => {
+// ---------- Appareils connectés : les voir et les déconnecter ----------
+router.get('/sessions', requireAuth, async (req, res) => {
+  await query("DELETE FROM user_sessions WHERE user_id = ? AND (created_at < CURRENT_TIMESTAMP - INTERVAL '45 days' OR revoked_at < CURRENT_TIMESTAMP - INTERVAL '7 days')", [req.user.id]).catch(() => {});
+  const rows = await query('SELECT id, device, ip, created_at, last_seen_at FROM user_sessions WHERE user_id = ? AND revoked_at IS NULL ORDER BY last_seen_at DESC', [req.user.id]);
+  const iso = (v) => `${String(v).replace(' ', 'T').replace(/Z$/, '')}Z`;
+  res.set('Cache-Control', 'no-store').json({ sessions: rows.map((r) => ({ id: r.id, device: r.device || 'Appareil', ip: r.ip || '', createdAt: iso(r.created_at), lastSeenAt: iso(r.last_seen_at), current: r.id === req.sessionId })) });
+});
+
+router.post('/sessions/revoke-others', requireAuth, async (req, res) => {
+  const n = await revokeSessions(req.user.id, req.sessionId || null);
+  // Les connexions plus anciennes que cette fonction (sans session) sont coupées aussi.
+  await query('UPDATE users SET legacy_revoked_at = CURRENT_TIMESTAMP WHERE id = ?', [req.user.id]);
+  audit(req, 'auth.sessions_revoke_others', { details: { count: n } });
+  res.json({ revoked: n });
+});
+
+router.delete('/sessions/:id', requireAuth, async (req, res) => {
+  const id = z.string().uuid().parse(req.params.id);
+  const done = await query('UPDATE user_sessions SET revoked_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ? AND revoked_at IS NULL', [id, req.user.id]);
+  if (!done.affectedRows) throw httpError(404, 'Appareil introuvable.');
+  forgetSession(id);
+  audit(req, 'auth.session_revoke');
+  if (id === req.sessionId) clearSession(res);
+  res.status(204).end();
+});
+
+router.post('/logout', async (req, res) => {
   if (req.user) audit(req, 'auth.logout');
+  if (req.sessionId) { await query('UPDATE user_sessions SET revoked_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?', [req.sessionId, req.user.id]).catch(() => {}); forgetSession(req.sessionId); }
   clearSession(res);
   res.status(204).end();
 });
@@ -385,7 +413,7 @@ router.post('/password', requireAuth, async (req, res) => {
   );
   audit(req, 'auth.password_change');
   const [user] = await query('SELECT * FROM users WHERE id = ?', [req.user.id]);
-  issueSession(res, user);
+  await issueSession(res, user, false, req, { revokeOthers: true });
   res.json({ user: publicUser(user) });
 });
 
