@@ -49,6 +49,7 @@ router.get('/KentraPix.apk', (req, res) => {
 // API, photos et liens de partage restent privés (voir aussi X-Robots-Tag dans app.js).
 router.get('/robots.txt', (req, res) => res.type('text').send([
   'User-agent: *',
+  'Allow: /studio',
   'Disallow: /api/',
   'Disallow: /media/',
   'Disallow: /admin',
@@ -61,11 +62,14 @@ router.get('/robots.txt', (req, res) => res.type('text').send([
   '',
 ].join('\n')));
 router.get('/sitemap.xml', (req, res) => res.type('application/xml').send(
-  `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n  <url><loc>${config.appUrl}/</loc><changefreq>monthly</changefreq><priority>1.0</priority></url>\n  <url><loc>${config.appUrl}/conditions</loc><changefreq>yearly</changefreq><priority>0.3</priority></url>\n</urlset>\n`,
+  `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n  <url><loc>${config.appUrl}/</loc><changefreq>monthly</changefreq><priority>1.0</priority></url>\n  <url><loc>${config.appUrl}/studio</loc><changefreq>monthly</changefreq><priority>0.9</priority></url>
+  <url><loc>${config.appUrl}/conditions</loc><changefreq>yearly</changefreq><priority>0.3</priority></url>\n</urlset>\n`,
 ));
 router.get('/favicon.ico', (req, res) => res.type('image/png').set('Cache-Control', 'public, max-age=86400').sendFile(page('logo/icon-192.png')));
 
 // Conditions d'utilisation : page publique (liée depuis la connexion et la barre latérale).
+// Portfolio public du studio : vitrine + demande de séance (sans compte).
+router.get('/studio', (req, res) => res.sendFile(page('portfolio.html')));
 router.get('/conditions', (req, res) => res.sendFile(page('conditions.html')));
 
 // Lien de partage famille : page publique, le mot de passe est vérifié par l'API.

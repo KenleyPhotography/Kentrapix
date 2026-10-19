@@ -4,7 +4,11 @@ import { z } from 'zod';
 import { query } from '../db.js';
 import { httpError } from '../lib/errors.js';
 import { uuid, CLIENT_HAS, NOT_EXPIRED } from '../lib/data.js';
+import rateLimit from 'express-rate-limit';
 import { pushLater } from '../lib/push.js';
+import { sendMail } from '../lib/mailer.js';
+import { inquiryEmail } from '../lib/emails.js';
+import { settingsOf } from '../lib/booking.js';
 
 // Avis des clients après livraison : 1 à 5 étoiles + commentaire, un par galerie (modifiable).
 // Le photographe décide de montrer ou non un avis sur la page de connexion.
@@ -99,4 +103,42 @@ publicApi.get('/reviews', async (req, res) => {
   res.set('Cache-Control', 'public, max-age=300').json({
     reviews: rows.map((r) => ({ rating: Number(r.rating), comment: r.comment, name: short(r.client_name), studio: r.studio })),
   });
+});
+
+// ---------- Portfolio public : infos du studio + demande de séance (sans compte) ----------
+const owner = async () => (await query("SELECT id, name, sender_name, email FROM users WHERE role = 'owner' ORDER BY created_at LIMIT 1"))[0];
+
+publicApi.get('/studio', async (req, res) => {
+  const o = await owner();
+  if (!o) throw httpError(404, 'Studio introuvable.');
+  const settings = await settingsOf(o.id);
+  res.set('Cache-Control', 'public, max-age=300').json({ name: o.sender_name || o.name, sessionTypes: settings.sessionTypes });
+});
+
+const inquiryLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 5,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: { error: 'Trop de demandes. Réessayez plus tard ou écrivez-nous sur WhatsApp.' },
+});
+const inquiry = z.object({
+  name: z.string().trim().min(2, 'Entrez votre nom.').max(80),
+  email: z.string().trim().toLowerCase().email('E-mail invalide.').max(190),
+  phone: z.string().trim().max(40).optional().default(''),
+  sessionType: z.string().trim().max(80).optional().default(''),
+  date: z.string().trim().max(40).optional().default(''),
+  message: z.string().trim().max(1000).optional().default(''),
+  website: z.string().max(200).optional().default(''), // piège anti-robots : doit rester vide
+});
+
+publicApi.post('/inquiry', inquiryLimiter, async (req, res) => {
+  const d = inquiry.parse(req.body);
+  if (d.website) return res.status(201).json({ ok: true }); // robot : on fait semblant
+  const o = await owner();
+  if (!o) throw httpError(503, 'Studio indisponible.');
+  pushLater(o.id, { title: 'Nouvelle demande de séance', body: `${d.name}${d.sessionType ? ` · ${d.sessionType}` : ''}`, url: '/admin', tag: `inquiry-${Date.now()}` });
+  sendMail({ to: o.email, userId: o.id, kind: 'inquiry', replyTo: d.email, ...inquiryEmail({ staffName: o.name, ...d }) })
+    .catch((err) => console.error('E-mail demande portfolio :', err.message));
+  res.status(201).json({ ok: true });
 });

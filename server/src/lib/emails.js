@@ -386,3 +386,25 @@ export function contractReminderEmail({ name, studio = defaultStudio(), title, u
     text: `Bonjour ${firstName(name)},\n\nLe contrat « ${title} » de ${studio} attend encore votre signature${bookingDay ? ` avant votre séance du ${bookingDay}` : ''}.\n${url}`,
   };
 }
+
+/** Au photographe : un visiteur du portfolio demande un devis / une séance (sans compte). */
+export function inquiryEmail({ staffName, name, email, phone, sessionType, date, message }) {
+  const rows = [['Nom', name], ['E-mail', email], phone && ['Téléphone', phone], sessionType && ['Séance', sessionType], date && ['Date souhaitée', date]].filter(Boolean)
+    .map(([k, v]) => `<strong>${esc(k)} :</strong> ${esc(v)}`).join('<br>');
+  return {
+    subject: `Nouvelle demande depuis le portfolio : ${name}`,
+    html: layout({
+      preheader: `${name}${sessionType ? ` · ${sessionType}` : ''}`,
+      title: 'Nouvelle demande',
+      body: `Bonjour ${esc(firstName(staffName))},<br><br>Quelqu’un vous écrit depuis votre portfolio :<div style="margin:16px 0;padding:16px 18px;border-radius:14px;background:#e8f1ff;color:#082445;font-size:15px;line-height:1.7">${rows}${message ? `<br><br><em>« ${esc(message)} »</em>` : ''}</div>Répondez à cet e-mail pour écrire directement à ${esc(firstName(name))}.`,
+    }),
+    text: `Nouvelle demande depuis le portfolio
+Nom : ${name}
+E-mail : ${email}${phone ? `
+Téléphone : ${phone}` : ''}${sessionType ? `
+Séance : ${sessionType}` : ''}${date ? `
+Date souhaitée : ${date}` : ''}${message ? `
+
+${message}` : ''}`,
+  };
+}

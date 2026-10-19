@@ -2,7 +2,7 @@
 // Réseau d'abord (les mises à jour s'affichent tout de suite) ; ce qui a déjà été vu est gardé sur l'appareil
 // comme secours hors connexion : pages, données du compte, photos consultées. Tout est effacé à la déconnexion
 // et à la connexion (message « kp-clear »), pour qu'un autre compte sur le même appareil ne voie jamais ces données.
-const SHELL_CACHE = 'kentrapix-shell-v8';
+const SHELL_CACHE = 'kentrapix-shell-v9';
 const DATA_CACHE = 'kentrapix-data-v1';
 const MEDIA_CACHE = 'kentrapix-media-v1';
 const KEEP = [SHELL_CACHE, DATA_CACHE, MEDIA_CACHE];

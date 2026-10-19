@@ -34,7 +34,7 @@ export function createApp() {
           scriptSrc: ["'self'"],
           styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
           fontSrc: ["'self'", 'https://fonts.gstatic.com'],
-          imgSrc: ["'self'", 'data:', 'blob:', 'https://images.unsplash.com', ...bucket],
+          imgSrc: ["'self'", 'data:', 'blob:', 'https://images.unsplash.com', 'https://kenleyelysee.com', 'https://www.kenleyelysee.com', ...bucket],
           mediaSrc: ["'self'", 'blob:', ...bucket],
           connectSrc: ["'self'", ...bucket],
           formAction: ["'self'"],
@@ -57,7 +57,7 @@ export function createApp() {
   });
   // Seule la page d'accueil / connexion est indexée. Galeries, studio, API, photos et liens
   // de partage : jamais dans Google, même si un lien fuit.
-  const indexable = (p) => p === '/' || p === '/conditions' || p === '/sitemap.xml' || p === '/robots.txt' || p === '/favicon.ico' || /^\/(css|js|img|logo)\//.test(p);
+  const indexable = (p) => p === '/' || p === '/conditions' || p === '/studio' || p === '/sitemap.xml' || p === '/robots.txt' || p === '/favicon.ico' || /^\/(css|js|img|logo)\//.test(p);
   app.use((req, res, next) => {
     if (!indexable(req.path)) res.set('X-Robots-Tag', 'noindex, nofollow');
     next();
