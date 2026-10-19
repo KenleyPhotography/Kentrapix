@@ -62,3 +62,5 @@ h1, h2 { font-family: Sora, Inter, sans-serif; letter-spacing: -0.02em; margin: 
 .pf-lightbox[hidden] { display: none; }
 .pf-lightbox img { max-width: 100%; max-height: 88vh; border-radius: 12px; }
 .pf-lightbox button { position: absolute; top: max(12px, env(safe-area-inset-top)); right: 14px; width: 42px; height: 42px; border: 0; border-radius: 12px; background: rgba(255, 255, 255, 0.16); color: #fff; font-size: 1.6rem; cursor: pointer; }
+.pf-more { display: flex; margin: 26px auto 0; background: var(--b); color: #fff; }
+.pf-more[hidden] { display: none; }
