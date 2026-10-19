@@ -8,7 +8,7 @@ import rateLimit from 'express-rate-limit';
 import { pushLater } from '../lib/push.js';
 import { sendMail } from '../lib/mailer.js';
 import { inquiryEmail } from '../lib/emails.js';
-import { settingsOf } from '../lib/booking.js';
+import { settingsOf, takenDays, nextFreeDays, studioToday, addDays } from '../lib/booking.js';
 
 // Avis des clients après livraison : 1 à 5 étoiles + commentaire, un par galerie (modifiable).
 // Le photographe décide de montrer ou non un avis sur la page de connexion.
@@ -132,11 +132,29 @@ const inquiry = z.object({
   website: z.string().max(200).optional().default(''), // piège anti-robots : doit rester vide
 });
 
+// Jours déjà pris dans les 6 prochains mois : le formulaire du portfolio les refuse et propose les prochaines dates libres.
+publicApi.get('/taken-days', async (req, res) => {
+  const o = await owner();
+  if (!o) throw httpError(404, 'Studio introuvable.');
+  const today = studioToday();
+  const taken = await takenDays(o.id, today, addDays(today, 183));
+  res.set('Cache-Control', 'no-store').json({ today, taken: [...taken].sort(), next: nextFreeDays(taken, today, 3) });
+});
+
 publicApi.post('/inquiry', inquiryLimiter, async (req, res) => {
   const d = inquiry.parse(req.body);
   if (d.website) return res.status(201).json({ ok: true }); // robot : on fait semblant
   const o = await owner();
   if (!o) throw httpError(503, 'Studio indisponible.');
+  if (d.date) {
+    const today = studioToday();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d.date) || d.date < today) throw httpError(400, 'Choisissez une date à venir.');
+    const taken = await takenDays(o.id, d.date, d.date);
+    if (taken.has(d.date)) {
+      const all = await takenDays(o.id, d.date, addDays(d.date, 120));
+      return res.status(409).json({ error: 'Cette date est déjà réservée. Choisissez une autre date.', suggestions: nextFreeDays(all, addDays(d.date, 1), 3) });
+    }
+  }
   try {
     await query(
       'INSERT INTO portfolio_requests (id, staff_id, name, email, phone, session_type, wished_date, message) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',

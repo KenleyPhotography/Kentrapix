@@ -161,13 +161,15 @@
   (function () { var cats = Object.keys(SETS), max = Math.max.apply(null, cats.map(function (c) { return SETS[c].length; })); for (var i = 0; i < max; i++) cats.forEach(function (cat) { if (SETS[cat][i]) PHOTOS.push({ cat: cat, src: SETS[cat][i], alt: ALT[cat] + ' ' + (i + 1) }); }); })();
   // « Tout » : les catégories alternent (studio, outdoor, événement…) au lieu d'afficher tout un genre d'un coup.
   var MIX = [];
-  (function () {
+  function rebuildMix() {
+    MIX = [];
     var cols = Object.keys(SETS).map(function (c) { return PHOTOS.filter(function (p) { return p.cat === c; }); });
     for (var i = 0, more = true; more; i++) { more = false; cols.forEach(function (col) { if (col[i]) { MIX.push(col[i]); more = true; } }); }
-  })();
+  }
+  rebuildMix();
   var PAGE = 12, shown = PAGE;
   var $ = function (id) { return document.getElementById(id); };
-  var url = function (p) { return BASE + p.split('/').map(encodeURIComponent).join('/'); };
+  var url = function (p) { return p.charAt(0) === '/' ? p : BASE + p.split('/').map(encodeURIComponent).join('/'); }; // « /… » = photo ajoutée depuis le studio
   var SLUGS = { outdoor: 'Outdoor', evenement: 'Événement', graduation: 'Graduation', mariage: 'Mariage', studio: 'Studio' };
   var slugOf = function (cat) { return Object.keys(SLUGS).filter(function (k) { return SLUGS[k] === cat; })[0]; };
   var m = location.pathname.match(/^\/studio\/([a-z]+)\/?$/);
@@ -223,6 +225,13 @@
   });
   if (current !== 'Tout') document.title = current + ' — ' + baseTitle;
   renderFilters(); renderGrid();
+
+  // Photos ajoutées depuis le studio : elles passent devant celles de kenleyelysee.com.
+  fetch('/api/public/portfolio').then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
+    if (!j || !j.photos || !j.photos.length) return;
+    var mine = j.photos.filter(function (p) { return SETS[p.category]; }).map(function (p, i) { return { cat: p.category, src: p.src, alt: (ALT[p.category] || 'Photo') + ' ' + (i + 1) }; });
+    PHOTOS = mine.concat(PHOTOS); rebuildMix(); renderFilters(); renderGrid();
+  }).catch(function () {});
   if (current !== 'Tout') $('galerie').scrollIntoView();
 
   fetch('/api/public/studio').then(function (r) { return r.ok ? r.json() : null; }).then(function (s) {
@@ -230,17 +239,44 @@
     (s.sessionTypes || []).forEach(function (t) { var o = document.createElement('option'); o.value = o.textContent = t; $('types').appendChild(o); });
   }).catch(function () {});
 
+  // Dates déjà prises : refusées tout de suite, avec les prochaines dates libres à choisir d'un clic.
+  var taken = [], today = '';
+  var frDate = function (d) { return new Date(d + 'T12:00:00Z').toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'long', timeZone: 'UTC' }); };
+  function showAlt(list, text) {
+    var box = $('alt'); box.innerHTML = '';
+    if (!list || !list.length) { box.hidden = true; return; }
+    var t = document.createElement('span'); t.textContent = text || 'Dates libres :'; box.appendChild(t);
+    list.forEach(function (d) {
+      var b = document.createElement('button'); b.type = 'button'; b.textContent = frDate(d);
+      b.onclick = function () { $('wish').value = d; checkDate(); };
+      box.appendChild(b);
+    });
+    box.hidden = false;
+  }
+  function checkDate() {
+    var v = $('wish').value, msg = $('msg');
+    if (!v || taken.indexOf(v) < 0) { if (msg.dataset.taken) { msg.textContent = ''; msg.className = 'pf-msg'; delete msg.dataset.taken; } $('alt').hidden = true; return true; }
+    var free = []; for (var i = 1; i < 60 && free.length < 3; i++) { var d = new Date(v + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + i); var s = d.toISOString().slice(0, 10); if (taken.indexOf(s) < 0) free.push(s); }
+    msg.className = 'pf-msg err'; msg.dataset.taken = '1'; msg.textContent = 'Cette date est déjà réservée. Choisissez une autre date.';
+    showAlt(free); return false;
+  }
+  fetch('/api/public/taken-days').then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
+    if (!j) return; taken = j.taken || []; today = j.today; $('wish').min = j.today; checkDate();
+  }).catch(function () {});
+  $('wish').addEventListener('change', checkDate);
+
   $('form').addEventListener('submit', function (e) {
     e.preventDefault();
     var f = e.target, msg = $('msg'), btn = $('send');
     var data = {}; new FormData(f).forEach(function (v, k) { data[k] = v; });
     if (!data.name || String(data.phone || '').replace(/\D/g, '').length < 6) { msg.className = 'pf-msg err'; msg.textContent = 'Entrez votre nom et votre numéro de téléphone.'; return; }
+    if (!checkDate()) return;
     btn.disabled = true; msg.className = 'pf-msg'; msg.textContent = 'Envoi…';
     fetch('/api/public/inquiry', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
       .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { return { ok: r.ok, j: j }; }); })
       .then(function (r) {
         if (r.ok) { f.reset(); msg.className = 'pf-msg ok'; msg.textContent = 'Merci ! Votre demande est envoyée, on vous répond très vite.'; }
-        else { msg.className = 'pf-msg err'; msg.textContent = (r.j && (r.j.error || r.j.message)) || 'Envoi impossible. Écrivez-nous sur WhatsApp.'; }
+        else { msg.className = 'pf-msg err'; msg.textContent = (r.j && (r.j.error || r.j.message)) || 'Envoi impossible. Écrivez-nous sur WhatsApp.'; if (r.j && r.j.suggestions) { if (data.date) taken.push(data.date); showAlt(r.j.suggestions); } }
       })
       .catch(function () { msg.className = 'pf-msg err'; msg.textContent = 'Connexion impossible. Réessayez.'; })
       .then(function () { btn.disabled = false; });

@@ -43,6 +43,14 @@ export const config = {
   // Stockage en ligne des photos (Backblaze B2, ou tout service compatible S3 : R2, Oracle…).
   // Vide = photos dans STORAGE_DIR sur ce serveur.
   s3: s3Config(),
+  // Photos du portfolio public : gardées dans une branche du dépôt GitHub (ni R2 ni Supabase).
+  // Jeton GitHub « fine-grained » avec Contents : lecture et écriture sur ce dépôt.
+  github: {
+    token: process.env.GITHUB_TOKEN || '',
+    repo: process.env.GITHUB_REPO || 'KenleyPhotography/Kentrapix',
+    branch: process.env.GITHUB_MEDIA_BRANCH || 'portfolio-media',
+    base: process.env.GITHUB_BASE_BRANCH || 'master',
+  },
   // true = ne jamais supprimer de fichier photo (copie de test qui partage le bucket de la production).
   keepFiles: process.env.STORAGE_KEEP_FILES === 'true',
 };

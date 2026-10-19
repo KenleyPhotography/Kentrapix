@@ -54,6 +54,10 @@ h1, h2 { font-family: Sora, Inter, sans-serif; letter-spacing: -0.02em; margin: 
 .pf-form label { display: grid; gap: 6px; font-weight: 600; font-size: 0.88rem; }
 .pf-form input, .pf-form select, .pf-form textarea { width: 100%; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg); color: var(--ink); font: 400 1rem Inter, sans-serif; }
 .pf-form input:focus, .pf-form select:focus, .pf-form textarea:focus { outline: 2px solid var(--b); outline-offset: 1px; background: #fff; }
+.pf-alt { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 0.88rem; }
+.pf-alt[hidden] { display: none; }
+.pf-alt button { padding: 8px 14px; border: 1px solid var(--b); border-radius: 999px; background: #fff; color: var(--b); font: 600 0.88rem Inter, sans-serif; cursor: pointer; }
+.pf-alt button:hover { background: var(--b); color: #fff; }
 .pf-opt { font-weight: 400; color: var(--mut); }
 .pf-two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 @media (max-width: 480px) { .pf-two { grid-template-columns: 1fr; } }

@@ -18,6 +18,7 @@ import { shareApi, shareMedia } from './routes/share.js';
 import { invoiceApi } from './routes/billing.js';
 import { contractApi } from './routes/contracts.js';
 import { publicApi } from './routes/reviews.js';
+import { publicPortfolio } from './routes/portfolio.js';
 
 export function createApp() {
   const app = express();
@@ -84,6 +85,7 @@ export function createApp() {
   app.use('/api/client', clientRoutes);
   app.use('/api/admin', adminRoutes);
   app.use('/api/invoice', invoiceApi); // page publique d'une facture (lien secret)
+  app.use('/api/public', publicPortfolio);
   app.use('/api/public', publicApi); // avis approuvés affichés sur la page de connexion
   app.use('/api/contract', contractApi); // page publique d'un contrat (lien secret)
   app.use('/api/share', shareApi); // lien de partage famille (sans compte)

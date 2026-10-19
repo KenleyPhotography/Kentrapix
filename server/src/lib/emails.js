@@ -295,18 +295,19 @@ export function bookingStatusEmail({ clientName, studio = defaultStudio(), booki
 }
 
 /** Au visiteur du portfolio : le studio accepte ou décline sa demande de séance. */
-export function inquiryReplyEmail({ name, email, studio = defaultStudio(), accepted, sessionType, date, reply, password }) {
+export function inquiryReplyEmail({ name, email, studio = defaultStudio(), accepted, sessionType, date, reply, password, proposedDate }) {
   const title = accepted ? 'Demande acceptée' : 'Demande non disponible';
   const box = (sessionType || date) ? `<div style="margin:16px 0;padding:16px 18px;border-radius:14px;background:#e8f1ff;color:#082445;font-size:15px;line-height:1.7">${sessionType ? `Séance : ${esc(sessionType)}` : ''}${sessionType && date ? '<br>' : ''}${date ? `Date souhaitée : ${esc(date)}` : ''}</div>` : '';
   return {
     subject: `${title} — ${studio}`,
     html: layout({
       studio, preheader: title, title,
-      body: `Bonjour ${esc(firstName(name))},<br><br>${accepted ? `${esc(studio)} a accepté votre demande de séance. On vous contacte très vite pour confirmer les détails.` : `${esc(studio)} ne peut malheureusement pas donner suite à votre demande telle quelle.`}${box}${reply ? `Message : <em>« ${esc(reply)} »</em><br><br>` : ''}${password ? `Un espace photo privé a été créé pour vous :${credentials(email, password)}` : ''}${accepted ? 'À très bientôt !' : 'N’hésitez pas à écrire pour proposer une autre date.'}`,
+      body: `Bonjour ${esc(firstName(name))},<br><br>${accepted ? `${esc(studio)} a accepté votre demande de séance. On vous contacte très vite pour confirmer les détails.` : `${esc(studio)} ne peut malheureusement pas donner suite à votre demande telle quelle.`}${box}${proposedDate ? `<strong>Autre date proposée : ${esc(frDay(proposedDate))}</strong><br><br>` : ''}${reply ? `Message : <em>« ${esc(reply)} »</em><br><br>` : ''}${password ? `Un espace photo privé a été créé pour vous :${credentials(email, password)}` : ''}${accepted ? 'À très bientôt !' : 'N’hésitez pas à écrire pour proposer une autre date.'}`,
       ...(password ? { cta: { label: 'Me connecter', url: loginUrl() } } : {}),
     }),
     text: `${title}
-${accepted ? `${studio} a accepté votre demande de séance.` : `${studio} ne peut pas donner suite à votre demande.`}${reply ? `
+${accepted ? `${studio} a accepté votre demande de séance.` : `${studio} ne peut pas donner suite à votre demande.`}${proposedDate ? `
+Autre date proposée : ${frDay(proposedDate)}` : ''}${reply ? `
 Message : ${reply}` : ''}${password ? `
 
 Votre espace : ${loginUrl()}

@@ -11,7 +11,7 @@ import { sendMail } from '../lib/mailer.js';
 import { accountScope } from '../lib/scope.js';
 import { bookingRequestEmail, bookingStatusEmail, inquiryReplyEmail } from '../lib/emails.js';
 import {
-  settingsOf, mapSettings, monthSlots, slotsForDay, mapBooking, BOOKING_SELECT, studioToday, addDays, minutesOf, hhmm,
+  takenDays, nextFreeDays, settingsOf, mapSettings, monthSlots, slotsForDay, mapBooking, BOOKING_SELECT, studioToday, addDays, minutesOf, hhmm,
 } from '../lib/booking.js';
 
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date invalide.');
@@ -82,10 +82,18 @@ staffBooking.delete('/blocked/:day', async (req, res) => {
 
 // Demande du portfolio : accepter ou refuser ; le visiteur reçoit un e-mail (réponse directe au studio).
 staffBooking.patch('/requests/:id', async (req, res) => {
-  const { status, reply } = z.object({ status: z.enum(['accepted', 'declined']), reply: z.string().trim().max(500).optional().default('') }).parse(req.body);
+  const { status, reply, proposedDate } = z.object({ status: z.enum(['accepted', 'declined']), reply: z.string().trim().max(500).optional().default(''), proposedDate: day.optional() }).parse(req.body);
   const [row] = await query('SELECT * FROM portfolio_requests WHERE id = ? AND staff_id = ?', [uuid.parse(req.params.id), req.user.id]);
   if (!row) throw httpError(404, 'Demande introuvable.');
   if (row.status !== 'pending') throw httpError(400, 'Cette demande a déjà reçu une réponse.');
+  // Accepter une date déjà prise (séance confirmée ou autre demande acceptée) : refusé, avec les prochaines dates libres.
+  if (status === 'accepted' && /^\d{4}-\d{2}-\d{2}$/.test(row.wished_date)) {
+    const taken = await takenDays(req.user.id, row.wished_date, row.wished_date);
+    if (taken.has(row.wished_date)) {
+      const all = await takenDays(req.user.id, row.wished_date, addDays(row.wished_date, 120));
+      throw httpError(409, `Cette date est déjà prise. Refusez la demande en proposant une autre date (libres : ${nextFreeDays(all, addDays(row.wished_date, 1), 3).join(', ')}).`);
+    }
+  }
   await query('UPDATE portfolio_requests SET status = ?, reply = ? WHERE id = ?', [status, reply || null, row.id]);
   // Acceptée : si la personne n'a pas encore de compte, on lui en crée un (mot de passe initial à changer à la première connexion).
   let password;
@@ -104,7 +112,7 @@ staffBooking.patch('/requests/:id', async (req, res) => {
   if (row.email) fire(sendMail({
     to: row.email, userId: req.user.id, sentBy: req.user.id, kind: 'inquiry-reply',
     fromName: studioName(req.user), replyTo: req.user.email,
-    ...inquiryReplyEmail({ name: row.name, email: row.email, password, studio: studioName(req.user), accepted: status === 'accepted', sessionType: row.session_type, date: row.wished_date, reply }),
+    ...inquiryReplyEmail({ name: row.name, email: row.email, password, studio: studioName(req.user), accepted: status === 'accepted', sessionType: row.session_type, date: row.wished_date, reply, proposedDate }),
   }));
   audit(req, `inquiry.${status}`, { entity: 'portfolio_request', entityId: row.id });
   res.json({ ok: true, status, accountCreated: !!password });

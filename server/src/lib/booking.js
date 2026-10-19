@@ -77,6 +77,23 @@ export async function monthSlots(staffId, month) {
   return { settings, days };
 }
 
+/** Jours déjà pris (séance confirmée, demande du portfolio acceptée ou jour bloqué) entre deux dates 'YYYY-MM-DD'. */
+export async function takenDays(staffId, from, to) {
+  const [booked, blocked, accepted] = await Promise.all([
+    query("SELECT day FROM bookings WHERE staff_id = ? AND status = 'confirmed' AND day BETWEEN ? AND ?", [staffId, from, to]),
+    query('SELECT day FROM booking_blocked_days WHERE staff_id = ? AND day BETWEEN ? AND ?', [staffId, from, to]),
+    query("SELECT wished_date FROM portfolio_requests WHERE staff_id = ? AND status = 'accepted' AND wished_date BETWEEN ? AND ?", [staffId, from, to]).catch(() => []),
+  ]);
+  return new Set([...booked, ...blocked].map((r) => String(r.day).slice(0, 10)).concat(accepted.map((r) => r.wished_date)));
+}
+
+/** Les n prochaines dates libres à partir de `from` (comprise). */
+export function nextFreeDays(taken, from, n = 3, span = 120) {
+  const out = [];
+  for (let i = 0; i < span && out.length < n; i++) { const d = addDays(from, i); if (!taken.has(d)) out.push(d); }
+  return out;
+}
+
 export const mapBooking = (b) => ({
   id: b.id,
   day: String(b.day).slice(0, 10),

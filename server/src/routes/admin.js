@@ -33,6 +33,7 @@ import { staffContracts } from './contracts.js';
 import { staffReviews } from './reviews.js';
 import { staffTodo } from './todo.js';
 import { staffBooking } from './booking.js';
+import { staffPortfolio } from './portfolio.js';
 import { staffOrders } from './orders.js';
 import { config } from '../config.js';
 import { BCRYPT_COST, passwordRule } from './auth.js';
@@ -48,6 +49,7 @@ router.use(requireStudio);
 // Administration : factures, paiements, rappels (billing.js).
 router.use(billingRouter);
 router.use('/booking', staffBooking);
+router.use('/portfolio', staffPortfolio);
 router.use('/contracts', staffContracts);
 router.use('/reviews', staffReviews);
 router.use('/todo', staffTodo);

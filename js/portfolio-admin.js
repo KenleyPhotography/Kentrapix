@@ -1,0 +1,46 @@
+// Studio : ajouter ou retirer des photos du portfolio public. Les fichiers ne vont ni sur R2 ni sur Supabase (GitHub, côté serveur).
+import { api, escape } from './service.js';
+import { icon } from './icons.js';
+
+export const adminPortfolioPage = () => '<div class="greeting"><h1>Portfolio</h1></div><div id="pfa-root"><div class="empty small"><p>Chargement…</p></div></div>';
+
+export async function bindAdminPortfolio({ toast }) {
+  const root = document.getElementById('pfa-root');
+  if (!root) return;
+  let d;
+  const load = async () => { d = await api('/api/admin/portfolio'); draw(); };
+  const guard = (fn) => async (...a) => { try { await fn(...a); } catch (e) { toast(e.message); } };
+
+  const draw = () => {
+    if (!d.tableReady) { root.innerHTML = '<section class="settings bill-block"><h2>Portfolio</h2><p class="small">La base de données doit encore recevoir la mise à jour 040 (<code>npm run db:init</code>) avant d’ajouter des photos.</p></section>'; return; }
+    const by = {};
+    for (const p of d.photos) (by[p.category] ??= []).push(p);
+    root.innerHTML = `<section class="settings bill-block"><h2>${icon('upload')} Ajouter des photos</h2>
+      ${d.ready ? '' : '<p class="small" style="color:#c2410c">Le serveur n’est pas encore relié à GitHub (variable <code>GITHUB_TOKEN</code>). L’envoi est désactivé.</p>'}
+      <form id="pfa-form" class="bk-form">
+        <label>Catégorie<select name="category">${d.categories.map((c) => `<option>${escape(c)}</option>`).join('')}</select></label>
+        <label>Photos <span class="optional">(jusqu’à 12 à la fois)</span><input type="file" name="photos" accept="image/*" multiple required></label>
+        <p class="small">Les photos sont réduites (1600 px) puis gardées sur GitHub : pas de stockage R2 ni Supabase. Elles apparaissent tout de suite dans le portfolio public, avant celles de kenleyelysee.com.</p>
+        <button class="btn primary" ${d.ready ? '' : 'disabled'}>${icon('upload')} Ajouter au portfolio</button>
+      </form></section>
+      <section class="settings bill-block"><h2>Photos ajoutées ${d.photos.length ? `<span class="count-pill">${d.photos.length}</span>` : ''}</h2>
+      ${d.photos.length ? Object.keys(by).map((c) => `<h3 class="small" style="margin:14px 0 8px">${escape(c)}</h3><div class="pfa-grid">${by[c].map((p) => `<figure class="pfa-item"><img src="${escape(p.src)}" alt="" loading="lazy"><button type="button" class="btn sm" data-pfa-del="${p.id}" aria-label="Retirer cette photo">${icon('trash')}</button></figure>`).join('')}</div>`).join('') : '<p class="small">Aucune photo ajoutée pour l’instant. Celles de kenleyelysee.com restent affichées.</p>'}
+      </section>`;
+    root.querySelector('#pfa-form').addEventListener('submit', guard(async (e) => {
+      e.preventDefault();
+      const f = e.currentTarget, btn = f.querySelector('button'), files = f.photos.files;
+      if (files.length > 12) { toast('12 photos au maximum à la fois.'); return; }
+      const form = new FormData(); form.append('category', f.category.value);
+      for (const file of files) form.append('photos', file);
+      btn.disabled = true; btn.textContent = 'Envoi…';
+      try { await api('/api/admin/portfolio', { method: 'POST', form }); toast('Photos ajoutées au portfolio.'); await load(); }
+      finally { btn.disabled = false; }
+    }));
+    root.querySelectorAll('[data-pfa-del]').forEach((b) => { b.onclick = guard(async () => {
+      if (!confirm('Retirer cette photo du portfolio ?')) return;
+      await api(`/api/admin/portfolio/${b.dataset.pfaDel}`, { method: 'DELETE' }); await load();
+    }); });
+  };
+
+  try { await load(); } catch (e) { root.innerHTML = `<div class="empty"><h2>${escape(e.message)}</h2></div>`; }
+}

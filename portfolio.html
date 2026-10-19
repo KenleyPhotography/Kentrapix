@@ -56,13 +56,14 @@
         <label>E-mail <span class="pf-opt">(facultatif)</span><input name="email" type="email" autocomplete="email" maxlength="190"></label>
         <div class="pf-two">
           <label>Téléphone / WhatsApp<input name="phone" type="tel" autocomplete="tel" inputmode="tel" required maxlength="40" placeholder="+509 …"></label>
-          <label>Date souhaitée<input name="date" type="date"></label>
+          <label>Date souhaitée<input name="date" id="wish" type="date"></label>
         </div>
         <label>Type de séance<select name="sessionType" id="types"><option value="">Choisir…</option></select></label>
         <label>Message<textarea name="message" rows="4" maxlength="1000" placeholder="Lieu, nombre de personnes, idées…"></textarea></label>
         <input name="website" class="pf-trap" tabindex="-1" autocomplete="off" aria-hidden="true">
         <button class="pf-btn" type="submit" id="send">Envoyer ma demande</button>
         <p class="pf-msg" id="msg" role="status" aria-live="polite"></p>
+        <div class="pf-alt" id="alt" hidden></div>
       </form>
     </section>
   </main>

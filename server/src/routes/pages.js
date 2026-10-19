@@ -2,6 +2,7 @@ import { Router } from 'express';
 import express from 'express';
 import path from 'node:path';
 import { config, frontendRoot } from '../config.js';
+import { portfolioMedia } from './portfolio.js';
 
 // Sert le frontend. Seuls css/, js/, logo/, img/ et les pages listées sont publics :
 // le dossier server/ (code, .env, photos) n'est jamais exposé.
@@ -69,6 +70,8 @@ ${['outdoor', 'graduation', 'evenement', 'mariage', 'studio'].map((s) => `  <url
 router.get('/favicon.ico', (req, res) => res.type('image/png').set('Cache-Control', 'public, max-age=86400').sendFile(page('logo/icon-192.png')));
 
 // Conditions d'utilisation : page publique (liée depuis la connexion et la barre latérale).
+// Photos ajoutées au portfolio depuis le studio (lues sur GitHub, puis gardées par le CDN).
+router.get('/portfolio-media/:file', portfolioMedia);
 // Portfolio public du studio : vitrine + demande de séance (sans compte).
 router.get('/studio', (req, res) => res.sendFile(page('portfolio.html')));
 // Une page par catégorie (même vitrine, filtre présélectionné par js/portfolio.js).
