@@ -2,6 +2,20 @@
 import { api, escape } from './service.js';
 import { icon } from './icons.js';
 
+// Réduit la photo dans le navigateur avant l'envoi : 2048 px max, JPEG qualité 92 (visuellement identique, 10 à 20 fois plus léger).
+// Si le navigateur ne sait pas la lire (HEIC, RAW…), la photo originale part telle quelle.
+async function shrink(file) {
+  try {
+    const bmp = await createImageBitmap(file, { imageOrientation: 'from-image' });
+    const scale = Math.min(1, 2048 / Math.max(bmp.width, bmp.height));
+    const w = Math.round(bmp.width * scale), h = Math.round(bmp.height * scale);
+    const canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext('2d'); ctx.imageSmoothingQuality = 'high'; ctx.drawImage(bmp, 0, 0, w, h); bmp.close?.();
+    const blob = await new Promise((ok) => canvas.toBlob(ok, 'image/jpeg', 0.92));
+    return blob && blob.size < file.size ? new File([blob], file.name.replace(/\.\w+$/, '') + '.jpg', { type: 'image/jpeg' }) : file;
+  } catch { return file; }
+}
+
 export const adminPortfolioPage = () => '<div class="greeting"><h1>Portfolio</h1></div><div id="pfa-root"><div class="empty small"><p>Chargement…</p></div></div>';
 
 export async function bindAdminPortfolio({ toast }) {
@@ -30,8 +44,9 @@ export async function bindAdminPortfolio({ toast }) {
       const f = e.currentTarget, btn = f.querySelector('button'), files = f.photos.files;
       if (files.length > 12) { toast('12 photos au maximum à la fois.'); return; }
       const form = new FormData(); form.append('category', f.category.value);
-      for (const file of files) form.append('photos', file);
-      btn.disabled = true; btn.textContent = 'Envoi…';
+      btn.disabled = true; btn.textContent = 'Préparation…';
+      for (const file of files) form.append('photos', await shrink(file));
+      btn.textContent = 'Envoi…';
       try { await api('/api/admin/portfolio', { method: 'POST', form }); toast('Photos ajoutées au portfolio.'); await load(); }
       finally { btn.disabled = false; }
     }));

@@ -8,6 +8,7 @@ import { query } from '../db.js';
 import { httpError } from '../lib/errors.js';
 import { uuid } from '../lib/data.js';
 import { audit } from '../lib/audit.js';
+import { config } from '../config.js';
 import { requireOwner } from '../middleware/auth.js';
 import { githubReady, putFile, deleteFile, readFile } from '../lib/github.js';
 
@@ -15,7 +16,7 @@ export const CATEGORIES = ['Studio', 'Outdoor', 'Événement', 'Graduation', 'Ma
 const MAX_FILES = 12;
 
 // Photos en mémoire le temps de les réduire ; rien n'est écrit sur le disque du serveur.
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024, files: MAX_FILES, fields: 5 } });
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: config.maxUploadMb * 1024 * 1024, files: MAX_FILES, fields: 5 } });
 const mapPhoto = (r) => ({ id: r.id, category: r.category, src: `/portfolio-media/${r.file}`, createdAt: r.created_at });
 
 // ---------- Studio (propriétaire) ----------
@@ -35,8 +36,8 @@ staffPortfolio.post('/', upload.array('photos', MAX_FILES), async (req, res) => 
   const added = [];
   for (const f of files) {
     if (!/^image\//.test(f.mimetype)) throw httpError(400, `« ${f.originalname} » n’est pas une image.`);
-    // Réduction : 1600 px max, JPEG léger (le dépôt et la bande passante restent petits).
-    const buf = await sharp(f.buffer).rotate().resize({ width: 1600, height: 1600, fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 80, mozjpeg: true }).toBuffer();
+    // Réduction : 2048 px max, JPEG haute qualité (le dépôt et la bande passante restent raisonnables).
+    const buf = await sharp(f.buffer).rotate().resize({ width: 2048, height: 2048, fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 86, mozjpeg: true, chromaSubsampling: '4:4:4' }).toBuffer();
     const id = crypto.randomUUID();
     const file = `${id}.jpg`;
     const sha = await putFile(file, buf, `Portfolio : ${category}`).catch((err) => { console.error('Portfolio :', err.message); throw httpError(502, 'Envoi impossible pour le moment. Réessayez dans un instant.'); });

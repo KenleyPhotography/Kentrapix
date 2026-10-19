@@ -1,8 +1,8 @@
 // Client de l'API KentraPix (backend Node.js + PostgreSQL, dossier server/).
 export const image=(id,w=1100)=>`https://images.unsplash.com/${id}?auto=format&fit=crop&w=${w}&q=85`;
 // Mise à jour / redémarrage du serveur : les appels reprennent tout seuls (jusqu'à ~1 min) au lieu d'afficher une erreur.
-const RETRIES=12;const sleep=ms=>new Promise(r=>setTimeout(r,ms));let netBanner=null;
-const banner=on=>{try{if(on&&!netBanner){netBanner=document.createElement('div');netBanner.setAttribute('role','status');netBanner.style.cssText='position:fixed;left:50%;top:12px;transform:translateX(-50%);z-index:9999;max-width:92vw;background:#082445;color:#fff;padding:10px 16px;border-radius:99px;font:600 14px system-ui,sans-serif;text-align:center;box-shadow:0 10px 30px rgba(0,0,0,.3)';netBanner.textContent='Mise à jour du serveur… vos actions reprennent automatiquement.';document.body.appendChild(netBanner)}else if(!on&&netBanner){netBanner.remove();netBanner=null}}catch{}};
+const RETRIES=12;const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const banner=()=>{}; // les nouvelles tentatives se font sans rien afficher
 export async function api(path,{method='GET',body,form}={}){const opts={method,credentials:'same-origin',headers:{Accept:'application/json'}};if(form)opts.body=form;else if(body!==undefined){opts.headers['Content-Type']='application/json';opts.body=JSON.stringify(body)}let res;for(let n=0;;n++){try{res=await fetch(path,opts);if(![502,503,504].includes(res.status)||n>=RETRIES)break}catch{if(method==='POST'||n>=RETRIES){banner(false);throw Error('Connexion au serveur impossible. Vérifiez votre connexion.')}}banner(true);await sleep(Math.min(8000,1000*(n+1)))}banner(false);if(res.status===401&&!path.startsWith('/api/auth/')){location.href='/login';throw Error('Session expirée.')}if(res.status===204)return null;
 // Page ouverte sans le serveur KentraPix (ex. Live Server sur le port 5500) : pas d'API JSON.
 if(!(res.headers.get('content-type')||'').includes('application/json'))throw Error('Connexion impossible pour le moment. Réessayez dans un instant.');
