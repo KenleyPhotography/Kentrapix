@@ -116,6 +116,9 @@ function wantsHtml(request) {
 const RENDER_MARKERS = /SERVICE WAKING UP|INCOMING HTTP REQUEST DETECTED|ALLOCATING COMPUTE RESOURCES/i;
 
 async function isWaking(request, res) {
+  // Site fermé pour maintenance par le studio : ce n'est pas Render qui dort. On laisse passer
+  // sa page « en cours de maintenance » (et ses réponses d'API) telles quelles.
+  if (res.headers.get('x-maintenance')) return false;
   if ([502, 503, 504].includes(res.status)) return true;
   if (/hibernate|suspend|wake/i.test(res.headers.get('x-render-routing') || '')) return true;
   if (wantsHtml(request) && (res.headers.get('content-type') || '').includes('text/html')) {

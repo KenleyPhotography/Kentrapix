@@ -96,10 +96,12 @@ export async function maintenanceGate(req, res, next) {
   if (read && OPEN_READ_API.test(req.path)) return next();
   const m = await maintenanceState();
   if (!m.enabled || staff(req.user)) return next();
-  res.set('Retry-After', String(retryAfter(m)));
-  // L'application déjà ouverte chez un client reconnaît cet en-tête et affiche la page de maintenance.
+  // X-Maintenance sur TOUTES les réponses : l'application déjà ouverte chez un client le reconnaît
+  // et bascule sur la page de maintenance, et le Worker Cloudflare laisse passer ce 503 au lieu de
+  // le prendre pour un Render endormi (il afficherait sa page « Bienvenue » à la place).
+  res.set({ 'Retry-After': String(retryAfter(m)), 'X-Maintenance': '1' });
   if (req.path.startsWith('/api/') || req.path.startsWith('/media/')) {
-    return res.status(503).set('X-Maintenance', '1').json({ error: 'Site en maintenance. Revenez dans un instant.', maintenance: true });
+    return res.status(503).json({ error: 'Site en maintenance. Revenez dans un instant.', maintenance: true });
   }
   if (!read) return res.status(503).type('text').send('Site en maintenance.');
   res.status(503).set({ 'Cache-Control': 'no-store', Vary: 'Cookie' }).sendFile(path.join(frontendRoot, 'maintenance.html'));

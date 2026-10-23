@@ -9,3 +9,9 @@ Page « Bienvenue » pendant le réveil de Render
    puis ouvrir le site : la page Bienvenue s'affiche, puis le site se charge tout seul.
    (Reprendre le service ensuite.)
 Le sondage utilise /api/health (déjà défini dans render.yaml).
+
+Important : chaque fois que worker.js change ici, il faut le recoller dans Cloudflare
+(Edit code > tout remplacer > Deploy). Le dépôt ne met PAS le Worker à jour tout seul.
+
+Le Worker laisse passer les réponses qui portent l'en-tête X-Maintenance : c'est le site
+lui-même qui est fermé par le studio (page « en cours de maintenance »), pas Render qui dort.
