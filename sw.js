@@ -81,9 +81,10 @@ self.addEventListener('fetch', (event) => {
   } else if (MEDIA.test(url.pathname)) {
     event.respondWith(mediaFetch(req).catch(() => Response.error()));
   } else if (req.mode === 'navigate') {
-    // Pages : la copie n'est gardée que si elle n'a pas été redirigée (connexion expirée, etc.).
+    // Pages : la copie n'est gardée que si elle n'a pas été redirigée (connexion expirée, etc.)
+    // et que ce n'est pas la page « en cours de maintenance » (elle serait servie hors connexion).
     event.respondWith(
-      networkFirst(req, SHELL_CACHE, { ignoreSearch: true, cacheable: (r) => r.ok && !r.redirected && ['/client', '/admin', '/gallery'].includes(url.pathname) })
+      networkFirst(req, SHELL_CACHE, { ignoreSearch: true, cacheable: (r) => r.ok && !r.redirected && !r.headers.get('X-Maintenance') && ['/client', '/admin', '/gallery'].includes(url.pathname) })
         .catch(async () => {
           const staff = await caches.match('/api/admin/bootstrap', { cacheName: DATA_CACHE });
           for (const p of [url.pathname, ...(staff ? ['/admin', '/client'] : ['/client', '/admin']), '/gallery']) {

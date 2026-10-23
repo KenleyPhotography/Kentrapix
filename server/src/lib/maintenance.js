@@ -104,7 +104,10 @@ export async function maintenanceGate(req, res, next) {
     return res.status(503).json({ error: 'Site en maintenance. Revenez dans un instant.', maintenance: true });
   }
   if (!read) return res.status(503).type('text').send('Site en maintenance.');
-  res.status(503).set({ 'Cache-Control': 'no-store', Vary: 'Cookie' }).sendFile(path.join(frontendRoot, 'maintenance.html'));
+  // La PAGE part en 200 (et non 503) : un proxy devant le site — le Worker Cloudflare qui veille
+  // sur le réveil de Render, un CDN, un portail wifi — prend un 503 pour une panne et remplace la
+  // page par la sienne. L'en-tête X-Maintenance reste le vrai signal, pour l'application et pour nous.
+  res.status(200).set({ 'Cache-Control': 'no-store', Vary: 'Cookie' }).sendFile(path.join(frontendRoot, 'maintenance.html'));
 }
 
 /** Données de la page de maintenance (publique, sans compte). */
