@@ -29,7 +29,7 @@ import { normalizeNumbers } from '../lib/unlock.js';
 const LOCK_LEVELS = [2.5, 6, 12]; // niveaux de flou proposés pour les photos verrouillées
 import { isOwner, accountScope, eventScope } from '../lib/scope.js';
 import { billingRouter } from './billing.js';
-import { staffContracts } from './contracts.js';
+import { staffContracts, staffWebContracts } from './contracts.js';
 import { staffReviews } from './reviews.js';
 import { staffTodo } from './todo.js';
 import { staffBooking } from './booking.js';
@@ -55,6 +55,8 @@ router.use('/portfolio', staffPortfolio);
 // Visites du site public : réservé au propriétaire.
 router.get('/visits', requireOwner, async (req, res) => { res.set('Cache-Control', 'no-store').json(await visitStats()); });
 router.use('/contracts', staffContracts);
+// Contrats de site internet : liste indépendante (la signature, elle, reste celle du studio : /contracts/signature).
+router.use('/websites', staffWebContracts);
 router.use('/reviews', staffReviews);
 router.use('/todo', staffTodo);
 router.use('/orders', staffOrders);

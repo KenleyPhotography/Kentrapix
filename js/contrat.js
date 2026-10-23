@@ -8,6 +8,8 @@
   var stamp = function (iso) { return iso ? new Date(iso).toLocaleString('fr-FR', { dateStyle: 'long', timeStyle: 'short' }) : '—'; };
   var date = function (iso) { return iso ? new Date(iso).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }) : ''; };
   var initials = function (n) { return String(n || '').split(/\s+/).filter(Boolean).map(function (w) { return w[0]; }).join('').slice(0, 2).toUpperCase(); };
+  // Un contrat de site internet parle du « prestataire », pas du « photographe ».
+  var roleOf = function (c) { return c.kind === 'web' ? 'prestataire' : 'photographe'; };
 
   // Met le texte brut du contrat en page (aucun symbole à l'écran) :
   //  - titre en majuscules, parties (photographe / client) côte à côte, sections numérotées « 1. … » en cartes,
@@ -97,17 +99,18 @@
   load();
 
   function draw(c) {
-    var s = c.studio, signed = c.status === 'signed';
+    var s = c.studio, signed = c.status === 'signed', web = c.kind === 'web', role = roleOf(c);
     document.title = c.title + ' — ' + s.name;
     var avatar = s.avatar ? '<img class="avatar" src="' + esc(s.avatar) + '" alt="">' : '<span class="avatar ini">' + esc(initials(s.name)) + '</span>';
     var site = s.website ? s.website.replace(/^https?:\/\//, '') : '';
     var contacts = [s.phone, s.email, s.address, site, s.instagram && '@' + s.instagram].filter(Boolean).map(esc).join(' · ');
-    var person = s.person && s.person !== s.name ? esc(s.person) + ' · Photographe' : 'Photographe';
+    var job = web ? 'Prestataire' : 'Photographe';
+    var person = s.person && s.person !== s.name ? esc(s.person) + ' · ' + job : job;
 
     var clientSign = signed
       ? '<div class="sig-area"><img src="' + esc(c.signature) + '" alt="Signature de ' + esc(c.signedName) + '"></div><p class="sig-name">' + esc(c.signedName) + '</p><p class="sig-date">Signé le ' + esc(stamp(c.signedAt)) + '</p>'
       : !c.canSign
-      ? '<div class="sig-area"><span class="sig-empty">' + (c.waitingStaff ? 'Le photographe doit d’abord signer' : 'En attente de la signature du client') + '</span></div><p class="sig-name">' + esc(c.clientName) + '</p><p class="sig-date"></p>'
+      ? '<div class="sig-area"><span class="sig-empty">' + (c.waitingStaff ? 'Le ' + role + ' doit d’abord signer' : 'En attente de la signature du client') + '</span></div><p class="sig-name">' + esc(c.clientName) + '</p><p class="sig-date"></p>'
       : '<form id="sign-form" novalidate><div class="sig-area pad-wrap" id="pad-wrap"><canvas id="pad" aria-label="Zone de signature"></canvas><span class="pad-hint">Signez ici avec le doigt ou la souris</span></div>' +
         '<div class="pad-tools"><button type="button" id="pad-clear">Effacer</button></div>' +
         '<label class="field">Remarques <span style="font-weight:500">(facultatif)</span><textarea id="sg-notes" maxlength="1000" rows="2" placeholder="Ex. Je souhaite discuter du point 7 avant de signer."></textarea></label>' +
@@ -118,9 +121,9 @@
     var staffDate = c.staffSignedAt ? 'Signé le ' + esc(date(c.staffSignedAt)) : '';
     var staffSign = c.canStaffSign
       ? (c.staffSignature
-        ? '<div class="sig-area"><img src="' + esc(c.staffSignature) + '" alt="Signature du photographe"></div><p class="sig-name">' + staffName + '</p><p class="sig-date">' + staffDate + '</p><button type="button" class="sig-redo" id="staff-open">Refaire ma signature</button>'
+        ? '<div class="sig-area"><img src="' + esc(c.staffSignature) + '" alt="Signature du ' + role + '"></div><p class="sig-name">' + staffName + '</p><p class="sig-date">' + staffDate + '</p><button type="button" class="sig-redo" id="staff-open">Refaire ma signature</button>'
         : '<button type="button" class="sig-area sig-click" id="staff-open"><span class="sig-plus">✍</span><b>Touchez ici pour signer</b><small>Votre signature sera apposée sur ce contrat</small></button><p class="sig-name">' + staffName + '</p><p class="sig-date"></p>')
-      : '<div class="sig-area">' + (c.staffSignature ? '<img src="' + esc(c.staffSignature) + '" alt="Signature du photographe">' : '<span class="sig-empty">En attente de la signature du photographe</span>') + '</div><p class="sig-name">' + staffName + '</p><p class="sig-date">' + staffDate + '</p>';
+      : '<div class="sig-area">' + (c.staffSignature ? '<img src="' + esc(c.staffSignature) + '" alt="Signature du ' + role + '">' : '<span class="sig-empty">En attente de la signature du ' + role + '</span>') + '</div><p class="sig-name">' + staffName + '</p><p class="sig-date">' + staffDate + '</p>';
 
     sheet.innerHTML =
       '<header class="letterhead">' + avatar +
@@ -128,12 +131,12 @@
       '</header>' +
       '<div class="body">' +
         (signed ? '<div class="stamp signed">Signé</div>' : '') +
-        '<div class="doc-title"><span>Contrat de prestation photographique</span><h2>' + esc(c.title) + '</h2><p>Rédigé le ' + esc(date(c.createdAt)) + ' · pour <strong>' + esc(c.clientName) + '</strong></p></div>' +
-        (c.canSign ? '<div class="hint-box"><strong>Avant de signer</strong><span>Touchez une <b>case</b> pour la cocher ou la décocher. Touchez une <b>ligne</b> que vous n’acceptez pas : elle sera soulignée en rouge et le photographe le verra.</span></div>' : '') +
+        '<div class="doc-title"><span>' + (web ? 'Contrat de création de site internet' : 'Contrat de prestation photographique') + '</span><h2>' + esc(c.title) + '</h2><p>Rédigé le ' + esc(date(c.createdAt)) + ' · pour <strong>' + esc(c.clientName) + '</strong></p></div>' +
+        (c.canSign ? '<div class="hint-box"><strong>Avant de signer</strong><span>Touchez une <b>case</b> pour la cocher ou la décocher. Touchez une <b>ligne</b> que vous n’acceptez pas : elle sera soulignée en rouge et le ' + role + ' le verra.</span></div>' : '') +
         '<div class="contract-text" id="ctext">' + rich(c.body, st) + '</div>' + reservesBox(c, st) +
         '<h3 class="sig-head">Signatures</h3><p class="sig-fait">Fait le <strong>' + esc(date(c.createdAt)) + '</strong></p>' +
         '<div class="sigs">' +
-          '<section class="sig" id="staff-sig"><h3>Le photographe</h3>' + staffSign + '</section>' +
+          '<section class="sig" id="staff-sig"><h3>Le ' + role + '</h3>' + staffSign + '</section>' +
           '<section class="sig"><h3>Le client</h3>' + clientSign + '</section>' +
         '</div>' +
         (signed
@@ -163,7 +166,7 @@
     if (!open) return;
     open.addEventListener('click', function () {
       var box = document.getElementById('staff-sig');
-      box.innerHTML = '<h3>Le photographe</h3><div class="sig-area pad-wrap" id="spad-wrap"><canvas id="spad" aria-label="Zone de signature du photographe"></canvas><span class="pad-hint">Signez ici avec le doigt ou la souris</span></div>' +
+      box.innerHTML = '<h3>Le ' + roleOf(c) + '</h3><div class="sig-area pad-wrap" id="spad-wrap"><canvas id="spad" aria-label="Zone de signature du ' + roleOf(c) + '"></canvas><span class="pad-hint">Signez ici avec le doigt ou la souris</span></div>' +
         '<div class="pad-tools"><button type="button" id="spad-clear">Effacer</button>' + (c.savedSignature ? '<button type="button" id="spad-saved">Utiliser ma signature enregistrée</button>' : '') + '</div>' +
         '<label class="agree sm"><input type="checkbox" id="spad-remember"><span>Garder cette signature pour mes prochains contrats</span></label>' +
         '<button class="sign-btn" type="button" id="spad-go">Valider ma signature</button><p class="sign-error" id="spad-err" role="alert" hidden></p>';

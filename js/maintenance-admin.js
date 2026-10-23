@@ -56,10 +56,7 @@ export function maintenanceSection() {
   return `<section class="settings maint${on ? ' is-on' : ''}">
     <header><h2>${icon('power')} Fermer le site</h2></header>
     <div class="maint-state"><span class="maint-dot"></span><div><strong>${on ? 'Site fermé pour maintenance' : 'Site ouvert au public'}</strong>
-      <p class="small">${on
-    ? `${m.endsAt ? `Réouverture automatique ${when(m.endsAt)}.` : 'Aucune durée : il reste fermé jusqu’à ce que vous le rouvriez.'}${since}`
-    : 'Vos visiteurs et vos clients se connectent et voient leurs photos normalement.'}</p></div></div>
-    <p class="small maint-note">Pendant la fermeture, tout le monde voit une belle page « en cours de maintenance » avec le temps restant. Vous et votre équipe gardez l’accès au studio pour travailler et rouvrir le site.</p>
+      ${on ? `<p class="small">${m.endsAt ? `Réouverture automatique ${when(m.endsAt)}.` : 'Aucune durée : il reste fermé jusqu’à ce que vous le rouvriez.'}${since}</p>` : ''}</div></div>
     <div class="row maint-actions">
       ${on
     ? `<button class="btn primary" id="maint-off">${icon('power')} Rouvrir le site</button><button class="btn" id="maint-edit">${icon('clock')} Changer la durée ou le message</button>`
