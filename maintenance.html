@@ -11,10 +11,10 @@
   <link rel="shortcut icon" href="/favicon.ico">
   <link rel="apple-touch-icon" href="/logo/apple-touch-icon.png">
   <style>
-    /* Même habillage que la page « Bienvenue » du Worker Cloudflare (deploy/cloudflare/worker.js) :
-       fond bleu, halos qui dérivent, gros mot animé lettre par lettre, colonne d'image à droite.
-       Ici, l'engrenage et la clé remplacent le sablier. Tout est dans ce fichier : la page
-       doit s'afficher seule, même quand le reste du site est fermé. */
+    /* Même habillage que la page d'attente du Worker Cloudflare (deploy/cloudflare/worker.js) :
+       fond bleu, halos qui dérivent, gros mot animé lettre par lettre. Tout tient dans une seule
+       colonne centrée, l'outil au milieu. Tout est dans ce fichier : la page doit s'afficher
+       seule, même quand le reste du site est fermé. */
     :root { --blue: #1265d8; --blue-d: #0a3d85; --blue-l: #7db6ff; --lime: #a8ed00; }
     * { box-sizing: border-box; }
     html, body { margin: 0; height: 100%; }
@@ -37,45 +37,14 @@
       z-index: 1;
       min-height: 100vh;
       display: flex;
+      flex-direction: column;
       align-items: center;
       justify-content: center;
-      gap: clamp(40px, 8vw, 120px);
-      padding: 32px clamp(16px, 5vw, 64px);
+      padding: 40px clamp(16px, 5vw, 64px);
     }
-    .txt { display: flex; flex-direction: column; align-items: center; max-width: 620px; }
-    .logo { width: clamp(72px, 10vw, 104px); height: auto; border-radius: 26%; box-shadow: 0 16px 34px rgba(0, 20, 70, .45); animation: float 4s ease-in-out infinite; }
 
-    h1 { margin: 20px 0 0; font-size: clamp(34px, 8.5vw, 88px); line-height: .95; font-weight: 800; letter-spacing: -.04em; }
-    h1 b { display: inline-block; font-weight: 800; opacity: 0; transform: translateY(40px); animation: rise .7s cubic-bezier(.2, .9, .3, 1.2) forwards; }
-    .brand { margin: 12px 0 18px; font-size: clamp(18px, 2.6vw, 26px); font-weight: 700; letter-spacing: .02em; animation: glow 3s ease-in-out infinite; }
-    .brand span { color: var(--blue-l); }
-
-    /* Titre et message réglés par le studio. */
-    .lead { margin: 0 0 10px; font-size: clamp(17px, 2.2vw, 21px); font-weight: 700; line-height: 1.3; }
-    .msg { margin: 0; max-width: 46ch; font-size: 15px; line-height: 1.65; color: rgba(255, 255, 255, .82); }
-
-    /* ----- Temps restant ----- */
-    .count-box { display: none; width: 100%; }
-    .count-box.is-on { display: block; }
-    .label { margin: 26px 0 12px; font-size: 11px; font-weight: 700; letter-spacing: .18em; text-transform: uppercase; color: var(--blue-l); }
-    .tiles { display: flex; justify-content: center; gap: clamp(6px, 2vw, 12px); }
-    .tile { flex: 1 1 0; max-width: 96px; padding: 12px 4px; border: 1px solid rgba(255, 255, 255, .22); border-radius: 16px; background: rgba(255, 255, 255, .1); }
-    .tile b { display: block; font-size: clamp(22px, 6vw, 32px); font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; letter-spacing: -.02em; }
-    .tile span { display: block; margin-top: 7px; font-size: 10px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--blue-l); }
-    .tile[hidden] { display: none; }
-
-    .bar { width: min(360px, 80vw); margin: 18px auto 0; height: 6px; border-radius: 99px; background: rgba(255, 255, 255, .2); overflow: hidden; }
-    .bar i { position: relative; overflow: hidden; display: block; height: 100%; width: 0; border-radius: 99px; background: linear-gradient(90deg, #fff, var(--blue-l)); transition: width 1s linear; }
-    .bar i:after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .9), transparent); transform: translateX(-100%); animation: shine 1.6s linear infinite; }
-    .eta { margin: 12px 0 0; font-size: 14px; color: rgba(255, 255, 255, .8); }
-
-    .foot { margin: 28px 0 0; font-size: 12px; color: rgba(255, 255, 255, .62); }
-    .foot a { color: #fff; text-decoration: none; border-bottom: 1px solid rgba(255, 255, 255, .35); }
-    .foot a:hover { border-color: #fff; }
-
-    /* ----- Engrenage + clé à molette (à la place du sablier) ----- */
-    .count { flex: none; display: flex; flex-direction: column; align-items: center; width: clamp(150px, 17vw, 220px); }
-    .tools { width: 100%; height: auto; overflow: visible; filter: drop-shadow(0 18px 22px rgba(0, 20, 70, .4)); }
+    /* ----- Engrenage + clé à molette, au centre ----- */
+    .tools { width: clamp(116px, 22vw, 180px); height: auto; overflow: visible; filter: drop-shadow(0 18px 22px rgba(0, 20, 70, .4)); animation: float 4s ease-in-out infinite; }
     .tools .disc { fill: rgba(255, 255, 255, .1); }
     .tools .gear { transform-origin: 60px 60px; animation: turn 16s linear infinite; }
     .tools .teeth { fill: var(--blue-l); }
@@ -88,10 +57,31 @@
     .tools .sparks circle { fill: var(--lime); animation: beat 2.2s ease-in-out infinite; }
     .tools .sparks circle:nth-child(2) { animation-delay: .5s; }
 
-    @media (max-width: 860px) {
-      main { flex-direction: column-reverse; justify-content: center; gap: 28px; padding-top: 40px; padding-bottom: 36px; }
-      .count { width: 128px; }
-    }
+    /* Le titre réglé dans le studio, en gros, lettre par lettre. Sa taille s'adapte à sa longueur
+       (variable posée par js/maintenance.js). */
+    h1 { margin: 26px 0 0; max-width: 16ch; font-size: var(--hero, clamp(32px, 8.5vw, 84px)); line-height: .98; font-weight: 800; letter-spacing: -.04em; }
+    h1 b { display: inline-block; font-weight: 800; opacity: 0; transform: translateY(40px); animation: rise .7s cubic-bezier(.2, .9, .3, 1.2) forwards; }
+    .brand { margin: 14px 0 0; font-size: clamp(17px, 2.4vw, 24px); font-weight: 700; letter-spacing: .02em; animation: glow 3s ease-in-out infinite; }
+    .brand span { color: var(--blue-l); }
+
+    /* ----- Temps restant ----- */
+    .count-box { display: none; width: min(420px, 100%); }
+    .count-box.is-on { display: block; }
+    .label { margin: 30px 0 12px; font-size: 11px; font-weight: 700; letter-spacing: .18em; text-transform: uppercase; color: var(--blue-l); }
+    .tiles { display: flex; justify-content: center; gap: clamp(6px, 2vw, 12px); }
+    .tile { flex: 1 1 0; max-width: 96px; padding: 12px 4px; border: 1px solid rgba(255, 255, 255, .22); border-radius: 16px; background: rgba(255, 255, 255, .1); }
+    .tile b { display: block; font-size: clamp(22px, 6vw, 32px); font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; letter-spacing: -.02em; }
+    .tile span { display: block; margin-top: 7px; font-size: 10px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--blue-l); }
+    .tile[hidden] { display: none; }
+
+    .bar { width: min(360px, 80vw); margin: 18px auto 0; height: 6px; border-radius: 99px; background: rgba(255, 255, 255, .2); overflow: hidden; }
+    .bar i { position: relative; overflow: hidden; display: block; height: 100%; width: 0; border-radius: 99px; background: linear-gradient(90deg, #fff, var(--blue-l)); transition: width 1s linear; }
+    .bar i:after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .9), transparent); transform: translateX(-100%); animation: shine 1.6s linear infinite; }
+    .eta { margin: 12px 0 0; font-size: 14px; color: rgba(255, 255, 255, .8); }
+
+    .foot { margin: 34px 0 0; font-size: 12px; color: rgba(255, 255, 255, .62); }
+    .foot a { color: #fff; text-decoration: none; border-bottom: 1px solid rgba(255, 255, 255, .35); }
+    .foot a:hover { border-color: #fff; }
 
     @keyframes float { 50% { transform: translateY(-6px); } }
     @keyframes rise { to { opacity: 1; transform: none; } }
@@ -112,58 +102,50 @@
 <body>
   <div class="orb o1"></div><div class="orb o2"></div><div class="orb o3"></div>
   <main>
-    <div class="txt">
-      <img class="logo" src="/logo/icon-192.png" alt="KentraPix" width="104" height="104">
-      <h1 aria-label="Maintenance" id="mt-hero"></h1>
-      <div class="brand">Kentra<span>Pix</span></div>
-
-      <p class="lead" id="mt-title">Site en cours de maintenance</p>
-      <p class="msg" id="mt-message">KentraPix est momentanément fermé le temps d’une mise à jour. Vos photos et vos galeries sont en sécurité : tout revient dès la fin des travaux.</p>
-
-      <section class="count-box" id="mt-count" aria-live="polite">
-        <p class="label" id="mt-count-label">Réouverture dans</p>
-        <div class="tiles">
-          <div class="tile" id="mt-d" hidden><b>0</b><span>Jours</span></div>
-          <div class="tile" id="mt-h"><b>00</b><span>Heures</span></div>
-          <div class="tile" id="mt-m"><b>00</b><span>Minutes</span></div>
-          <div class="tile" id="mt-s"><b>00</b><span>Secondes</span></div>
-        </div>
-        <div class="bar" role="progressbar" aria-label="Avancement de la maintenance" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="mt-bar"><i></i></div>
-        <p class="eta" id="mt-eta"></p>
-      </section>
-
-      <p class="foot">© <span id="mt-year">2026</span> KentraPix · <a href="/login">Espace studio</a> · <a href="/conditions" target="_blank" rel="noopener">Conditions d’utilisation</a></p>
-    </div>
-
-    <div class="count" aria-hidden="true">
-      <svg class="tools" viewBox="0 0 120 120">
-        <circle class="disc" cx="60" cy="60" r="54"></circle>
-        <g class="gear">
-          <g class="teeth">
-            <rect x="55.5" y="20" width="9" height="13" rx="3.5"></rect>
-            <rect x="55.5" y="20" width="9" height="13" rx="3.5" transform="rotate(45 60 60)"></rect>
-            <rect x="55.5" y="20" width="9" height="13" rx="3.5" transform="rotate(90 60 60)"></rect>
-            <rect x="55.5" y="20" width="9" height="13" rx="3.5" transform="rotate(135 60 60)"></rect>
-            <rect x="55.5" y="20" width="9" height="13" rx="3.5" transform="rotate(180 60 60)"></rect>
-            <rect x="55.5" y="20" width="9" height="13" rx="3.5" transform="rotate(225 60 60)"></rect>
-            <rect x="55.5" y="20" width="9" height="13" rx="3.5" transform="rotate(270 60 60)"></rect>
-            <rect x="55.5" y="20" width="9" height="13" rx="3.5" transform="rotate(315 60 60)"></rect>
-          </g>
-          <circle class="ring" cx="60" cy="60" r="25"></circle>
-          <circle class="hub" cx="60" cy="60" r="10"></circle>
+    <svg class="tools" viewBox="0 0 120 120" aria-hidden="true">
+      <circle class="disc" cx="60" cy="60" r="54"></circle>
+      <g class="gear">
+        <g class="teeth">
+          <rect x="55.5" y="20" width="9" height="13" rx="3.5"></rect>
+          <rect x="55.5" y="20" width="9" height="13" rx="3.5" transform="rotate(45 60 60)"></rect>
+          <rect x="55.5" y="20" width="9" height="13" rx="3.5" transform="rotate(90 60 60)"></rect>
+          <rect x="55.5" y="20" width="9" height="13" rx="3.5" transform="rotate(135 60 60)"></rect>
+          <rect x="55.5" y="20" width="9" height="13" rx="3.5" transform="rotate(180 60 60)"></rect>
+          <rect x="55.5" y="20" width="9" height="13" rx="3.5" transform="rotate(225 60 60)"></rect>
+          <rect x="55.5" y="20" width="9" height="13" rx="3.5" transform="rotate(270 60 60)"></rect>
+          <rect x="55.5" y="20" width="9" height="13" rx="3.5" transform="rotate(315 60 60)"></rect>
         </g>
-        <g class="wrench">
-          <path class="cut" d="M104 44A12 12 0 1 1 92 32"></path>
-          <path class="cut" d="M83 53 38 98"></path>
-          <path class="tool" d="M104 44A12 12 0 1 1 92 32"></path>
-          <path class="tool" d="M83 53 38 98"></path>
-        </g>
-        <g class="sparks">
-          <circle cx="106" cy="22" r="3.2"></circle>
-          <circle cx="114" cy="34" r="2.2"></circle>
-        </g>
-      </svg>
-    </div>
+        <circle class="ring" cx="60" cy="60" r="25"></circle>
+        <circle class="hub" cx="60" cy="60" r="10"></circle>
+      </g>
+      <g class="wrench">
+        <path class="cut" d="M104 44A12 12 0 1 1 92 32"></path>
+        <path class="cut" d="M83 53 38 98"></path>
+        <path class="tool" d="M104 44A12 12 0 1 1 92 32"></path>
+        <path class="tool" d="M83 53 38 98"></path>
+      </g>
+      <g class="sparks">
+        <circle cx="106" cy="22" r="3.2"></circle>
+        <circle cx="114" cy="34" r="2.2"></circle>
+      </g>
+    </svg>
+
+    <h1 id="mt-hero" aria-label="Maintenance"></h1>
+    <div class="brand">Kentra<span>Pix</span></div>
+
+    <section class="count-box" id="mt-count" aria-live="polite">
+      <p class="label" id="mt-count-label">Réouverture dans</p>
+      <div class="tiles">
+        <div class="tile" id="mt-d" hidden><b>0</b><span>Jours</span></div>
+        <div class="tile" id="mt-h"><b>00</b><span>Heures</span></div>
+        <div class="tile" id="mt-m"><b>00</b><span>Minutes</span></div>
+        <div class="tile" id="mt-s"><b>00</b><span>Secondes</span></div>
+      </div>
+      <div class="bar" role="progressbar" aria-label="Avancement de la maintenance" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="mt-bar"><i></i></div>
+      <p class="eta" id="mt-eta"></p>
+    </section>
+
+    <p class="foot">© <span id="mt-year">2026</span> KentraPix · <a href="/login">Espace studio</a> · <a href="/conditions" target="_blank" rel="noopener">Conditions d’utilisation</a></p>
   </main>
   <script type="module" src="/js/maintenance.js"></script>
 </body>

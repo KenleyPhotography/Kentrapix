@@ -15,17 +15,28 @@ let state = null;
 let skew = 0; // écart entre l'horloge de l'appareil et celle du serveur
 const now = () => Date.now() + skew;
 
-/** Gros mot animé lettre par lettre, comme la page « Bienvenue » du Worker Cloudflare. */
+/**
+ * Le titre, en gros, lettre par lettre (comme la page d'attente du Worker Cloudflare).
+ * La taille suit la longueur du texte : un mot court remplit la page, une phrase reste lisible.
+ * Rejoué seulement quand le texte change, sinon l'animation repartirait à chaque rafraîchissement.
+ */
+let shown = '';
 function hero(word) {
+  const text = String(word || 'Maintenance').trim().slice(0, 120);
+  if (text === shown) return;
+  shown = text;
   const h = el('mt-hero');
   h.textContent = '';
-  h.setAttribute('aria-label', word);
-  [...word].forEach((ch, i) => {
+  h.setAttribute('aria-label', text);
+  h.style.setProperty('--hero', `clamp(26px, 8.5vw, ${Math.min(84, Math.round(620 / (0.56 * text.length)))}px)`);
+  let n = 0;
+  for (const ch of text) {
+    if (ch === ' ') { h.append(' '); continue; } // un vrai espace : le titre peut aller à la ligne
     const b = document.createElement('b');
     b.textContent = ch;
-    b.style.animationDelay = `${i * 70}ms`;
+    b.style.animationDelay = `${n++ * 70}ms`;
     h.append(b);
-  });
+  }
 }
 
 const pad = (n) => String(n).padStart(2, '0');
@@ -43,8 +54,7 @@ async function load() {
 }
 
 function draw() {
-  el('mt-title').textContent = state.title;
-  el('mt-message').textContent = state.message;
+  hero(state.title);
   count.classList.toggle('is-on', !!(state.enabled && state.endsAt));
   tick();
 }
@@ -82,9 +92,8 @@ function tick() {
 /** Site ouvert : on y retourne (en aperçu, la page reste telle quelle). */
 function reopened() {
   if (isPreview) return;
+  count.classList.remove('is-on');
   hero('Bienvenue');
-  el('mt-title').textContent = 'Le site est de nouveau en ligne';
-  el('mt-message').textContent = 'Merci de votre patience. Vous allez être redirigé vers vos photos.';
   setTimeout(() => location.replace('/'), 2500);
 }
 
