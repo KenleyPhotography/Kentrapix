@@ -4,209 +4,166 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="robots" content="noindex, nofollow">
-  <meta name="theme-color" content="#f4f7fc">
+  <meta name="theme-color" content="#0a3d85">
   <title>Site en cours de maintenance · KentraPix</title>
-  <script src="/js/theme.js"></script>
   <link rel="icon" type="image/svg+xml" href="/logo/kentrapix-icon.svg">
   <link rel="icon" type="image/png" sizes="192x192" href="/logo/icon-192.png">
   <link rel="shortcut icon" href="/favicon.ico">
   <link rel="apple-touch-icon" href="/logo/apple-touch-icon.png">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Fraunces:opsz,wght@9..144,400..600&family=Inter:wght@400..700&display=swap">
-  <link rel="stylesheet" href="/css/variables.css">
-  <link rel="stylesheet" href="/css/base.css">
-  <link rel="stylesheet" href="/css/dark.css">
   <style>
-    /* ----- Page « en cours de maintenance » : tout est ici, la page doit s'afficher seule. ----- */
+    /* Même habillage que la page « Bienvenue » du Worker Cloudflare (deploy/cloudflare/worker.js) :
+       fond bleu, halos qui dérivent, gros mot animé lettre par lettre, colonne d'image à droite.
+       Ici, l'engrenage et la clé remplacent le sablier. Tout est dans ce fichier : la page
+       doit s'afficher seule, même quand le reste du site est fermé. */
+    :root { --blue: #1265d8; --blue-d: #0a3d85; --blue-l: #7db6ff; --lime: #a8ed00; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; }
     body {
-      display: grid;
-      place-items: center;
-      min-height: 100svh;
-      margin: 0;
-      padding: var(--space-10) var(--space-4);
-      background: var(--bg);
+      position: relative;
+      min-height: 100vh;
       overflow-x: hidden;
+      color: #fff;
+      text-align: center;
+      font-family: Inter, 'Segoe UI', Arial, sans-serif;
+      background: linear-gradient(135deg, var(--blue-d), var(--blue) 55%, #1a74ec);
     }
-    /* Deux halos de lumière qui respirent doucement derrière le contenu. */
-    body::before,
-    body::after {
-      content: "";
-      position: fixed;
-      width: 52vmax;
-      height: 52vmax;
-      border-radius: 50%;
-      filter: blur(90px);
-      opacity: 0.38;
-      pointer-events: none;
-      animation: float 14s var(--ease) infinite alternate;
-    }
-    body::before { top: -18vmax; left: -14vmax; background: radial-gradient(circle, rgba(168, 237, 0, 0.3), transparent 65%); }
-    body::after { right: -16vmax; bottom: -20vmax; background: radial-gradient(circle, rgba(92, 157, 250, 0.45), transparent 65%); animation-delay: -7s; }
+    .orb { position: fixed; border-radius: 50%; filter: blur(60px); opacity: .55; animation: drift 14s ease-in-out infinite alternate; }
+    .o1 { width: 46vmax; height: 46vmax; background: #3a80e0; top: -18vmax; right: -12vmax; }
+    .o2 { width: 38vmax; height: 38vmax; background: #0a3d85; bottom: -16vmax; left: -12vmax; animation-delay: -5s; }
+    .o3 { width: 22vmax; height: 22vmax; background: #4aa0ff; top: 40%; left: 55%; opacity: .3; animation-delay: -9s; }
 
-    /* Page normale : pas d'encadré, pas de fenêtre — le contenu est posé sur la page. */
-    .mt {
+    main {
       position: relative;
       z-index: 1;
-      width: min(620px, 100%);
-      padding: 0 var(--space-2);
-      text-align: center;
-      animation: rise var(--slow) var(--ease) both;
-    }
-
-    .mt-logo { width: 54px; height: 54px; }
-
-    /* Engrenage + clé à molette : l'image des travaux en cours. L'engrenage tourne, la clé serre. */
-    .mt-tools { display: block; width: 124px; height: 124px; margin: var(--space-6) auto var(--space-5); }
-    .mt-tools .disc { fill: var(--blue-soft); }
-    .mt-tools .gear { transform-origin: 60px 60px; animation: turn 16s linear infinite; }
-    .mt-tools .teeth { fill: var(--blue); }
-    .mt-tools .ring { fill: none; stroke: var(--blue); stroke-width: 8; }
-    .mt-tools .hub { fill: var(--bg); }
-    /* Trait couleur du fond passé sous la clé : elle se détache nettement de l'engrenage. */
-    .mt-tools .cut { fill: none; stroke: var(--bg); stroke-width: 19; stroke-linecap: round; }
-    .mt-tools .tool { fill: none; stroke: var(--ink); stroke-width: 9.5; stroke-linecap: round; }
-    .mt-tools .wrench { transform-origin: 60px 60px; animation: tighten 3.4s var(--ease) infinite; }
-    .mt-tools .sparks circle { fill: var(--accent); animation: beat 2.2s var(--ease) infinite; }
-    .mt-tools .sparks circle:nth-child(2) { animation-delay: 0.5s; }
-
-    .mt-badge {
-      display: inline-flex;
+      min-height: 100vh;
+      display: flex;
       align-items: center;
-      gap: var(--space-2);
-      padding: 7px 15px 7px 12px;
-      border-radius: var(--radius-full);
-      background: var(--warning-soft);
-      color: var(--warning);
-      font-size: 0.6875rem;
-      font-weight: 700;
-      letter-spacing: 0.14em;
-      text-transform: uppercase;
+      justify-content: center;
+      gap: clamp(40px, 8vw, 120px);
+      padding: 32px clamp(16px, 5vw, 64px);
     }
-    .mt-badge i { width: 8px; height: 8px; border-radius: 50%; background: currentColor; animation: beat 1.6s var(--ease) infinite; }
-    .mt-badge.is-done { background: var(--success-soft); color: var(--success); }
+    .txt { display: flex; flex-direction: column; align-items: center; max-width: 620px; }
+    .logo { width: clamp(72px, 10vw, 104px); height: auto; border-radius: 26%; box-shadow: 0 16px 34px rgba(0, 20, 70, .45); animation: float 4s ease-in-out infinite; }
 
-    .mt h1 {
-      margin: var(--space-5) 0 var(--space-4);
-      color: var(--ink);
-      font-family: var(--font-serif);
-      /* Fraunces en taille « display » (opsz) : lettres plus fines et plus élégantes en grand. */
-      font-variation-settings: "opsz" 48;
-      font-size: var(--text-3xl);
-      font-weight: 500;
-      letter-spacing: -0.018em;
-      line-height: 1.06;
-      text-wrap: balance;
-    }
-    .mt-text {
-      margin: 0 auto;
-      max-width: 42ch;
-      color: var(--muted);
-      font-size: var(--text-lg);
-      line-height: 1.62;
-      text-wrap: pretty;
-    }
+    h1 { margin: 20px 0 0; font-size: clamp(34px, 8.5vw, 88px); line-height: .95; font-weight: 800; letter-spacing: -.04em; }
+    h1 b { display: inline-block; font-weight: 800; opacity: 0; transform: translateY(40px); animation: rise .7s cubic-bezier(.2, .9, .3, 1.2) forwards; }
+    .brand { margin: 12px 0 18px; font-size: clamp(18px, 2.6vw, 26px); font-weight: 700; letter-spacing: .02em; animation: glow 3s ease-in-out infinite; }
+    .brand span { color: var(--blue-l); }
+
+    /* Titre et message réglés par le studio. */
+    .lead { margin: 0 0 10px; font-size: clamp(17px, 2.2vw, 21px); font-weight: 700; line-height: 1.3; }
+    .msg { margin: 0; max-width: 46ch; font-size: 15px; line-height: 1.65; color: rgba(255, 255, 255, .82); }
 
     /* ----- Temps restant ----- */
-    .mt-count { display: none; margin-top: var(--space-8); }
-    .mt-count.is-on { display: block; }
-    .mt-label { margin: 0 0 var(--space-4); color: var(--subtle); font-size: 0.6875rem; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; }
-    .mt-tiles { display: flex; justify-content: center; gap: clamp(6px, 2vw, 12px); }
-    .mt-tile {
-      flex: 1 1 0;
-      max-width: 104px;
-      padding: var(--space-4) var(--space-1);
-      border: 1px solid var(--border-strong);
-      border-radius: var(--radius-lg);
-      background: transparent;
+    .count-box { display: none; width: 100%; }
+    .count-box.is-on { display: block; }
+    .label { margin: 26px 0 12px; font-size: 11px; font-weight: 700; letter-spacing: .18em; text-transform: uppercase; color: var(--blue-l); }
+    .tiles { display: flex; justify-content: center; gap: clamp(6px, 2vw, 12px); }
+    .tile { flex: 1 1 0; max-width: 96px; padding: 12px 4px; border: 1px solid rgba(255, 255, 255, .22); border-radius: 16px; background: rgba(255, 255, 255, .1); }
+    .tile b { display: block; font-size: clamp(22px, 6vw, 32px); font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; letter-spacing: -.02em; }
+    .tile span { display: block; margin-top: 7px; font-size: 10px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--blue-l); }
+    .tile[hidden] { display: none; }
+
+    .bar { width: min(360px, 80vw); margin: 18px auto 0; height: 6px; border-radius: 99px; background: rgba(255, 255, 255, .2); overflow: hidden; }
+    .bar i { position: relative; overflow: hidden; display: block; height: 100%; width: 0; border-radius: 99px; background: linear-gradient(90deg, #fff, var(--blue-l)); transition: width 1s linear; }
+    .bar i:after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .9), transparent); transform: translateX(-100%); animation: shine 1.6s linear infinite; }
+    .eta { margin: 12px 0 0; font-size: 14px; color: rgba(255, 255, 255, .8); }
+
+    .foot { margin: 28px 0 0; font-size: 12px; color: rgba(255, 255, 255, .62); }
+    .foot a { color: #fff; text-decoration: none; border-bottom: 1px solid rgba(255, 255, 255, .35); }
+    .foot a:hover { border-color: #fff; }
+
+    /* ----- Engrenage + clé à molette (à la place du sablier) ----- */
+    .count { flex: none; display: flex; flex-direction: column; align-items: center; width: clamp(150px, 17vw, 220px); }
+    .tools { width: 100%; height: auto; overflow: visible; filter: drop-shadow(0 18px 22px rgba(0, 20, 70, .4)); }
+    .tools .disc { fill: rgba(255, 255, 255, .1); }
+    .tools .gear { transform-origin: 60px 60px; animation: turn 16s linear infinite; }
+    .tools .teeth { fill: var(--blue-l); }
+    .tools .ring { fill: none; stroke: var(--blue-l); stroke-width: 8; }
+    .tools .hub { fill: rgba(10, 45, 105, .55); }
+    /* Trait sombre passé sous la clé : elle se détache nettement de l'engrenage. */
+    .tools .cut { fill: none; stroke: rgba(8, 35, 85, .5); stroke-width: 19; stroke-linecap: round; }
+    .tools .tool { fill: none; stroke: #fff; stroke-width: 9.5; stroke-linecap: round; }
+    .tools .wrench { transform-origin: 60px 60px; animation: tighten 3.4s ease-in-out infinite; }
+    .tools .sparks circle { fill: var(--lime); animation: beat 2.2s ease-in-out infinite; }
+    .tools .sparks circle:nth-child(2) { animation-delay: .5s; }
+
+    @media (max-width: 860px) {
+      main { flex-direction: column-reverse; justify-content: center; gap: 28px; padding-top: 40px; padding-bottom: 36px; }
+      .count { width: 128px; }
     }
-    .mt-tile b {
-      display: block;
-      color: var(--blue);
-      font-family: var(--font-serif);
-      font-variation-settings: "opsz" 24;
-      font-size: clamp(1.9rem, 7.5vw, 2.6rem);
-      font-variant-numeric: tabular-nums;
-      letter-spacing: -0.02em;
-      line-height: 1;
-    }
-    .mt-tile span { display: block; margin-top: 8px; color: var(--subtle); font-size: 0.625rem; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; }
-    .mt-tile[hidden] { display: none; }
 
-    .mt-bar { margin-top: var(--space-5); height: 8px; border-radius: var(--radius-full); background: var(--border); overflow: hidden; }
-    .mt-bar i { display: block; height: 100%; width: 0; border-radius: inherit; background: var(--gradient-primary); transition: width 1s linear; }
-    .mt-eta { margin: var(--space-4) 0 0; color: var(--muted); font-size: var(--text-md); letter-spacing: 0.01em; }
-
-    /* Pied de page, comme celui de la page de connexion : l'entrée du studio reste
-       toujours accessible, même quand le site est fermé. */
-    .mt-foot { margin: var(--space-10) 0 0; padding-top: var(--space-5); border-top: 1px solid var(--border); }
-    .mt-foot p { margin: 0; color: var(--subtle); font-size: var(--text-xs); line-height: 1.6; }
-    .mt-foot a { color: var(--muted); text-decoration: none; }
-    .mt-foot a:hover { color: var(--blue); text-decoration: underline; }
-
-    @keyframes rise { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
+    @keyframes float { 50% { transform: translateY(-6px); } }
+    @keyframes rise { to { opacity: 1; transform: none; } }
+    @keyframes drift { to { transform: translate(6vmax, 5vmax) scale(1.15); } }
+    @keyframes shine { to { transform: translateX(100%); } }
+    @keyframes glow { 50% { text-shadow: 0 0 22px rgba(125, 182, 255, .9); } }
     @keyframes turn { to { transform: rotate(360deg); } }
     /* La clé serre d'un quart de tour, puis revient se replacer. */
     @keyframes tighten { 0%, 62%, 100% { transform: rotate(0deg); } 28%, 46% { transform: rotate(-11deg); } }
-    @keyframes beat { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.35; transform: scale(0.7); } }
-    @keyframes float { to { transform: translate3d(6vmax, 4vmax, 0) scale(1.15); } }
+    @keyframes beat { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .35; transform: scale(.7); } }
 
     @media (prefers-reduced-motion: reduce) {
-      body::before, body::after, .mt, .mt-tools .gear, .mt-tools .wrench, .mt-tools .sparks circle, .mt-badge i { animation: none; }
+      * { animation: none !important; transition: none !important; }
+      h1 b { opacity: 1; transform: none; }
     }
   </style>
 </head>
 <body>
-  <main class="mt">
-    <img class="mt-logo" src="/logo/kentrapix-icon.svg" alt="KentraPix" width="54" height="54">
+  <div class="orb o1"></div><div class="orb o2"></div><div class="orb o3"></div>
+  <main>
+    <div class="txt">
+      <img class="logo" src="/logo/icon-192.png" alt="KentraPix" width="104" height="104">
+      <h1 aria-label="Maintenance" id="mt-hero"></h1>
+      <div class="brand">Kentra<span>Pix</span></div>
 
-    <svg class="mt-tools" viewBox="0 0 120 120" aria-hidden="true">
-      <circle class="disc" cx="60" cy="60" r="54"></circle>
-      <g class="gear">
-        <g class="teeth">
-          <rect class="tooth" x="55.5" y="20" width="9" height="13" rx="3.5"></rect>
-          <rect class="tooth" x="55.5" y="20" width="9" height="13" rx="3.5" transform="rotate(45 60 60)"></rect>
-          <rect class="tooth" x="55.5" y="20" width="9" height="13" rx="3.5" transform="rotate(90 60 60)"></rect>
-          <rect class="tooth" x="55.5" y="20" width="9" height="13" rx="3.5" transform="rotate(135 60 60)"></rect>
-          <rect class="tooth" x="55.5" y="20" width="9" height="13" rx="3.5" transform="rotate(180 60 60)"></rect>
-          <rect class="tooth" x="55.5" y="20" width="9" height="13" rx="3.5" transform="rotate(225 60 60)"></rect>
-          <rect class="tooth" x="55.5" y="20" width="9" height="13" rx="3.5" transform="rotate(270 60 60)"></rect>
-          <rect class="tooth" x="55.5" y="20" width="9" height="13" rx="3.5" transform="rotate(315 60 60)"></rect>
+      <p class="lead" id="mt-title">Site en cours de maintenance</p>
+      <p class="msg" id="mt-message">KentraPix est momentanément fermé le temps d’une mise à jour. Vos photos et vos galeries sont en sécurité : tout revient dès la fin des travaux.</p>
+
+      <section class="count-box" id="mt-count" aria-live="polite">
+        <p class="label" id="mt-count-label">Réouverture dans</p>
+        <div class="tiles">
+          <div class="tile" id="mt-d" hidden><b>0</b><span>Jours</span></div>
+          <div class="tile" id="mt-h"><b>00</b><span>Heures</span></div>
+          <div class="tile" id="mt-m"><b>00</b><span>Minutes</span></div>
+          <div class="tile" id="mt-s"><b>00</b><span>Secondes</span></div>
+        </div>
+        <div class="bar" role="progressbar" aria-label="Avancement de la maintenance" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="mt-bar"><i></i></div>
+        <p class="eta" id="mt-eta"></p>
+      </section>
+
+      <p class="foot">© <span id="mt-year">2026</span> KentraPix · <a href="/login">Espace studio</a> · <a href="/conditions" target="_blank" rel="noopener">Conditions d’utilisation</a></p>
+    </div>
+
+    <div class="count" aria-hidden="true">
+      <svg class="tools" viewBox="0 0 120 120">
+        <circle class="disc" cx="60" cy="60" r="54"></circle>
+        <g class="gear">
+          <g class="teeth">
+            <rect x="55.5" y="20" width="9" height="13" rx="3.5"></rect>
+            <rect x="55.5" y="20" width="9" height="13" rx="3.5" transform="rotate(45 60 60)"></rect>
+            <rect x="55.5" y="20" width="9" height="13" rx="3.5" transform="rotate(90 60 60)"></rect>
+            <rect x="55.5" y="20" width="9" height="13" rx="3.5" transform="rotate(135 60 60)"></rect>
+            <rect x="55.5" y="20" width="9" height="13" rx="3.5" transform="rotate(180 60 60)"></rect>
+            <rect x="55.5" y="20" width="9" height="13" rx="3.5" transform="rotate(225 60 60)"></rect>
+            <rect x="55.5" y="20" width="9" height="13" rx="3.5" transform="rotate(270 60 60)"></rect>
+            <rect x="55.5" y="20" width="9" height="13" rx="3.5" transform="rotate(315 60 60)"></rect>
+          </g>
+          <circle class="ring" cx="60" cy="60" r="25"></circle>
+          <circle class="hub" cx="60" cy="60" r="10"></circle>
         </g>
-        <circle class="ring" cx="60" cy="60" r="25"></circle>
-        <circle class="hub" cx="60" cy="60" r="10"></circle>
-      </g>
-      <g class="wrench">
-        <path class="cut" d="M104 44A12 12 0 1 1 92 32"></path>
-        <path class="cut" d="M83 53 38 98"></path>
-        <path class="tool" d="M104 44A12 12 0 1 1 92 32"></path>
-        <path class="tool" d="M83 53 38 98"></path>
-      </g>
-      <g class="sparks">
-        <circle cx="106" cy="22" r="3.2"></circle>
-        <circle cx="114" cy="34" r="2.2"></circle>
-      </g>
-    </svg>
-
-    <p class="mt-badge" id="mt-badge"><i></i><span id="mt-badge-text">Maintenance en cours</span></p>
-    <h1 id="mt-title">Site en cours de maintenance</h1>
-    <p class="mt-text" id="mt-message">KentraPix est momentanément fermé le temps d’une mise à jour. Vos photos et vos galeries sont en sécurité : tout revient dès la fin des travaux.</p>
-
-    <section class="mt-count" id="mt-count" aria-live="polite">
-      <p class="mt-label" id="mt-count-label">Réouverture dans</p>
-      <div class="mt-tiles">
-        <div class="mt-tile" id="mt-d" hidden><b>0</b><span>Jours</span></div>
-        <div class="mt-tile" id="mt-h"><b>00</b><span>Heures</span></div>
-        <div class="mt-tile" id="mt-m"><b>00</b><span>Minutes</span></div>
-        <div class="mt-tile" id="mt-s"><b>00</b><span>Secondes</span></div>
-      </div>
-      <div class="mt-bar" role="progressbar" aria-label="Avancement de la maintenance" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="mt-bar"><i></i></div>
-      <p class="mt-eta" id="mt-eta"></p>
-    </section>
-
-    <footer class="mt-foot">
-      <p>© <span id="mt-year">2026</span> KentraPix · <a href="/login">Espace studio</a> · <a href="/conditions" target="_blank" rel="noopener">Conditions d’utilisation</a></p>
-    </footer>
+        <g class="wrench">
+          <path class="cut" d="M104 44A12 12 0 1 1 92 32"></path>
+          <path class="cut" d="M83 53 38 98"></path>
+          <path class="tool" d="M104 44A12 12 0 1 1 92 32"></path>
+          <path class="tool" d="M83 53 38 98"></path>
+        </g>
+        <g class="sparks">
+          <circle cx="106" cy="22" r="3.2"></circle>
+          <circle cx="114" cy="34" r="2.2"></circle>
+        </g>
+      </svg>
+    </div>
   </main>
   <script type="module" src="/js/maintenance.js"></script>
 </body>

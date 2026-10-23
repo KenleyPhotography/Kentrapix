@@ -7,7 +7,6 @@ const tile = (id) => el(id).querySelector('b');
 const count = el('mt-count');
 const bar = el('mt-bar');
 const eta = el('mt-eta');
-const badge = el('mt-badge');
 // Aperçu demandé depuis le studio : l'adresse est /maintenance, le site lui-même reste ouvert.
 // Rien à cliquer sur cette page : le site revient tout seul, et « Espace studio » reste en bas.
 const isPreview = location.pathname.replace(/\/$/, '') === '/maintenance';
@@ -15,6 +14,19 @@ const isPreview = location.pathname.replace(/\/$/, '') === '/maintenance';
 let state = null;
 let skew = 0; // écart entre l'horloge de l'appareil et celle du serveur
 const now = () => Date.now() + skew;
+
+/** Gros mot animé lettre par lettre, comme la page « Bienvenue » du Worker Cloudflare. */
+function hero(word) {
+  const h = el('mt-hero');
+  h.textContent = '';
+  h.setAttribute('aria-label', word);
+  [...word].forEach((ch, i) => {
+    const b = document.createElement('b');
+    b.textContent = ch;
+    b.style.animationDelay = `${i * 70}ms`;
+    h.append(b);
+  });
+}
 
 const pad = (n) => String(n).padStart(2, '0');
 const hour = (iso) => new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
@@ -67,11 +79,10 @@ function tick() {
   }
 }
 
-/** Site ouvert : on y retourne (ou, en aperçu, on le signale sans rien changer). */
+/** Site ouvert : on y retourne (en aperçu, la page reste telle quelle). */
 function reopened() {
-  badge.classList.add('is-done');
-  el('mt-badge-text').textContent = isPreview ? 'Site ouvert' : 'Site de nouveau en ligne';
   if (isPreview) return;
+  hero('Bienvenue');
   el('mt-title').textContent = 'Le site est de nouveau en ligne';
   el('mt-message').textContent = 'Merci de votre patience. Vous allez être redirigé vers vos photos.';
   setTimeout(() => location.replace('/'), 2500);
@@ -87,6 +98,7 @@ async function refresh() {
   }
 }
 
+hero('Maintenance');
 el('mt-year').textContent = new Date().getFullYear();
 
 refresh();
