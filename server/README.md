@@ -150,6 +150,7 @@ server/
     app.js                Express : sécurité (helmet/CSP), routes, erreurs
     config.js  db.js      Configuration .env, pool PostgreSQL (requêtes préparées, UTC)
     middleware/auth.js    Session (cookie httpOnly signé), rôles
+    middleware/security.js  CORS (origines autorisées) + plafonds de requêtes
     lib/                  storage (sharp), data (mappers, permissions), errors
     routes/
       auth.js             /api/auth   login, logout, me, password
@@ -195,6 +196,12 @@ server/
 - Session dans un cookie **httpOnly + SameSite=Strict** (+ `Secure` en production) : inaccessible au JavaScript, protégé du CSRF.
 - Chaque requête relit l'utilisateur en base : un compte désactivé ou un mot de passe changé coupe toutes ses sessions immédiatement.
 - Connexion limitée à 10 essais / 15 min par IP ; réponse identique que l'e-mail existe ou non.
+- **CORS** : seules les pages de ce site peuvent appeler l'API (`CORS_ORIGINS` pour en ajouter). Une requête
+  montée depuis un autre site est refusée (403) même sans en-tête `Origin` (`Sec-Fetch-Site`) — deuxième
+  serrure après `SameSite=Strict`, pour l'API et pour les photos privées.
+- **Plafonds de requêtes** (en plus des limites par formulaire) : 120/min par connexion internet sans compte,
+  900/min par compte connecté, 40/min pour les écritures sans compte, 60/min sur les liens secrets
+  (facture, contrat) et 600/min sur les photos d'un lien de partage.
 - Mot de passe temporaire obligatoire à changer à la première connexion.
 - Toutes les requêtes SQL sont **préparées** (pas d'injection SQL) ; toutes les entrées sont validées (zod).
 - Photos dans un dossier privé ; un client ne voit que **ses** événements publiés et non archivés. Le studio (`admin.html`) est refusé par le serveur à tout non-admin.

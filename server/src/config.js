@@ -35,6 +35,8 @@ export const config = {
   previewWidth: Number(process.env.PREVIEW_WIDTH || 1600),
   // Adresse publique du site, utilisée dans les liens des e-mails.
   appUrl: (process.env.APP_URL || `http://localhost:${process.env.PORT || 3000}`).replace(/\/$/, ''),
+  // Autres sites autorisés à appeler l'API (CORS), séparés par des virgules. Vide = seulement ce site.
+  corsOrigins: (process.env.CORS_ORIGINS || '').split(',').map((s) => s.trim().replace(/\/$/, '')).filter(Boolean),
   mail: {
     resendKey: process.env.RESEND_API_KEY || '',
     from: process.env.MAIL_FROM || '',

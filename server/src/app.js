@@ -7,7 +7,11 @@ import cookieParser from 'cookie-parser';
 import { config, frontendRoot } from './config.js';
 import { query } from './db.js';
 import { loadUser } from './middleware/auth.js';
+import {
+  corsGate, apiGuestLimiter, apiUserLimiter, guestWriteLimiter, publicLinkLimiter, shareMediaLimiter,
+} from './middleware/security.js';
 import { apiNotFound, errorHandler } from './lib/errors.js';
+import { maintenanceGate, maintenanceStatus } from './lib/maintenance.js';
 import authRoutes from './routes/auth.js';
 import clientRoutes from './routes/client.js';
 import adminRoutes from './routes/admin.js';
@@ -47,6 +51,8 @@ export function createApp() {
       hsts: config.isProd,
     }),
   );
+  // L'API n'accepte que les requêtes venues de ce site (voir middleware/security.js).
+  app.use(corsGate);
   // Une seule adresse publique (APP_URL) : l'adresse Render (…onrender.com) y renvoie,
   // sinon Google voit deux copies du site. localhost (PC du studio) n'est jamais redirigé ;
   // /api/health reste joignable pour la surveillance de Render.
@@ -67,6 +73,13 @@ export function createApp() {
   app.use(express.json({ limit: '200kb' }));
   app.use(cookieParser());
   app.use(loadUser);
+  // Plafonds généraux de l'API (par compte quand on est connecté, sinon par connexion internet).
+  app.use('/api', apiGuestLimiter, apiUserLimiter, guestWriteLimiter);
+
+  // Site fermé par le propriétaire : page « en cours de maintenance » pour les visiteurs et les clients.
+  // L'équipe passe (elle doit pouvoir travailler et rouvrir le site) ; cette page-ci reste lisible par tous.
+  app.get('/api/public/maintenance', maintenanceStatus);
+  app.use(maintenanceGate);
 
   app.get('/api/health', async (req, res) => {
     await query('SELECT 1');
@@ -84,13 +97,13 @@ export function createApp() {
   app.use('/api/push', pushRoutes); // notifications sur téléphone (abonnement des appareils)
   app.use('/api/client', clientRoutes);
   app.use('/api/admin', adminRoutes);
-  app.use('/api/invoice', invoiceApi); // page publique d'une facture (lien secret)
+  app.use('/api/invoice', publicLinkLimiter, invoiceApi); // page publique d'une facture (lien secret)
   app.use('/api/public', publicPortfolio);
   app.use('/api/public', publicApi); // avis approuvés affichés sur la page de connexion
-  app.use('/api/contract', contractApi); // page publique d'un contrat (lien secret)
+  app.use('/api/contract', publicLinkLimiter, contractApi); // page publique d'un contrat (lien secret)
   app.use('/api/share', shareApi); // lien de partage famille (sans compte)
   app.use('/api', apiNotFound);
-  app.use('/media/share', shareMedia);
+  app.use('/media/share', shareMediaLimiter, shareMedia);
   app.use('/media', mediaRoutes);
   app.use(pageRoutes);
   app.use((req, res) => res.status(404).sendFile(path.join(frontendRoot, '404.html')));

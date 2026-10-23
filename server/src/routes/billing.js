@@ -21,6 +21,9 @@ export const billingRouter = Router();
 const money = z.coerce.number({ invalid_type_error: 'Montant invalide.' }).positive('Le montant doit être supérieur à 0.').max(10_000_000, 'Montant trop élevé.').transform(round2);
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date invalide.');
 const optionalDay = z.union([day, z.literal('')]).optional().transform((v) => v || null);
+// Modification : une date absente du formulaire doit rester `undefined` (« ne pas y toucher »),
+// alors qu'une date vide veut dire « enlever l'échéance ».
+const patchDay = z.union([day, z.literal('')]).optional().transform((v) => (v === undefined ? undefined : v || null));
 const text = (max, msg) => z.string().trim().min(1, msg).max(max);
 const sender = (user) => ({ fromName: user.sender_name || user.name, replyTo: user.email });
 
@@ -124,7 +127,7 @@ billingRouter.patch('/invoices/:id', async (req, res) => {
   const data = z.object({
     title: text(200, 'Le titre de la facture est obligatoire.').optional(),
     amount: money.optional(),
-    dueDate: optionalDay,
+    dueDate: patchDay,
     notes: z.string().trim().max(1000).optional().transform((v) => (v === undefined ? undefined : v || null)),
     cancelled: z.boolean().optional(),
   }).parse(req.body);
@@ -134,7 +137,7 @@ billingRouter.patch('/invoices/:id', async (req, res) => {
     [
       data.title ?? row.title,
       data.amount ?? row.total,
-      req.body.dueDate !== undefined ? data.dueDate : row.due_date,
+      data.dueDate !== undefined ? data.dueDate : row.due_date,
       data.notes !== undefined ? data.notes : row.notes,
       data.cancelled === undefined ? row.cancelled : data.cancelled ? 1 : 0,
       row.id,

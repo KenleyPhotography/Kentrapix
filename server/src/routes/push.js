@@ -3,11 +3,12 @@ import crypto from 'node:crypto';
 import { z } from 'zod';
 import { query } from '../db.js';
 import { httpError } from '../lib/errors.js';
-import { requireAuth, isStaff } from '../middleware/auth.js';
+import { requireAuth, blockPending, isStaff } from '../middleware/auth.js';
 import { pushConfigured, fcmConfigured, pushPublicKey, pushTo } from '../lib/push.js';
 
 const router = Router();
-router.use(requireAuth);
+// Compte connecté, et pas un client encore sans code de photographe (il n'a accès à rien à notifier).
+router.use(requireAuth, blockPending);
 
 // Clé publique + état : le navigateur en a besoin pour s'abonner.
 router.get('/', async (req, res) => {
@@ -56,7 +57,7 @@ router.post('/test', async (req, res) => {
   const payload = { title: 'KentraPix', body: 'Les notifications fonctionnent sur ce téléphone.', url: '/', tag: 'test' };
   // Android n'affiche pas une notification pendant que l'application est ouverte : l'essai peut être différé de quelques secondes
   // pour laisser le temps de la fermer (bouton Accueil).
-  const delay = Math.min(Math.max(Number(req.body?.delay) || 0, 0), 30);
+  const { delay } = z.object({ delay: z.coerce.number().int().min(0).max(30).optional().default(0) }).parse(req.body ?? {});
   if (delay) {
     setTimeout(() => pushTo(req.user.id, payload).catch(() => {}), delay * 1000);
     return res.json({ sent: 0, scheduled: delay });
