@@ -222,3 +222,8 @@
 .ctr-check input { width: 18px; height: 18px; accent-color: var(--blue); }
 
 .ctr-reserve { color: #b42318 !important; font-weight: 600; }
+
+/* Contrats de site internet : rappel du projet sur la carte (domaine · type · prix). */
+.web-intro { max-width: 70ch; margin: -6px 0 16px; color: var(--muted); }
+.inv-foot.web-about { margin-bottom: 2px; }
+.inv-foot.web-about span { font-weight: 600; color: var(--label); }

@@ -14,6 +14,11 @@ export const CONTRACT_SELECT = `SELECT c.*, COALESCE(u.name, c.guest_name) AS cl
     b.day AS booking_day, b.start_time AS booking_start
   FROM contracts c LEFT JOIN users u ON u.id = c.client_id LEFT JOIN bookings b ON b.id = c.booking_id`;
 
+/** Fiche d'un contrat de site internet (JSON de web_sheet) : sert à réafficher et à corriger le projet. */
+export const parseSheet = (raw) => {
+  try { const j = JSON.parse(raw || 'null'); return j && typeof j === 'object' && !Array.isArray(j) ? j : null; } catch { return null; }
+};
+
 /** Réserves du client : lignes non acceptées et cases cochées (JSON enregistré avec la signature). */
 export const parseChoices = (raw) => {
   try { const j = JSON.parse(raw || 'null'); return j && Array.isArray(j.refused) ? { refused: j.refused, checks: Array.isArray(j.checks) ? j.checks : [], notes: String(j.notes || '') } : null; } catch { return null; }
@@ -26,6 +31,8 @@ export const mapContract = (c) => ({
   title: c.title,
   body: c.body,
   status: c.status,
+  kind: c.kind || 'photo',
+  sheet: parseSheet(c.web_sheet),
   url: contractUrl(c.public_token),
   client: { id: c.client_id || null, guest: !c.client_id, name: c.client_name, email: c.client_email, phone: c.client_phone || '', whatsapp: c.client_whatsapp || c.client_phone || '' },
   bookingId: c.booking_id,
@@ -45,7 +52,7 @@ export async function unsignedBookings(staffId, today) {
     `SELECT b.id, b.day, b.start_time, b.session_type, b.client_id, u.name AS client_name
      FROM bookings b JOIN users u ON u.id = b.client_id
      WHERE b.staff_id = ? AND b.status = 'confirmed' AND b.day >= ?
-       AND NOT EXISTS (SELECT 1 FROM contracts c WHERE c.client_id = b.client_id AND c.staff_id = b.staff_id AND c.status = 'signed' AND (c.booking_id = b.id OR c.booking_id IS NULL))
+       AND NOT EXISTS (SELECT 1 FROM contracts c WHERE c.client_id = b.client_id AND c.staff_id = b.staff_id AND c.kind = 'photo' AND c.status = 'signed' AND (c.booking_id = b.id OR c.booking_id IS NULL))
      ORDER BY b.day, b.start_time`,
     [staffId, today],
   );

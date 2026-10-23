@@ -395,17 +395,22 @@ export function orderStatusEmail({ clientName, studio = defaultStudio(), order, 
 }
 
 /** Au client : un contrat est prêt à être lu et signé en ligne. */
-export function contractEmail({ name, studio = defaultStudio(), title, url }) {
+// guest : personne sans compte (le lien secret suffit). web : contrat de site internet (il n'y a pas de séance).
+export function contractEmail({ name, studio = defaultStudio(), title, url, guest = false, web = false }) {
+  const when = web ? 'avant le début des travaux' : 'avant la séance';
+  const safety = guest
+    ? 'Ce lien est personnel : ne le transmettez à personne d’autre.'
+    : 'Pour votre sécurité, ce contrat s’ouvre uniquement après connexion à votre compte KentraPix : ne transmettez pas ce message.';
   return {
     subject: `Contrat à signer : ${title}`,
     html: layout({
       studio,
       preheader: 'Lisez et signez votre contrat en ligne.',
       title: 'Votre contrat est prêt',
-      body: `Bonjour ${esc(firstName(name))},<br><br>${esc(studio)} vous envoie le contrat « <strong style="color:#082445">${esc(title)}</strong> ». Merci de le lire puis de le signer en ligne avant la séance : il suffit de dessiner votre signature avec le doigt ou la souris.<br><br>Pour votre sécurité, ce contrat s’ouvre uniquement après connexion à votre compte KentraPix : ne transmettez pas ce message.`,
+      body: `Bonjour ${esc(firstName(name))},<br><br>${esc(studio)} vous envoie le contrat « <strong style="color:#082445">${esc(title)}</strong> ». Merci de le lire puis de le signer en ligne ${when} : il suffit de dessiner votre signature avec le doigt ou la souris.<br><br>${esc(safety)}`,
       cta: { label: 'Lire et signer le contrat', url },
     }),
-    text: `Bonjour ${firstName(name)},\n\n${studio} vous envoie le contrat « ${title} ». Lisez-le et signez-le en ligne (connexion à votre compte KentraPix nécessaire) :\n${url}`,
+    text: `Bonjour ${firstName(name)},\n\n${studio} vous envoie le contrat « ${title} ». Lisez-le et signez-le en ligne :\n${url}\n\n${safety}`,
   };
 }
 

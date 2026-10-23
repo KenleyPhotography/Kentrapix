@@ -35,8 +35,8 @@ staffContracts.put('/signature', async (req, res) => {
   res.json({ signature });
 });
 
-async function loadContract(req, id) {
-  const [row] = await query(`${CONTRACT_SELECT} WHERE c.id = ? AND c.staff_id = ?`, [uuid.parse(id), req.user.id]);
+async function loadContract(req, id, kind = 'photo') {
+  const [row] = await query(`${CONTRACT_SELECT} WHERE c.id = ? AND c.staff_id = ? AND c.kind = ?`, [uuid.parse(id), req.user.id, kind]);
   if (!row) throw httpError(404, 'Contrat introuvable.');
   return row;
 }
@@ -44,9 +44,9 @@ async function loadContract(req, id) {
 // Contrats + séances confirmées à venir qui n'ont toujours pas de contrat signé (« pas de séance sans papier signé »).
 staffContracts.get('/', async (req, res) => {
   const [rows, missing, templates] = await Promise.all([
-    query(`${CONTRACT_SELECT} WHERE c.staff_id = ? ORDER BY c.created_at DESC`, [req.user.id]),
+    query(`${CONTRACT_SELECT} WHERE c.staff_id = ? AND c.kind = 'photo' ORDER BY c.created_at DESC`, [req.user.id]),
     unsignedBookings(req.user.id, studioToday()),
-    query('SELECT id, name, body FROM contract_templates WHERE staff_id = ? ORDER BY name', [req.user.id]),
+    query("SELECT id, name, body FROM contract_templates WHERE staff_id = ? AND kind = 'photo' ORDER BY name", [req.user.id]),
   ]);
   res.json({
     mySignature: await mySignature(req.user.id),
@@ -97,71 +97,152 @@ staffContracts.post('/', async (req, res) => {
   res.status(201).json({ contract: mapContract(await loadContract(req, id)) });
 });
 
-// Modèles de contrat du photographe : texte réutilisable ({{client}}, {{studio}}, {{session}}, {{date}}, {{place}}, {{price}}, {{deposit}}).
+// Fiche d'un projet de site internet : tout est facultatif, le contrat se remplit avec ce qui est saisi.
+const sheetSchema = z.object({
+  company: z.string().trim().max(120),
+  siteType: z.string().trim().max(60),
+  domain: z.string().trim().max(120),
+  pages: z.string().trim().max(30),
+  languages: z.string().trim().max(60),
+  features: z.array(z.string().trim().max(90)).max(40),
+  price: z.string().trim().max(40),
+  deposit: z.string().trim().max(40),
+  hosting: z.string().trim().max(40),
+  maintenance: z.string().trim().max(40),
+  hostingPlan: z.string().trim().max(120),
+  delay: z.string().trim().max(30),
+  launch: z.string().trim().max(40),
+  revisions: z.string().trim().max(20),
+  warranty: z.string().trim().max(20),
+  content: z.string().trim().max(200),
+  training: z.string().trim().max(200),
+  notes: z.string().trim().max(300),
+}).partial();
+
+// Coordonnées d'un client « site internet » : saisies à la main, aucun compte nécessaire.
+const webClientSchema = z.object({
+  name: z.string().trim().min(2, 'Entrez le nom du client.').max(80),
+  phone: z.string().trim().max(40).optional().default(''),
+  email: z.union([z.literal(''), z.string().trim().toLowerCase().email('E-mail invalide.').max(190)]).optional().default(''),
+});
+
+// Modèles de contrat enregistrés par le photographe : texte réutilisable ({{client}}, {{studio}}, {{session}}, {{date}}, {{place}}, {{price}}, {{deposit}}…).
+// Chaque liste garde ses propres modèles : un modèle de site internet n'apparaît jamais dans les contrats photo.
 const templateSchema = z.object({
   name: z.string().trim().min(1, 'Donnez un nom au modèle.').max(80),
   body: z.string().trim().min(30, 'Le modèle est trop court.').max(20000),
 });
-staffContracts.post('/templates', async (req, res) => {
-  const data = templateSchema.parse(req.body);
-  const [{ n }] = await query('SELECT COUNT(*) AS n FROM contract_templates WHERE staff_id = ?', [req.user.id]);
-  if (Number(n) >= 30) throw httpError(400, '30 modèles maximum : supprimez-en un d’abord.');
-  const id = crypto.randomUUID();
-  await query('INSERT INTO contract_templates (id, staff_id, name, body) VALUES (?, ?, ?, ?)', [id, req.user.id, data.name, data.body]);
-  res.status(201).json({ template: { id, name: data.name, body: data.body } });
-});
-staffContracts.put('/templates/:id', async (req, res) => {
-  const data = templateSchema.parse(req.body);
-  const done = await query('UPDATE contract_templates SET name = ?, body = ? WHERE id = ? AND staff_id = ?', [data.name, data.body, uuid.parse(req.params.id), req.user.id]);
-  if (!done.affectedRows) throw httpError(404, 'Modèle introuvable.');
-  res.json({ template: { id: req.params.id, name: data.name, body: data.body } });
-});
-staffContracts.delete('/templates/:id', async (req, res) => {
-  const done = await query('DELETE FROM contract_templates WHERE id = ? AND staff_id = ?', [uuid.parse(req.params.id), req.user.id]);
-  if (!done.affectedRows) throw httpError(404, 'Modèle introuvable.');
-  res.status(204).end();
-});
 
-// Un contrat signé ne se modifie jamais : on l'annule et on en rédige un nouveau.
-staffContracts.patch('/:id', async (req, res) => {
-  const row = await loadContract(req, req.params.id);
-  if (row.status === 'signed') throw httpError(400, 'Ce contrat est déjà signé : il ne peut plus être modifié.');
-  const data = z.object({
-    title: createSchema.shape.title.optional(),
-    body: createSchema.shape.body.optional(),
-    cancelled: z.boolean().optional(),
-  }).parse(req.body);
-  await query('UPDATE contracts SET title = ?, body = ?, status = ? WHERE id = ?', [
-    data.title ?? row.title, data.body ?? row.body, data.cancelled === undefined ? row.status : data.cancelled ? 'cancelled' : 'pending', row.id,
-  ]);
-  audit(req, 'contract.update', { entity: 'contract', entityId: row.id });
-  res.json({ contract: mapContract(await loadContract(req, row.id)) });
-});
-
-staffContracts.delete('/:id', async (req, res) => {
-  const row = await loadContract(req, req.params.id);
-  if (row.status === 'signed') throw httpError(400, 'Un contrat signé ne peut pas être supprimé (preuve de l’accord).');
-  await query('DELETE FROM contracts WHERE id = ?', [row.id]);
-  audit(req, 'contract.delete', { entity: 'contract', entityId: row.id });
-  res.status(204).end();
-});
-
-staffContracts.post('/:id/send', async (req, res) => {
-  const row = await loadContract(req, req.params.id);
-  if (row.status !== 'pending') throw httpError(400, 'Seul un contrat en attente de signature peut être envoyé.');
-  if (!row.staff_signature) throw httpError(400, 'Signez d’abord le contrat : ouvrez l’aperçu et touchez la zone « Le photographe ».');
-  if (!row.client_email) throw httpError(400, 'Cette personne n’a pas d’e-mail : envoyez-lui le lien par WhatsApp ou copiez-le.');
-  const studio = req.user.sender_name || req.user.name;
-  const url = contractUrl(row.public_token);
-  if (row.client_id) pushLater(row.client_id, { title: 'Contrat à signer', body: `${studio} · ${row.title}`, url: url.replace(/^https?:\/\/[^/]+/, ''), tag: `contract-${row.id}` });
-  const email = await sendMail({
-    to: row.client_email, userId: row.client_id, sentBy: req.user.id, kind: 'contract', fromName: studio, replyTo: req.user.email,
-    ...contractEmail({ name: row.client_name, studio, title: row.title, url }),
+/** Routes identiques pour les deux listes : modèles, modification, annulation, suppression, envoi par e-mail. */
+function mountCommon(r, kind) {
+  r.post('/templates', async (req, res) => {
+    const data = templateSchema.parse(req.body);
+    const [{ n }] = await query('SELECT COUNT(*) AS n FROM contract_templates WHERE staff_id = ? AND kind = ?', [req.user.id, kind]);
+    if (Number(n) >= 30) throw httpError(400, '30 modèles maximum : supprimez-en un d’abord.');
+    const id = crypto.randomUUID();
+    await query('INSERT INTO contract_templates (id, staff_id, kind, name, body) VALUES (?, ?, ?, ?, ?)', [id, req.user.id, kind, data.name, data.body]);
+    res.status(201).json({ template: { id, name: data.name, body: data.body } });
   });
-  if (email.status === 'sent') await query('UPDATE contracts SET sent_at = CURRENT_TIMESTAMP WHERE id = ?', [row.id]);
-  audit(req, 'contract.send', { entity: 'contract', entityId: row.id, details: { status: email.status } });
-  res.json({ email, contract: mapContract(await loadContract(req, row.id)) });
+  r.put('/templates/:id', async (req, res) => {
+    const data = templateSchema.parse(req.body);
+    const done = await query('UPDATE contract_templates SET name = ?, body = ? WHERE id = ? AND staff_id = ? AND kind = ?', [data.name, data.body, uuid.parse(req.params.id), req.user.id, kind]);
+    if (!done.affectedRows) throw httpError(404, 'Modèle introuvable.');
+    res.json({ template: { id: req.params.id, name: data.name, body: data.body } });
+  });
+  r.delete('/templates/:id', async (req, res) => {
+    const done = await query('DELETE FROM contract_templates WHERE id = ? AND staff_id = ? AND kind = ?', [uuid.parse(req.params.id), req.user.id, kind]);
+    if (!done.affectedRows) throw httpError(404, 'Modèle introuvable.');
+    res.status(204).end();
+  });
+
+  // Un contrat signé ne se modifie jamais : on l'annule et on en rédige un nouveau.
+  r.patch('/:id', async (req, res) => {
+    const row = await loadContract(req, req.params.id, kind);
+    if (row.status === 'signed') throw httpError(400, 'Ce contrat est déjà signé : il ne peut plus être modifié.');
+    const data = z.object({
+      title: createSchema.shape.title.optional(),
+      body: createSchema.shape.body.optional(),
+      sheet: sheetSchema.optional(),
+      client: webClientSchema.optional(),
+      cancelled: z.boolean().optional(),
+    }).parse(req.body);
+    const web = kind === 'web';
+    await query(
+      `UPDATE contracts SET title = ?, body = ?, status = ?${web ? ', web_sheet = ?, guest_name = ?, guest_phone = ?, guest_email = ?' : ''} WHERE id = ?`,
+      [data.title ?? row.title, data.body ?? row.body, data.cancelled === undefined ? row.status : data.cancelled ? 'cancelled' : 'pending',
+        ...(web ? [
+          data.sheet ? JSON.stringify(data.sheet) : row.web_sheet,
+          data.client?.name ?? row.guest_name, data.client?.phone || (data.client ? null : row.guest_phone), data.client?.email || (data.client ? null : row.guest_email),
+        ] : []), row.id],
+    );
+    audit(req, 'contract.update', { entity: 'contract', entityId: row.id, details: { kind } });
+    res.json({ contract: mapContract(await loadContract(req, row.id, kind)) });
+  });
+
+  r.delete('/:id', async (req, res) => {
+    const row = await loadContract(req, req.params.id, kind);
+    if (row.status === 'signed') throw httpError(400, 'Un contrat signé ne peut pas être supprimé (preuve de l’accord).');
+    await query('DELETE FROM contracts WHERE id = ?', [row.id]);
+    audit(req, 'contract.delete', { entity: 'contract', entityId: row.id, details: { kind } });
+    res.status(204).end();
+  });
+
+  r.post('/:id/send', async (req, res) => {
+    const row = await loadContract(req, req.params.id, kind);
+    if (row.status !== 'pending') throw httpError(400, 'Seul un contrat en attente de signature peut être envoyé.');
+    if (!row.staff_signature) throw httpError(400, 'Signez d’abord le contrat : ouvrez l’aperçu et touchez la zone de signature.');
+    if (!row.client_email) throw httpError(400, 'Cette personne n’a pas d’e-mail : envoyez-lui le lien par WhatsApp ou copiez-le.');
+    const studio = req.user.sender_name || req.user.name;
+    const url = contractUrl(row.public_token);
+    if (row.client_id) pushLater(row.client_id, { title: 'Contrat à signer', body: `${studio} · ${row.title}`, url: url.replace(/^https?:\/\/[^/]+/, ''), tag: `contract-${row.id}` });
+    const email = await sendMail({
+      to: row.client_email, userId: row.client_id, sentBy: req.user.id, kind: 'contract', fromName: studio, replyTo: req.user.email,
+      ...contractEmail({ name: row.client_name, studio, title: row.title, url, guest: !row.client_id, web: kind === 'web' }),
+    });
+    if (email.status === 'sent') await query('UPDATE contracts SET sent_at = CURRENT_TIMESTAMP WHERE id = ?', [row.id]);
+    audit(req, 'contract.send', { entity: 'contract', entityId: row.id, details: { kind, status: email.status } });
+    res.json({ email, contract: mapContract(await loadContract(req, row.id, kind)) });
+  });
+}
+mountCommon(staffContracts, 'photo');
+
+// ====================================================================================================
+//  Contrats de site internet : liste à part, sans aucun lien avec les séances photo ni les rendez-vous
+// ====================================================================================================
+// La fiche du projet est saisie à la main : le client web n'a pas besoin d'un compte KentraPix.
+// Il lit et signe depuis le lien secret, exactement comme une personne « hors système » côté photo.
+export const staffWebContracts = Router();
+
+staffWebContracts.get('/', async (req, res) => {
+  const [rows, templates] = await Promise.all([
+    query(`${CONTRACT_SELECT} WHERE c.staff_id = ? AND c.kind = 'web' ORDER BY c.created_at DESC`, [req.user.id]),
+    query("SELECT id, name, body FROM contract_templates WHERE staff_id = ? AND kind = 'web' ORDER BY name", [req.user.id]),
+  ]);
+  res.json({ mySignature: await mySignature(req.user.id), templates, contracts: rows.map(mapContract) });
 });
+
+const webCreateSchema = z.object({
+  client: webClientSchema,
+  title: createSchema.shape.title,
+  body: createSchema.shape.body,
+  sheet: sheetSchema.optional(),
+});
+
+staffWebContracts.post('/', async (req, res) => {
+  const data = webCreateSchema.parse(req.body);
+  // La signature enregistrée du photographe est apposée tout de suite ; sans elle, il signe sur la page du contrat.
+  const signature = await mySignature(req.user.id);
+  const id = crypto.randomUUID();
+  await query(
+    `INSERT INTO contracts (id, staff_id, client_id, kind, guest_name, guest_phone, guest_email, title, body, web_sheet, public_token, staff_signature, staff_signed_at)
+     VALUES (?, ?, NULL, 'web', ?, ?, ?, ?, ?, ?, ?, ?, ${signature ? 'CURRENT_TIMESTAMP' : 'NULL'})`,
+    [id, req.user.id, data.client.name, data.client.phone || null, data.client.email || null, data.title, data.body,
+      data.sheet ? JSON.stringify(data.sheet) : null, newContractToken(), signature],
+  );
+  audit(req, 'contract.create', { entity: 'contract', entityId: id, details: { kind: 'web', client: data.client.name } });
+  res.status(201).json({ contract: mapContract(await loadContract(req, id, 'web')) });
+});
+mountCommon(staffWebContracts, 'web');
 
 // ====================================================================================================
 //  Page publique d'un contrat (lien secret envoyé au client, sans connexion)
@@ -188,7 +269,7 @@ contractApi.get('/:token', async (req, res) => {
   const [studio] = await query('SELECT name, sender_name, email, phone, whatsapp, website, address, instagram, avatar_key FROM users WHERE id = ?', [row.staff_id]);
   const c = mapContract(row);
   res.set('Cache-Control', 'no-store').json({
-    title: row.title, body: row.body, status: row.status, clientName: row.client_name, guest: !row.client_id,
+    title: row.title, body: row.body, status: row.status, kind: row.kind || 'photo', clientName: row.client_name, guest: !row.client_id,
     canSign: isClient(req, row) && !!row.staff_signature && row.status === 'pending', waitingStaff: isClient(req, row) && !row.staff_signature,
     canStaffSign: req.user?.id === row.staff_id && row.status === 'pending', savedSignature: req.user?.id === row.staff_id && row.status === 'pending' ? await mySignature(req.user.id) : null,
     choices: parseChoices(row.client_choices),
