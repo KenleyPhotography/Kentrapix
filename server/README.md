@@ -124,6 +124,19 @@ Ancienne base MySQL : sauvegarde `kentrapix-mysql-2026-10-09.sql` (dossier `back
 dans « Mon profil » ; iPhone : Safari → Partager → Sur l’écran d’accueil). Le service worker ne met en cache que
 l’interface (css/js/logo/img) ; photos, musique et API restent toujours privées. **HTTPS obligatoire** en ligne.
 
+## Site en maintenance
+
+Studio > **Réglages** > *Fermer le site* (propriétaire principal). On choisit une **durée** (15 min, 1 h, 2 h…,
+« autre durée » en minutes / heures / jours, ou « jusqu'à ce que je rouvre »), le **titre** et le **message** affichés.
+Visiteurs et clients reçoivent alors `maintenance.html` en **503** (`Retry-After`) : une page avec le temps restant,
+qui se recharge toute seule à la réouverture. L'équipe (propriétaire + admins) n'est jamais bloquée : `/login`,
+`/admin`, `/conditions`, les fichiers du site et `/api/auth` · `/api/admin` restent ouverts, pour pouvoir
+travailler et rouvrir le site. Les appels d'API refusés portent l'en-tête `X-Maintenance` : l'espace client
+déjà ouvert chez un client bascule tout seul sur la page de maintenance.
+
+Passé l'heure de fin, le site **se rouvre tout seul** (`src/lib/maintenance.js`, réglage dans `site_maintenance`).
+`/maintenance` montre la page à tout moment, sans rien fermer : c'est l'aperçu du bouton « Voir la page ».
+
 ## Architecture
 
 ```
@@ -171,6 +184,8 @@ server/
 | POST | `/api/admin/events/:id/photos` (multipart, champ `photo`) | admin |
 | PATCH/DELETE | `/api/admin/photos/:id`, POST `/photos/:id/move-up` | admin |
 | PUT | `/api/admin/permissions` | admin |
+| GET/PUT | `/api/admin/maintenance` | propriétaire principal |
+| GET | `/api/public/maintenance` | public |
 | GET | `/media/preview/:photoId`, `/media/cover/:eventId` | connecté + droits |
 | GET | `/api/health` | public |
 

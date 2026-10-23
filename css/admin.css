@@ -216,6 +216,49 @@ td input { min-height: 38px; min-width: 160px; padding: 7px 12px; font-size: var
 .switch:checked::after { transform: translateX(18px); }
 .switch:focus-visible { box-shadow: var(--ring); outline: none; }
 
+/* ---------- Fermer le site (maintenance) ---------- */
+.maint > header { padding-bottom: var(--space-4); border-bottom: 1px solid var(--border); }
+.maint h2 { display: flex; align-items: center; gap: var(--space-2); margin: 0; font-size: var(--text-lg); }
+.maint h2 > svg { width: 20px; height: 20px; color: var(--muted); }
+.maint.is-on h2 > svg { color: var(--danger); }
+
+.maint-state { display: flex; align-items: flex-start; gap: var(--space-3); }
+.maint-state p { margin: 2px 0 0; }
+
+/* Pastille d'état : verte quand le site est ouvert, rouge clignotante quand il est fermé. */
+.maint-dot {
+  flex: 0 0 auto;
+  width: 11px;
+  height: 11px;
+  margin-top: 5px;
+  border-radius: 50%;
+  background: var(--success);
+  box-shadow: 0 0 0 4px rgba(19, 128, 75, 0.14);
+}
+
+.maint.is-on .maint-dot { background: var(--danger); box-shadow: 0 0 0 4px rgba(196, 40, 43, 0.16); animation: maint-beat 1.8s var(--ease) infinite; }
+
+.maint-note { margin: 0; color: var(--muted); }
+.maint-actions { flex-wrap: wrap; gap: var(--space-2); }
+
+/* Formulaire de fermeture (fenêtre) : « autre durée » = nombre + unité côte à côte. */
+.maint-custom { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
+.maint-custom[hidden] { display: none; }
+.maint-when { margin: 0; padding: var(--space-3) var(--space-4); border-radius: var(--radius); background: var(--blue-soft); color: var(--label); font-weight: 600; }
+
+.callout.is-maint { border-style: solid; border-color: var(--danger); background: rgba(196, 40, 43, 0.07); }
+.callout.is-maint > svg { color: var(--danger); }
+/* dark.css repasse les encadrés en fond uni : on garde le rappel rouge. */
+[data-theme="dark"] .callout.is-maint { background: rgba(196, 40, 43, 0.14); }
+
+@keyframes maint-beat {
+  50% { opacity: 0.45; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .maint.is-on .maint-dot { animation: none; }
+}
+
 /* ---------- Responsive ---------- */
 @media (max-width: 1100px) {
   .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }

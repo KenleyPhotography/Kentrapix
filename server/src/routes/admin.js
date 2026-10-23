@@ -35,6 +35,7 @@ import { staffTodo } from './todo.js';
 import { staffBooking } from './booking.js';
 import { staffPortfolio } from './portfolio.js';
 import { visitStats } from '../lib/visits.js';
+import { maintenanceState, setMaintenance, DEFAULT_TITLE, DEFAULT_MESSAGE } from '../lib/maintenance.js';
 import { staffOrders } from './orders.js';
 import { config } from '../config.js';
 import { BCRYPT_COST, passwordRule } from './auth.js';
@@ -85,7 +86,7 @@ const mailTo = (req, account, template, extra = {}) =>
 router.get('/bootstrap', async (req, res) => {
   const [as, ap] = accountScope(req);
   const [es, ep] = eventScope(req);
-  const [people, events, photos, downloads, activity, [storage], permissions, selections] = await Promise.all([
+  const [people, events, photos, downloads, activity, [storage], permissions, selections, maintenance, platformOwner] = await Promise.all([
     query(`SELECT * FROM users u WHERE ${as} ORDER BY name`, ap),
     query(`SELECT ${EVENT_COLUMNS} FROM events e WHERE ${es} ORDER BY e.event_date DESC, e.created_at DESC`, ep),
     query(
@@ -111,6 +112,8 @@ router.get('/bootstrap', async (req, res) => {
        FROM event_selections s JOIN users u ON u.id = s.user_id JOIN events e ON e.id = s.event_id
        WHERE s.submitted_at IS NOT NULL AND ${es} ORDER BY s.submitted_at DESC`, ep,
     ),
+    maintenanceState(),
+    isPlatformOwner(req.user),
   ]);
   const accounts = people.map(mapClient);
   res.json({
@@ -127,6 +130,9 @@ router.get('/bootstrap', async (req, res) => {
     })),
     stats: { storageBytes: Number(storage.originals) + Number(storage.previews) },
     permissions,
+    // Site fermé pour maintenance : visible par toute l'équipe, réglable par le propriétaire principal.
+    maintenance,
+    platformOwner,
     // Photos en ligne : le navigateur les envoie directement au bucket (sans passer par ce serveur).
     upload: { direct: isRemote, maxMb: config.maxUploadMb, previewWidth: config.previewWidth },
     mail: { configured: mailConfigured(), from: fromLine(studioName(req)) },
@@ -1110,6 +1116,37 @@ router.delete('/backups', requirePlatformOwner, async (req, res) => {
   await deleteBackup(key);
   audit(req, 'backup.delete', { details: { key } });
   res.json(await backupInfo());
+});
+
+// ---------- Site en maintenance ----------
+// Fermer le site aux visiteurs et aux clients le temps d'une mise à jour. L'équipe garde le studio.
+const MAX_MAINTENANCE_MINUTES = 30 * 24 * 60; // 30 jours
+
+router.get('/maintenance', requirePlatformOwner, async (req, res) => {
+  res.json({ maintenance: await maintenanceState(), defaults: { title: DEFAULT_TITLE, message: DEFAULT_MESSAGE } });
+});
+
+router.put('/maintenance', requirePlatformOwner, async (req, res) => {
+  const data = z.object({
+    enabled: z.boolean(),
+    title: z.string().trim().max(120).optional(),
+    message: z.string().trim().max(600).optional(),
+    // Durée en minutes à partir de maintenant ; 0 ou absent = jusqu'à nouvel ordre.
+    minutes: z.number().int().min(0).max(MAX_MAINTENANCE_MINUTES).nullable().optional(),
+  }).strict().parse(req.body);
+  // Réouverture : on garde le titre et le message enregistrés, prêts pour la prochaine fois.
+  const kept = data.enabled ? null : await maintenanceState();
+  const maintenance = await setMaintenance({
+    enabled: data.enabled,
+    title: data.enabled ? data.title || DEFAULT_TITLE : kept.title,
+    message: data.enabled ? data.message || DEFAULT_MESSAGE : kept.message,
+    minutes: data.enabled ? data.minutes || null : null,
+    userId: req.user.id,
+  });
+  audit(req, data.enabled ? 'site.maintenance_on' : 'site.maintenance_off', {
+    entity: 'site', details: { minutes: data.minutes || null, endsAt: maintenance.endsAt },
+  });
+  res.json({ maintenance });
 });
 
 // ---------- Autorisations ----------

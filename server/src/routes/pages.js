@@ -87,6 +87,10 @@ router.get('/studio', (req, res) => { recordVisit(req, '/studio'); res.sendFile(
 router.get('/gaduation', (req, res) => res.redirect(301, '/studio/graduation'));
 router.get('/conditions', (req, res) => res.sendFile(page('conditions.html')));
 
+// Page « en cours de maintenance » : servie à la place du site quand le propriétaire le ferme
+// (voir lib/maintenance.js) ; joignable ici pour la voir avant de fermer (aperçu).
+router.get('/maintenance', (req, res) => res.set('Cache-Control', 'no-store').sendFile(page('maintenance.html')));
+
 // Lien de partage famille : page publique, le mot de passe est vérifié par l'API.
 // Facture : page publique ouverte avec le lien secret reçu par e-mail (les données viennent de /api/invoice/:token).
 router.get(['/facture', '/f/:t'], (req, res) => {
