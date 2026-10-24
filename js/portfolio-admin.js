@@ -1,10 +1,15 @@
 // Studio : ajouter ou retirer des photos du portfolio public. Les fichiers ne vont ni sur R2 ni sur Supabase (GitHub, côté serveur).
 import { api, escape } from './service.js';
+import { ACCEPT_PHOTO, isRaw, rawImage } from './raw.js';
 import { icon } from './icons.js';
 
 // Réduit la photo dans le navigateur avant l'envoi : 2048 px max, JPEG qualité 92 (visuellement identique, 10 à 20 fois plus léger).
-// Si le navigateur ne sait pas la lire (HEIC, RAW…), la photo originale part telle quelle.
+// Si le navigateur ne sait pas la lire (HEIC…), la photo originale part telle quelle.
 async function shrink(file) {
+  // RAW (NEF, CR2, ARW…) : on repart du JPEG pleine taille enregistré dans le fichier, puis on le réduit comme les autres.
+  if (isRaw(file)) {
+    try { const raw = await rawImage(file); raw.bmp.close?.(); return shrink(raw.file); } catch { return file; }
+  }
   try {
     const bmp = await createImageBitmap(file, { imageOrientation: 'from-image' });
     const scale = Math.min(1, 2048 / Math.max(bmp.width, bmp.height));
@@ -33,7 +38,7 @@ export async function bindAdminPortfolio({ toast }) {
       ${d.ready ? '' : '<p class="small" style="color:#c2410c">L’ajout de photos n’est pas disponible pour le moment.</p>'}
       <form id="pfa-form" class="bk-form">
         <label>Catégorie<select name="category">${d.categories.map((c) => `<option>${escape(c)}</option>`).join('')}</select></label>
-        <label>Photos <span class="optional">(jusqu’à 12 à la fois)</span><input type="file" name="photos" accept="image/*" multiple required></label>
+        <label>Photos <span class="optional">(jusqu’à 12 à la fois)</span><input type="file" name="photos" accept="${ACCEPT_PHOTO}" multiple required></label>
         <button class="btn primary" ${d.ready ? '' : 'disabled'}>${icon('upload')} Ajouter au portfolio</button>
       </form></section>
       <section class="settings bill-block"><h2>Photos ajoutées ${d.photos.length ? `<span class="count-pill">${d.photos.length}</span>` : ''}</h2>

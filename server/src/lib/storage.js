@@ -10,6 +10,7 @@ import {
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { config } from '../config.js';
 import { httpError } from './errors.js';
+import { isRawName, rawJpeg, rawToJpgName } from './raw.js';
 
 // Fichiers privés : jamais servis directement, uniquement via /media et
 // /api/client/downloads après vérification des droits.
@@ -286,8 +287,11 @@ export const upload = multer({
     destination: (req, file, cb) => cb(null, path.join(config.storageDir, 'tmp')),
     filename: (req, file, cb) => cb(null, crypto.randomUUID()),
   }),
-  limits: { fileSize: config.maxUploadMb * 1024 * 1024, files: 1, fields: 20 },
-  fileFilter: (req, file, cb) => cb(null, file.mimetype.startsWith('image/')),
+  // Limite des RAW à part : un NEF ou un CR3 pèse souvent plus qu'un JPEG (la taille des autres
+  // formats est vérifiée ensuite dans openImage).
+  limits: { fileSize: config.maxRawUploadMb * 1024 * 1024, files: 1, fields: 20 },
+  // Un RAW arrive souvent sans type reconnu (application/octet-stream) : l'extension décide.
+  fileFilter: (req, file, cb) => cb(null, file.mimetype.startsWith('image/') || isRawName(file.originalname)),
 });
 
 async function inspect(tmpPath) {
@@ -297,9 +301,31 @@ async function inspect(tmpPath) {
   } catch {
     throw httpError(400, 'Ce fichier n’est pas une image valide.');
   }
-  if (!FORMATS[meta.format]) throw httpError(400, 'Format non pris en charge (JPG, PNG, WEBP, TIFF ou AVIF).');
+  if (!FORMATS[meta.format]) throw httpError(400, 'Format non pris en charge (JPG, PNG, WEBP, TIFF, AVIF ou RAW).');
   return meta;
 }
+
+/**
+ * Image à traiter : le fichier reçu, ou — pour un RAW (NEF, CR2, ARW, DNG…) — le JPEG pleine taille
+ * que l'appareil a enregistré dedans. `input` se passe à sharp comme à putFile.
+ */
+async function openImage(file) {
+  if (isRawName(file.originalname)) {
+    const raw = await rawJpeg(file.path);
+    const meta = raw && await sharp(raw.data).metadata().catch(() => null);
+    if (!meta?.width) throw httpError(400, 'Aucune image lisible dans ce fichier RAW.');
+    return { input: raw.data, meta, fromRaw: true };
+  }
+  if (file.size > config.maxUploadMb * 1024 * 1024) throw httpError(413, `Photo trop lourde (${config.maxUploadMb} Mo maximum).`);
+  return { input: file.path, meta: await inspect(file.path), fromRaw: false };
+}
+
+/**
+ * Nom sous lequel la photo est enregistrée. Un RAW téléchargeable est rangé sous le JPEG extrait
+ * (DSC_0001.NEF -> DSC_0001.jpg) ; en mode sélection, rien n'est téléchargé et le nom d'origine reste.
+ */
+export const storedName = (filename, stored) =>
+  (stored.fromRaw && !stored.originalKey.startsWith('previews/') ? rawToJpgName(filename) : filename);
 
 const makePreview = (input) =>
   sharp(input)
@@ -311,27 +337,29 @@ const makePreview = (input) =>
 /** Garde l'original intact et génère un aperçu WEBP léger. previewOnly : aperçu seul (mode sélection). */
 export async function storePhoto(file, { previewOnly = false } = {}) {
   try {
-    const meta = await inspect(file.path);
+    const { input, meta, fromRaw } = await openImage(file);
     const id = crypto.randomUUID();
     const previewKey = `previews/${id}.webp`;
-    const preview = await makePreview(file.path);
+    const preview = await makePreview(input);
     await putFile(previewKey, preview.data, 'image/webp');
     if (previewOnly) {
       return {
         originalKey: previewKey, previewKey, mime: 'image/webp', sizeBytes: preview.info.size, previewBytes: 0,
-        width: preview.info.width, height: preview.info.height,
+        width: preview.info.width, height: preview.info.height, fromRaw,
       };
     }
+    // RAW : c'est le JPEG extrait qui devient l'original téléchargeable (le RAW n'est pas conservé).
     const originalKey = `originals/${id}.${FORMATS[meta.format]}`;
-    await putFile(originalKey, file.path, `image/${meta.format}`);
+    await putFile(originalKey, input, `image/${meta.format}`);
     return {
       originalKey,
       previewKey,
       mime: `image/${meta.format}`,
-      sizeBytes: file.size,
+      sizeBytes: fromRaw ? input.length : file.size,
       previewBytes: preview.info.size,
       width: preview.info.width,
       height: preview.info.height,
+      fromRaw,
     };
   } finally {
     await fs.rm(file.path, { force: true });
@@ -361,12 +389,12 @@ export function makeThumb(previewKey, photoId) {
   return thumbJobs.get(key);
 }
 
-/** Photo de couverture d'un événement : seul l'aperçu est conservé. */
+/** Photo de couverture d'un événement (RAW accepté) : seul l'aperçu est conservé. */
 export async function storeCover(file) {
   try {
-    await inspect(file.path);
+    const { input } = await openImage(file);
     const coverKey = `covers/${crypto.randomUUID()}.webp`;
-    await putFile(coverKey, (await makePreview(file.path)).data, 'image/webp');
+    await putFile(coverKey, (await makePreview(input)).data, 'image/webp');
     return coverKey;
   } finally {
     await fs.rm(file.path, { force: true });
@@ -376,9 +404,9 @@ export async function storeCover(file) {
 /** Photo de profil : carré 400 px WEBP. */
 export async function storeAvatar(file) {
   try {
-    await inspect(file.path);
+    const { input } = await openImage(file);
     const key = `avatars/${crypto.randomUUID()}.webp`;
-    const data = await sharp(file.path).rotate().resize(400, 400, { fit: 'cover', position: sharp.strategy.attention }).webp({ quality: 85 }).toBuffer();
+    const data = await sharp(input).rotate().resize(400, 400, { fit: 'cover', position: sharp.strategy.attention }).webp({ quality: 85 }).toBuffer();
     await putFile(key, data, 'image/webp');
     return key;
   } finally {

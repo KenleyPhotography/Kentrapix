@@ -1,5 +1,6 @@
 // Albums et tirages : le photographe publie un catalogue ; le client choisit un produit et ses photos, puis envoie sa commande.
 import { api, escape, service, hello } from './service.js';
+import { ACCEPT_PHOTO } from './raw.js';
 import { icon } from './icons.js';
 import { waLink, firstName, siteUrl } from './whatsapp.js';
 
@@ -163,7 +164,7 @@ export async function bindAdminOrders({ toast, modal, navigate, clients }) {
     modal(`Album — ${order.client.name}`, `
       <h3 class="bill-sub">Page de couverture</h3>
       <div class="alb-cover" id="alb-cover"></div>
-      <div class="row"><label class="btn sm">Envoyer une image<input type="file" id="alb-file" accept="image/*" hidden></label><button type="button" class="btn sm" id="alb-clear">Retirer la couverture</button></div>
+      <div class="row"><label class="btn sm">Envoyer une image<input type="file" id="alb-file" accept="${ACCEPT_PHOTO}" hidden></label><button type="button" class="btn sm" id="alb-clear">Retirer la couverture</button></div>
       <p class="small">Ou touchez l’étoile sur une photo choisie ci-dessous pour en faire la couverture.</p>
       <h3 class="bill-sub">Photos de l’album <span class="count-pill" id="alb-count"></span></h3>
       ${events.length > 1 ? `<label>Galerie<select id="alb-ev"><option value="">Toutes</option>${events.map((e) => `<option>${escape(e)}</option>`).join('')}</select></label>` : ''}
@@ -232,7 +233,7 @@ export async function bindAdminOrders({ toast, modal, navigate, clients }) {
       <label>Description <span class="optional">(facultatif)</span><input name="description" maxlength="400" value="${escape(p?.description || '')}" placeholder="Ex. Couverture rigide, papier mat"></label>
       <div class="row2"><label>Prix<input name="price" type="number" min="0" step="0.01" required value="${p?.price ?? ''}"></label><label>Devise<select name="currency">${d.currencies.map((c) => `<option ${((p?.currency) || 'USD') === c ? 'selected' : ''}>${c}</option>`).join('')}</select></label></div>
       <div class="row2"><label>Photos minimum<input name="minPhotos" type="number" min="1" max="500" required value="${p?.minPhotos ?? 1}"></label><label>Photos maximum<input name="maxPhotos" type="number" min="1" max="500" required value="${p?.maxPhotos ?? 30}"></label></div>
-      <label>Photo de couverture <span class="optional">(facultatif)</span><input type="file" name="cover" accept="image/*"></label>
+      <label>Photo de couverture <span class="optional">(facultatif)</span><input type="file" name="cover" accept="${ACCEPT_PHOTO}"></label>
       <p class="small">${p?.cover ? 'Une couverture est déjà en place : choisissez une nouvelle image pour la remplacer. ' : ''}Cette image s’affiche en grand dans le catalogue de vos clients, avec le nom, la description et le prix. Choisissez une belle photo en format portrait ou carré.</p>
       <label class="share-toggle"><span><strong>Visible pour les clients</strong></span><input class="switch" type="checkbox" name="active" ${p?.active === false ? '' : 'checked'}></label>`,
     async (v) => {

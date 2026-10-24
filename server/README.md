@@ -75,6 +75,20 @@ La clé Resend reste sur le serveur : elle n'est jamais envoyée au navigateur.
 
 Dans « Gérer » une galerie, cochez **Mode sélection** (et éventuellement un nombre maximum). Le client voit des aperçus **filigranés et numérotés**, choisit des photos (clic ou numéros « 3, 7, 12-15 ») et envoie sa sélection : l'équipe reçoit un e-mail et la retrouve via le bouton **Sélection** de la galerie. Sur ces galeries, **aucun téléchargement n'est possible** : l'API refuse toute demande, et les originaux ne sont jamais servis.
 
+## Fichiers RAW (NEF, CR2, CR3, ARW, DNG…)
+
+Les RAW s'importent comme les autres photos : galeries normales, galeries en mode sélection, portfolio
+public, couvertures de galerie ou d'album, photo de profil. Ni le navigateur ni sharp ne savent développer
+un RAW ; ce qui est utilisé, c'est le **JPEG pleine taille que l'appareil enregistre dans le fichier**,
+extrait avec son orientation (`js/raw.js` côté navigateur, `src/lib/raw.js` côté serveur) :
+
+- **galerie normale** : ce JPEG devient l'original téléchargeable, enregistré sous `DSC_0001.jpg` ;
+- **mode sélection** : seul l'aperçu compressé est envoyé, le nom d'origine (`DSC_0001.NEF`) est conservé ;
+- le **RAW lui-même n'est jamais conservé** : il reste sur l'ordinateur du photographe.
+
+`MAX_RAW_UPLOAD_MB` (100 par défaut) limite la taille d'un RAW envoyé au serveur ; les autres formats
+restent limités par `MAX_UPLOAD_MB`.
+
 ## Expiration des galeries
 
 Dans « Gérer », **Disponible jusqu’au** fixe le dernier jour où le client voit la galerie (vide = pour toujours).
@@ -101,7 +115,8 @@ Avec `B2_KEY_ID`, `B2_APPLICATION_KEY`, `B2_BUCKET` et `B2_ENDPOINT` dans `.env`
 ne sont plus enregistrées sur le serveur :
 
 - **import** : le navigateur du studio crée l'aperçu WEBP (orientation EXIF appliquée) puis envoie original + aperçu
-  **directement au bucket** via des adresses signées (15 min) ; le serveur vérifie leur arrivée puis enregistre la fiche ;
+  **directement au bucket** via des adresses signées (15 min) ; le serveur vérifie leur arrivée puis enregistre la fiche
+  (pour un RAW, c'est le JPEG extrait du fichier qui part comme original) ;
 - **affichage / téléchargement** : `/media/…` vérifie les droits puis redirige vers un lien signé (2 h, identique pendant
   une heure pour profiter du cache du navigateur) — les photos ne transitent pas par le serveur ;
 - passent encore par le serveur, sans y être conservés : le ZIP « Tout télécharger », la création des filigranes
@@ -151,7 +166,7 @@ server/
     config.js  db.js      Configuration .env, pool PostgreSQL (requêtes préparées, UTC)
     middleware/auth.js    Session (cookie httpOnly signé), rôles
     middleware/security.js  CORS (origines autorisées) + plafonds de requêtes
-    lib/                  storage (sharp), data (mappers, permissions), errors
+    lib/                  storage (sharp), raw (JPEG extrait des RAW), data (mappers, permissions), errors
     routes/
       auth.js             /api/auth   login, logout, me, password
       client.js           /api/client bootstrap, favoris, téléchargements (ZIP serveur)
@@ -205,7 +220,7 @@ server/
 - Mot de passe temporaire obligatoire à changer à la première connexion.
 - Toutes les requêtes SQL sont **préparées** (pas d'injection SQL) ; toutes les entrées sont validées (zod).
 - Photos dans un dossier privé ; un client ne voit que **ses** événements publiés et non archivés. Le studio (`admin.html`) est refusé par le serveur à tout non-admin.
-- Images vérifiées par leur contenu (pas seulement l'extension), originales conservées intactes, aperçus WEBP générés côté serveur.
+- Images vérifiées par leur contenu (pas seulement l'extension), originales conservées intactes, aperçus WEBP générés côté serveur. Un RAW est reconnu par son extension, puis validé par le JPEG qui en est extrait (lui aussi vérifié par son contenu).
 - En-têtes de sécurité (helmet, CSP stricte, HSTS en production).
 
 ## Mise en production (Render)

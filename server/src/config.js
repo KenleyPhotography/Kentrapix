@@ -32,6 +32,9 @@ export const config = {
   sessionDays: Number(process.env.SESSION_DAYS || 7),
   storageDir: path.resolve(serverRoot, process.env.STORAGE_DIR || 'storage'),
   maxUploadMb: Number(process.env.MAX_UPLOAD_MB || 50),
+  // Les RAW (NEF, CR2, CR3, ARW…) pèsent plus lourd : limite à part, le serveur n'en garde
+  // de toute façon que le JPEG extrait par l'appareil.
+  maxRawUploadMb: Number(process.env.MAX_RAW_UPLOAD_MB || 100),
   previewWidth: Number(process.env.PREVIEW_WIDTH || 1600),
   // Adresse publique du site, utilisée dans les liens des e-mails.
   appUrl: (process.env.APP_URL || `http://localhost:${process.env.PORT || 3000}`).replace(/\/$/, ''),

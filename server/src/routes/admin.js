@@ -7,6 +7,7 @@ import { query, transaction, toIso } from '../db.js';
 import { httpError } from '../lib/errors.js';
 import {
   upload, uploadAudio, storePhoto, storeCover, storeMusic, removeKeys, removeWatermarks, isRemote, prepareDirectUpload, confirmDirectUpload,
+  storedName,
 } from '../lib/storage.js';
 import {
   uuid, mapClient, mapEvent, mapPhoto, mapDownload, mapComment, getPermissions, PERMISSION_KEYS, EVENT_COLUMNS,
@@ -720,14 +721,14 @@ async function insertPhoto(event, album, filename, stored) {
 
 const albumName = (v) => z.string().trim().max(80).optional().parse(v) || 'Nouveaux imports';
 
-// Import par le serveur (mode local, ou formats que le navigateur ne sait pas lire).
+// Import par le serveur (mode local, ou formats que le navigateur ne sait pas lire : HEIC, RAW…).
 router.post('/events/:id/photos', upload.single('photo'), async (req, res) => {
   const event = await findEvent(req, req.params.id);
   if (!req.file) throw httpError(400, 'Choisissez une image.');
   const album = albumName(req.body.album);
   const stored = await storePhoto(req.file, { previewOnly: !!event.selection_mode });
-  const filename = Buffer.from(req.file.originalname, 'latin1').toString('utf8').slice(0, 255);
-  res.status(201).json({ photo: await insertPhoto(event, album, filename, stored) });
+  const name = Buffer.from(req.file.originalname, 'latin1').toString('utf8').slice(0, 255);
+  res.status(201).json({ photo: await insertPhoto(event, album, storedName(name, stored), stored) });
 });
 
 // Import direct (photos en ligne) : 1) adresses signées, 2) le navigateur envoie au bucket, 3) confirmation.
@@ -819,7 +820,7 @@ router.post('/photos/:id/original', upload.single('photo'), async (req, res) => 
   let photo;
   try { photo = await findPhoto(req, req.params.id); } catch (err) { await fs.rm(req.file.path, { force: true }); throw err; }
   const stored = await storePhoto(req.file, { previewOnly: false });
-  const filename = Buffer.from(req.file.originalname, 'latin1').toString('utf8').slice(0, 255);
+  const filename = storedName(Buffer.from(req.file.originalname, 'latin1').toString('utf8').slice(0, 255), stored);
   try {
     const [oldThumb] = [photo.thumb_key];
     await query(
