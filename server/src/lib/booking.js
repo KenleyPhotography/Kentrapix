@@ -20,9 +20,27 @@ export const addDays = (day, n) => {
 };
 export const weekdayOf = (day) => new Date(`${day}T12:00:00Z`).getUTCDay();
 
+/**
+ * Lieu de la séance selon le type :
+ * 'studio'  portrait, shoot studio : toujours au studio, on ne demande rien ;
+ * 'choice'  anniversaire : au studio ou ailleurs, au choix du client ;
+ * 'outdoor' shoot dehors : le lieu peut rester à déterminer ;
+ * 'away'    graduation, mariage, baptême, autre : le lieu est obligatoire.
+ */
+export const placeKind = (type) => {
+  const t = String(type || '').trim();
+  if (!t) return '';
+  if (/portrait|studio/i.test(t)) return 'studio';
+  if (/anniv|birthday/i.test(t)) return 'choice';
+  if (/outdoor|ext[ée]rieur|dehors|plein air/i.test(t)) return 'outdoor';
+  return 'away';
+};
+/** Faut-il indiquer un lieu ? Seules les séances toujours au studio en dispensent. */
+export const needsPlace = (type) => placeKind(type) !== 'studio';
+
 export const DEFAULTS = {
   enabled: false, days: [1, 2, 3, 4, 5], start: '09:00', end: '17:00', durationMin: 120, minNoticeDays: 2, horizonDays: 60, autoConfirm: false,
-  sessionTypes: ['Portrait', 'Famille', 'Couple', 'Mariage', 'Événement', 'Autre'],
+  sessionTypes: ['Portrait', 'Shoot studio', 'Shoot outdoor', 'Anniversaire', 'Graduation', 'Mariage', 'Baptême', 'Autre'],
 };
 
 export const mapSettings = (r) => (r ? {

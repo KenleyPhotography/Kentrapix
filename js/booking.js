@@ -11,6 +11,8 @@ const fday = (iso) => new Date(`${iso}T12:00:00Z`).toLocaleDateString('fr-FR', {
 const pill = (s) => `<span class="bk-pill is-${s}">${STATUS[s] || s}</span>`;
 const ym = (y, m) => `${y}-${String(m + 1).padStart(2, '0')}`;
 const pad = (n) => String(n).padStart(2, '0');
+// Seuls le portrait et le shoot studio se passent toujours au studio : partout ailleurs, le lieu se demande.
+const ALWAYS_STUDIO = /portrait|studio/i;
 
 /** Grille d'un mois : cellules { day: 'YYYY-MM-DD' | null }, la semaine commence le lundi. */
 function grid(year, month) {
@@ -269,12 +271,12 @@ export async function bindAdminBooking({ toast, modal, clients }) {
         <div class="row2"><label>Téléphone / WhatsApp<input name="gphone" type="tel" maxlength="40"></label><label>E-mail <span class="optional">(facultatif)</span><input name="gemail" type="email" maxlength="190"></label></div></div>
         <label>Heure<input type="time" name="start" value="${d.settings.start}" required></label>
         <label>Type de séance <span class="optional">(facultatif)</span><input name="sessionType" id="bka-type" maxlength="80" placeholder="Ex. Portrait, Mariage…"></label>
-        <label>Lieu (local) du rendez-vous <span id="bka-place-req" class="pf-req" style="color:#c0392b">*</span><input name="location" id="bka-place" maxlength="120" placeholder="Ex. Au studio, Pétion-Ville, Église Saint-Pierre…" list="bka-places"><datalist id="bka-places"><option value="Au studio"></datalist></label>
+        <label>Lieu (local) du rendez-vous <span id="bka-place-req" class="pf-req" style="color:#c0392b">*</span><input name="location" id="bka-place" maxlength="120" placeholder="Ex. Au studio, Pétion-Ville, Église Saint-Pierre…" list="bka-places"><datalist id="bka-places"><option value="Au studio"><option value="Lieu à déterminer"></datalist></label>
         <label>Date de remise des photos <span class="optional">(facultatif)</span><input type="date" name="delivery" min="${day}"></label>
         <p class="small">Rappels pour vous : 2 jours avant, la veille, le matin même et 1 heure avant. Si vous indiquez une date de remise des photos, vous recevez aussi un rappel ce jour-là.</p>`,
         async (v) => {
-          const STUDIO = /portrait|studio|anniv|birthday/i;
-          if (!(v.location || '').trim() && !STUDIO.test(v.sessionType || '')) throw Error('Indiquez le lieu du rendez-vous (ex. « Au studio »).');
+          // Portrait et shoot studio : toujours au studio. Tout le reste (anniversaire compris) demande un lieu.
+          if (!(v.location || '').trim() && !ALWAYS_STUDIO.test(v.sessionType || '')) throw Error('Indiquez le lieu du rendez-vous (ex. « Au studio »).');
           const body = { day, start: v.start, sessionType: v.sessionType || '', location: (v.location || '').trim(), ...(v.delivery ? { deliveryDate: v.delivery } : {}) };
           if (v.clientId) body.clientId = v.clientId;
           else {
@@ -288,7 +290,7 @@ export async function bindAdminBooking({ toast, modal, clients }) {
       const sync = () => { const guest = !who.value; host.querySelector('#bka-guest').hidden = !guest; if (guest) host.querySelector('#bka-gname').focus(); };
       who.addEventListener('change', sync); sync();
       const typeEl = host.querySelector('#bka-type');
-      const syncPlace = () => { host.querySelector('#bka-place-req').hidden = /portrait|studio|anniv|birthday/i.test(typeEl.value); };
+      const syncPlace = () => { host.querySelector('#bka-place-req').hidden = ALWAYS_STUDIO.test(typeEl.value); };
       typeEl.addEventListener('input', syncPlace); syncPlace();
     });
     root.querySelectorAll('.bk-days .chip').forEach((c) => c.addEventListener('click', (e) => { e.preventDefault(); const i = c.querySelector('input'); i.checked = !i.checked; c.classList.toggle('active', i.checked); }));

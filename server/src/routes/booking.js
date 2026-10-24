@@ -11,7 +11,7 @@ import { sendMail } from '../lib/mailer.js';
 import { accountScope } from '../lib/scope.js';
 import { bookingRequestEmail, bookingStatusEmail, inquiryReplyEmail } from '../lib/emails.js';
 import {
-  slotConflict, settingsOf, mapSettings, monthSlots, slotsForDay, mapBooking, BOOKING_SELECT, studioToday, addDays, minutesOf, hhmm,
+  slotConflict, settingsOf, mapSettings, monthSlots, slotsForDay, mapBooking, BOOKING_SELECT, studioToday, addDays, minutesOf, hhmm, needsPlace,
 } from '../lib/booking.js';
 
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date invalide.');
@@ -195,7 +195,7 @@ staffBooking.post('/bookings', async (req, res) => {
     clientId: uuid.optional(), day, start: time, durationMin: z.number().int().min(15).max(720).optional(),
     sessionType: z.string().trim().max(80).optional().default(''), note: z.string().trim().max(500).optional().default(''),
     deliveryDate: day.optional(),
-    location: z.string().trim().max(120).optional().default(''), // lieu du rendez-vous : obligatoire sauf portrait / studio
+    location: z.string().trim().max(120).optional().default(''), // lieu du rendez-vous : obligatoire sauf portrait / shoot studio
     // Personne sans compte : nom et téléphone suffisent (l'e-mail est facultatif).
     guest: z.object({
       name: z.string().trim().min(2, 'Entrez le nom de la personne.').max(80),
@@ -205,7 +205,7 @@ staffBooking.post('/bookings', async (req, res) => {
   }).parse(req.body);
   if (!data.clientId && !data.guest) throw httpError(400, 'Choisissez un client ou entrez le nom de la personne.');
   if (data.deliveryDate && data.deliveryDate < data.day) throw httpError(400, 'La remise des photos doit être après la séance.');
-  if (!data.location && !/portrait|studio|anniv|birthday/i.test(data.sessionType)) throw httpError(400, 'Indiquez le lieu du rendez-vous (ex. « Au studio »).');
+  if (!data.location && needsPlace(data.sessionType)) throw httpError(400, 'Indiquez le lieu du rendez-vous (ex. « Au studio »).');
   let client = null;
   if (data.clientId) {
     const [as, ap] = accountScope(req);
