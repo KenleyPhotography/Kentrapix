@@ -42,16 +42,19 @@ const settingsSchema = z.object({
 
 staffBooking.get('/', async (req, res) => {
   const today = studioToday();
-  const [settings, blocked, rows, requests] = await Promise.all([
+  const [settings, blocked, rows, requests, signedContracts] = await Promise.all([
     settingsOf(req.user.id),
     query('SELECT day FROM booking_blocked_days WHERE staff_id = ? AND day >= ? ORDER BY day', [req.user.id, today]),
     query(`${BOOKING_SELECT} WHERE b.staff_id = ? AND (b.day >= ? OR (b.status = 'confirmed' AND b.delivery_date IS NOT NULL AND b.delivered_at IS NULL)) ORDER BY b.day, b.start_time`, [req.user.id, addDays(today, -30)]),
     // Demandes du portfolio public (visiteurs sans compte) ; vide si la migration n'est pas encore appliquée.
     query(`SELECT id, name, email, phone, session_type, location, wished_date, wished_time, message, status, reply, created_at FROM portfolio_requests
            WHERE staff_id = ? AND (status = 'pending' OR created_at > CURRENT_TIMESTAMP - INTERVAL '30 days') ORDER BY created_at DESC LIMIT 50`, [req.user.id]).catch(() => []),
+    // Séances dont le contrat est déjà signé : on le dit avant de reporter (le contrat reste valable).
+    query("SELECT booking_id FROM contracts WHERE staff_id = ? AND status = 'signed' AND booking_id IS NOT NULL", [req.user.id]).catch(() => []),
   ]);
+  const signed = new Set(signedContracts.map((c) => c.booking_id));
   res.json({
-    today, settings, blocked: blocked.map((b) => String(b.day).slice(0, 10)), bookings: rows.map(mapBooking),
+    today, settings, blocked: blocked.map((b) => String(b.day).slice(0, 10)), bookings: rows.map(mapBooking).map((b) => ({ ...b, contractSigned: signed.has(b.id) })),
     requests: requests.map((r) => ({ id: r.id, name: r.name, email: r.email, phone: r.phone, sessionType: r.session_type, location: r.location || '', date: r.wished_date, time: r.wished_time || '', message: r.message, status: r.status, reply: r.reply, createdAt: r.created_at })),
   });
 });
@@ -187,6 +190,52 @@ staffBooking.patch('/bookings/:id/delivery', async (req, res) => {
   if (body.delivered !== undefined) await query(`UPDATE bookings SET delivered_at = ${body.delivered ? 'CURRENT_TIMESTAMP' : 'NULL'} WHERE id = ?`, [row.id]);
   const [fresh] = await query(`${BOOKING_SELECT} WHERE b.id = ?`, [row.id]);
   res.json({ booking: mapBooking(fresh) });
+});
+
+// Reporter un rendez-vous : nouvelle date et nouvelle heure, même quand le contrat est déjà signé
+// (le contrat reste valable, seule la date de la séance change : il affiche la nouvelle date).
+staffBooking.patch('/bookings/:id/move', async (req, res) => {
+  const data = z.object({ day, start: time, reply: z.string().trim().max(500).optional().default('') }).parse(req.body);
+  const row = await loadOwn(req, req.params.id);
+  if (['declined', 'cancelled'].includes(row.status)) throw httpError(400, 'Ce rendez-vous est clos : il ne peut plus être reporté.');
+  const from = { day: String(row.day).slice(0, 10), start: row.start_time };
+  if (data.day === from.day && data.start === from.start) throw httpError(400, 'C’est déjà la date de ce rendez-vous.');
+  if (data.day < studioToday()) throw httpError(400, 'Choisissez une date à venir.');
+  const others = await query(
+    "SELECT start_time, duration_min FROM bookings WHERE staff_id = ? AND day = ? AND id <> ? AND status IN ('pending', 'confirmed', 'proposed')",
+    [req.user.id, data.day, row.id],
+  );
+  const begin = minutesOf(data.start);
+  const stop = begin + Number(row.duration_min);
+  if (others.some((o) => begin < minutesOf(o.start_time) + Number(o.duration_min) && stop > minutesOf(o.start_time))) throw httpError(409, 'Un autre rendez-vous occupe déjà ce créneau.');
+  // La remise des photos suit la séance (même écart de jours) ; les rappels repartent sur la nouvelle date.
+  const shift = Math.round((new Date(`${data.day}T12:00:00Z`) - new Date(`${from.day}T12:00:00Z`)) / 86400000);
+  const oldDelivery = row.delivery_date ? String(row.delivery_date).slice(0, 10) : null;
+  const delivery = oldDelivery && !row.delivered_at ? addDays(oldDelivery, shift) : oldDelivery;
+  const reply = data.reply || row.reply || null;
+  try {
+    await query(
+      `UPDATE bookings SET day = ?, start_time = ?, orig_day = COALESCE(orig_day, ?), orig_start = COALESCE(orig_start, ?), reply = ?,
+              delivery_date = ?, delivery_reminded_at = NULL, reminded_at = NULL, staff_reminders = '' WHERE id = ?`,
+      [data.day, data.start, from.day, from.start, reply, delivery, row.id],
+    );
+  } catch (err) {
+    if (err.code === '23505') throw httpError(409, 'Ce créneau est déjà pris.');
+    throw err;
+  }
+  const [signed] = await query("SELECT 1 FROM contracts WHERE booking_id = ? AND status = 'signed'", [row.id]).catch(() => []);
+  const [fresh] = await query(`${BOOKING_SELECT} WHERE b.id = ?`, [row.id]);
+  const booking = mapBooking(fresh);
+  if (row.client_id) pushLater(row.client_id, { title: 'Rendez-vous reporté', body: `${studioName(req.user)} · ${booking.day} à ${booking.start}`, url: '/client', tag: `booking-${row.id}` });
+  if (row.client_email) {
+    fire(sendMail({
+      to: row.client_email, userId: row.client_id, sentBy: req.user.id, kind: 'booking',
+      fromName: studioName(req.user), replyTo: req.user.email,
+      ...bookingStatusEmail({ clientName: row.client_name, studio: studioName(req.user), booking, status: 'moved', reply: data.reply, from, contractSigned: !!signed }),
+    }));
+  }
+  audit(req, 'booking.moved', { entity: 'booking', entityId: row.id, details: { from: `${from.day} ${from.start}`, to: `${data.day} ${data.start}` } });
+  res.json({ booking, from, contractSigned: !!signed, deliveryMoved: !!(delivery && delivery !== oldDelivery) });
 });
 
 // Le photographe ajoute lui-même un rendez-vous (appel, WhatsApp…) : confirmé tout de suite.

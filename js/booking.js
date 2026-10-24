@@ -51,7 +51,7 @@ export async function bindClientBooking({ toast }) {
   const mine = () => {
     const list = data.bookings.filter((b) => b.day >= data.today || b.status === 'pending');
     if (!list.length) return '';
-    return `<section class="settings bill-block"><h2>Mes rendez-vous</h2><ul class="rem-list">${list.map((b) => `<li class="rem-row"><span class="rem-ico">${icon('events')}</span><div><strong style="text-transform:capitalize">${escape(fday(b.day))}</strong><span>${escape(b.start)} – ${escape(b.end)}${b.sessionType ? ` · ${escape(b.sessionType)}` : ''} · ${escape(b.staff?.name || '')}${b.reply ? ` · « ${escape(b.reply)} »` : ''}</span>${b.status === 'proposed' && b.originalDay ? `<span>Vous aviez demandé : ${escape(fday(b.originalDay))}, ${escape(b.originalStart || '')}</span>` : ''}</div><div class="actions">${pill(b.status)}${b.status === 'proposed' ? `<button type="button" class="btn sm primary" data-bk-yes="${b.id}">Accepter</button><button type="button" class="btn sm" data-bk-no="${b.id}">Refuser</button>` : ''}${['pending', 'confirmed'].includes(b.status) ? `<button type="button" class="btn sm" data-bk-cancel="${b.id}">Annuler</button>` : ''}</div></li>`).join('')}</ul></section>`;
+    return `<section class="settings bill-block"><h2>Mes rendez-vous</h2><ul class="rem-list">${list.map((b) => `<li class="rem-row"><span class="rem-ico">${icon('events')}</span><div><strong style="text-transform:capitalize">${escape(fday(b.day))}</strong><span>${escape(b.start)} – ${escape(b.end)}${b.sessionType ? ` · ${escape(b.sessionType)}` : ''} · ${escape(b.staff?.name || '')}${b.reply ? ` · « ${escape(b.reply)} »` : ''}</span>${b.originalDay ? `<span>${b.status === 'proposed' ? 'Vous aviez demandé' : 'Reporté · date d’origine'} : ${escape(fday(b.originalDay))}${b.originalStart ? `, ${escape(b.originalStart)}` : ''}</span>` : ''}</div><div class="actions">${pill(b.status)}${b.status === 'proposed' ? `<button type="button" class="btn sm primary" data-bk-yes="${b.id}">Accepter</button><button type="button" class="btn sm" data-bk-no="${b.id}">Refuser</button>` : ''}${['pending', 'confirmed'].includes(b.status) ? `<button type="button" class="btn sm" data-bk-cancel="${b.id}">Annuler</button>` : ''}</div></li>`).join('')}</ul></section>`;
   };
 
   const draw = () => {
@@ -175,7 +175,7 @@ export async function bindAdminBooking({ toast, modal, clients }) {
       <p class="small bk-legend"><span class="bk-dot has"></span> rendez-vous <span class="bk-dot blk"></span> jour bloqué</p>
       ${sel ? `<div class="bk-slots"><strong style="text-transform:capitalize">${escape(fday(sel))}</strong>
         ${dayReqs.length ? `<ul class="rem-list">${dayReqs.map((r) => `<li class="rem-row ${r.status === 'pending' ? 'is-late' : ''}"><span class="rem-ico">${icon('calendar')}</span><div><strong>${escape(r.name)} · demande du portfolio</strong><span>${escape(r.sessionType || 'Séance')}${r.time ? ` · ${escape(r.time)}` : ''}${r.phone ? ` · ${escape(r.phone)}` : ''}</span></div><div class="actions"><span class="pill">${r.status === 'pending' ? 'À traiter' : 'Acceptée'}</span>${waBtn(r.phone, `${hello()} ${firstName(r.name)}, à propos de votre demande de séance du ${fday(sel)}.`)}</div></li>`).join('')}</ul>` : ''}
-        ${dayList.length ? `<ul class="rem-list">${dayList.map((b) => `<li class="rem-row"><span class="rem-ico">${icon('clock')}</span><div><strong>${escape(b.start)} – ${escape(b.end)} · ${escape(b.client.name)}</strong><span>${escape(b.sessionType || '')}${b.client.whatsapp ? ` · ${escape(b.client.whatsapp)}` : ''}${b.client.guest ? ' · sans compte' : ''}${b.location ? ` · Lieu : ${escape(b.location)}` : ''}</span>${b.status === 'confirmed' ? `<span>${b.delivered ? 'Photos remises' : b.deliveryDate ? `Remise des photos : ${escape(fday(b.deliveryDate))}` : 'Remise des photos : date à fixer'}</span>` : ''}</div><div class="actions">${pill(b.status)}${b.status === 'confirmed' ? `<button type="button" class="btn sm" data-bka-deliv="${b.id}">Remise</button>` : ''}${waBtn(b.client.whatsapp, `${hello()} ${firstName(b.client.name)}, rappel de votre rendez-vous le ${fday(b.day)} à ${b.start}. À bientôt !`, 'Rappeler par WhatsApp')}<button type="button" class="btn sm" data-bka-cancel="${b.id}">Annuler</button></div></li>`).join('')}</ul>` : (dayReqs.length ? '' : '<p class="small">Aucun rendez-vous ce jour-là.</p>')}
+        ${dayList.length ? `<ul class="rem-list">${dayList.map((b) => `<li class="rem-row"><span class="rem-ico">${icon('clock')}</span><div><strong>${escape(b.start)} – ${escape(b.end)} · ${escape(b.client.name)}</strong><span>${escape(b.sessionType || '')}${b.client.whatsapp ? ` · ${escape(b.client.whatsapp)}` : ''}${b.client.guest ? ' · sans compte' : ''}${b.location ? ` · Lieu : ${escape(b.location)}` : ''}${b.contractSigned ? ' · contrat signé' : ''}</span>${b.originalDay ? `<span>Reporté · date d’origine : ${escape(fday(b.originalDay))}${b.originalStart ? ` à ${escape(b.originalStart)}` : ''}</span>` : ''}${b.status === 'confirmed' ? `<span>${b.delivered ? 'Photos remises' : b.deliveryDate ? `Remise des photos : ${escape(fday(b.deliveryDate))}` : 'Remise des photos : date à fixer'}</span>` : ''}</div><div class="actions">${pill(b.status)}${b.status === 'confirmed' ? `<button type="button" class="btn sm" data-bka-deliv="${b.id}">Remise</button>` : ''}<button type="button" class="btn sm" data-bka-move="${b.id}">Reporter</button>${waBtn(b.client.whatsapp, `${hello()} ${firstName(b.client.name)}, rappel de votre rendez-vous le ${fday(b.day)} à ${b.start}. À bientôt !`, 'Rappeler par WhatsApp')}<button type="button" class="btn sm" data-bka-cancel="${b.id}">Annuler</button></div></li>`).join('')}</ul>` : (dayReqs.length ? '' : '<p class="small">Aucun rendez-vous ce jour-là.</p>')}
         <div class="row"><button type="button" class="btn sm" data-bka-toggle="${sel}">${d.blocked.includes(sel) ? 'Débloquer ce jour' : 'Bloquer ce jour'}</button><button type="button" class="btn sm" data-bka-add="${sel}">${icon('plus')} Ajouter un rendez-vous</button></div></div>` : '<p class="small">Touchez un jour pour le bloquer ou voir ses rendez-vous.</p>'}
       </section>`;
   };
@@ -241,6 +241,34 @@ export async function bindAdminBooking({ toast, modal, clients }) {
       const host = document.getElementById('overlays');
       const sync = () => { const on = host.querySelector('#bka-propose').checked; host.querySelector('#bka-prop').hidden = !on; host.querySelectorAll('#bka-prop input').forEach((i) => { i.disabled = !on; }); };
       host.querySelector('#bka-propose').addEventListener('change', sync); sync();
+    }; });
+    // Reporter : le rendez-vous garde tout (client, type, lieu, contrat signé), seules la date et l'heure changent.
+    const waMoved = (bk, moved, reply) => {
+      const href = waLink(bk.client.whatsapp, [
+        `${hello()} ${firstName(bk.client.name)},`,
+        `votre séance du ${fday(bk.day)} à ${bk.start} est reportée au ${fday(moved.day)} à ${moved.start}.`,
+        bk.contractSigned ? 'Le contrat signé reste valable : seule la date change.' : '',
+        reply,
+      ].filter(Boolean).join(' '));
+      if (!href) return;
+      modal('Prévenir par WhatsApp', `<p class="small">${escape(bk.client.name)} n’a pas d’e-mail. Ouvrez WhatsApp : le message est déjà écrit, il ne reste qu’à l’envoyer.</p>`,
+        async () => { window.open(href, '_blank', 'noopener'); }, { submit: 'Ouvrir WhatsApp' });
+    };
+    root.querySelectorAll('[data-bka-move]').forEach((b) => { b.onclick = () => {
+      const id = b.dataset.bkaMove; const bk = d.bookings.find((x) => x.id === id);
+      modal('Reporter ce rendez-vous', `<p class="small">${escape(bk.client.name)} · ${escape(fday(bk.day))}, ${escape(bk.start)}${bk.sessionType ? ` · ${escape(bk.sessionType)}` : ''}</p>
+        <div class="row2"><label>Nouvelle date<input type="date" name="day" min="${d.today}" value="${bk.day}" required></label><label>Nouvelle heure<input type="time" name="start" value="${bk.start}" required></label></div>
+        <label>Message pour le client <span class="optional">(facultatif)</span><input name="reply" maxlength="500" placeholder="Ex. Je dois déplacer la séance, désolé."></label>
+        <p class="small">${bk.contractSigned ? 'Le contrat signé reste valable et affiche la nouvelle date. Son texte, lui, est figé depuis la signature : la date écrite dedans reste l’ancienne, dites-le au client.' : 'Le client, le type de séance et le lieu ne changent pas.'}${bk.deliveryDate && !bk.delivered ? ' La date de remise des photos est décalée d’autant.' : ''}</p>`,
+      async (v) => {
+        const r = await api(`/api/admin/booking/bookings/${id}/move`, { method: 'PATCH', body: { day: v.day, start: v.start, reply: v.reply || '' } });
+        toast(bk.client.email ? 'Rendez-vous reporté : le client est prévenu par e-mail.' : 'Rendez-vous reporté.');
+        const moved = new Date(`${r.booking.day}T12:00:00Z`);
+        st.year = moved.getUTCFullYear(); st.month = moved.getUTCMonth(); st.day = r.booking.day;
+        await reload();
+        // La modale WhatsApp s'ouvre après la fermeture de celle-ci (sinon elle serait effacée tout de suite).
+        if (!bk.client.email) setTimeout(() => waMoved(bk, r.booking, v.reply || ''), 0);
+      }, { submit: 'Reporter' });
     }; });
     root.querySelectorAll('[data-bka-cancel]').forEach((b) => { b.onclick = guard(async () => {
       if (!confirm('Annuler ce rendez-vous ? Le client sera prévenu.')) return;

@@ -11,7 +11,7 @@ export const bodyHash = (body, name, signedAt) => crypto.createHash('sha256').up
 // Le client peut ne pas avoir de compte (contrat établi par le studio pour une personne « hors système ») : coordonnées dans guest_*.
 export const CONTRACT_SELECT = `SELECT c.*, COALESCE(u.name, c.guest_name) AS client_name, COALESCE(u.email, c.guest_email) AS client_email,
     COALESCE(u.phone, c.guest_phone) AS client_phone, COALESCE(u.whatsapp, c.guest_phone) AS client_whatsapp,
-    b.day AS booking_day, b.start_time AS booking_start
+    b.day AS booking_day, b.start_time AS booking_start, b.orig_day AS booking_orig_day
   FROM contracts c LEFT JOIN users u ON u.id = c.client_id LEFT JOIN bookings b ON b.id = c.booking_id`;
 
 /** Fiche d'un contrat de site internet (JSON de web_sheet) : sert à réafficher et à corriger le projet. */
@@ -38,6 +38,8 @@ export const mapContract = (c) => ({
   bookingId: c.booking_id,
   bookingDay: c.booking_day ? String(c.booking_day).slice(0, 10) : null,
   bookingStart: c.booking_start || null,
+  // Séance reportée : le texte signé est figé, donc il garde l'ancienne date écrite ; la fiche montre les deux.
+  bookingMovedFrom: c.booking_orig_day ? String(c.booking_orig_day).slice(0, 10) : null,
   sentAt: iso(c.sent_at),
   staffSigned: !!c.staff_signature,
   reserves: parseChoices(c.client_choices)?.refused.length || 0,

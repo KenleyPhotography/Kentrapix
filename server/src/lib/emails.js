@@ -272,25 +272,33 @@ export function bookingRequestEmail({ staffName, clientName, booking, auto }) {
   };
 }
 
-/** Au client : le photographe confirme, refuse ou annule. */
-export function bookingStatusEmail({ clientName, studio = defaultStudio(), booking, status, reply }) {
-  const titles = { confirmed: 'Rendez-vous confirmé', declined: 'Rendez-vous non disponible', cancelled: 'Rendez-vous annulé', proposed: 'Une autre date vous est proposée' };
+/** Au client : le photographe confirme, refuse, annule ou reporte (« moved » : from = l'ancien créneau). */
+export function bookingStatusEmail({ clientName, studio = defaultStudio(), booking, status, reply, from = null, contractSigned = false }) {
+  const titles = { confirmed: 'Rendez-vous confirmé', declined: 'Rendez-vous non disponible', cancelled: 'Rendez-vous annulé', proposed: 'Une autre date vous est proposée', moved: 'Rendez-vous reporté' };
   const lead = {
     confirmed: `${esc(studio)} a confirmé votre rendez-vous :`,
     declined: `${esc(studio)} ne peut malheureusement pas vous recevoir sur ce créneau :`,
     cancelled: `Votre rendez-vous avec ${esc(studio)} a été annulé :`,
     proposed: `${esc(studio)} ne peut pas vous recevoir sur le créneau demandé, mais vous propose cette date :`,
+    moved: `${esc(studio)} a reporté votre rendez-vous. Nouvelle date :`,
   }[status];
+  // Reporté : on rappelle l'ancien créneau ; un contrat déjà signé reste valable, seule la date de la séance change.
+  const before = status === 'moved' && from ? `Ancienne date : ${esc(frDay(from.day))} à ${esc(from.start)}.<br><br>` : '';
+  const end = {
+    confirmed: 'À très bientôt !',
+    proposed: 'Ouvrez votre espace, page « Rendez-vous », pour accepter ou refuser cette date.',
+    moved: `${contractSigned ? 'Le contrat que vous avez signé reste valable : seule la date de la séance change. ' : ''}Si cette nouvelle date ne vous convient pas, écrivez-nous.`,
+  }[status] || 'Vous pouvez choisir un autre créneau depuis votre espace.';
   return {
     subject: `${titles[status]} — ${frDay(booking.day)}`,
     html: layout({
       studio,
       preheader: `${frDay(booking.day)} · ${booking.start}`,
       title: titles[status],
-      body: `Bonjour ${esc(firstName(clientName))},<br><br>${lead}${bookingBox(booking)}${reply ? `Message : <em>« ${esc(reply)} »</em><br><br>` : ''}${status === 'confirmed' ? 'À très bientôt !' : status === 'proposed' ? 'Ouvrez votre espace, page « Rendez-vous », pour accepter ou refuser cette date.' : 'Vous pouvez choisir un autre créneau depuis votre espace.'}`,
-      cta: { label: status === 'confirmed' ? 'Voir mon rendez-vous' : status === 'proposed' ? 'Répondre' : 'Choisir un autre créneau', url: `${config.appUrl}/client` },
+      body: `Bonjour ${esc(firstName(clientName))},<br><br>${lead}${bookingBox(booking)}${before}${reply ? `Message : <em>« ${esc(reply)} »</em><br><br>` : ''}${end}`,
+      cta: { label: ['confirmed', 'moved'].includes(status) ? 'Voir mon rendez-vous' : status === 'proposed' ? 'Répondre' : 'Choisir un autre créneau', url: `${config.appUrl}/client` },
     }),
-    text: `${titles[status]} : ${frDay(booking.day)} de ${booking.start} à ${booking.end}.${reply ? `\nMessage : ${reply}` : ''}\n${config.appUrl}/client`,
+    text: `${titles[status]} : ${frDay(booking.day)} de ${booking.start} à ${booking.end}.${before ? `\nAncienne date : ${frDay(from.day)} à ${from.start}.` : ''}${reply ? `\nMessage : ${reply}` : ''}\n${config.appUrl}/client`,
   };
 }
 

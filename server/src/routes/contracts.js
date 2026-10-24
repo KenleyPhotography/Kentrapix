@@ -346,7 +346,7 @@ contractApi.post('/:token/sign', async (req, res) => {
 export const clientContracts = Router();
 clientContracts.get('/', async (req, res) => {
   const rows = await query(
-    `SELECT c.*, u.name AS client_name, u.email AS client_email, u.phone AS client_phone, u.whatsapp AS client_whatsapp, b.day AS booking_day, b.start_time AS booking_start,
+    `SELECT c.*, u.name AS client_name, u.email AS client_email, u.phone AS client_phone, u.whatsapp AS client_whatsapp, b.day AS booking_day, b.start_time AS booking_start, b.orig_day AS booking_orig_day,
             s.name AS staff_name, s.sender_name AS staff_sender
      FROM contracts c JOIN users u ON u.id = c.client_id JOIN users s ON s.id = c.staff_id LEFT JOIN bookings b ON b.id = c.booking_id
      WHERE c.client_id = ? AND c.status <> 'cancelled' ORDER BY c.created_at DESC`,
