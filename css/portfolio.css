@@ -61,6 +61,12 @@ h1, h2 { font-family: Sora, Inter, sans-serif; letter-spacing: -0.02em; margin: 
 .pf-req { color: #c0392b; font-weight: 700; }
 .pf-hint { margin: -6px 0 0; color: var(--mut); font-size: 0.85rem; }
 .pf-hint[hidden], #placeRow[hidden] { display: none; }
+.pf-pick { display: grid; gap: 8px; margin: 0; padding: 0; border: 0; }
+.pf-pick[hidden] { display: none; }
+.pf-pick legend { padding: 0; font-weight: 600; font-size: 0.88rem; }
+.pf-form .pf-pick label, .pf-form .pf-check { display: flex; align-items: center; gap: 8px; font-weight: 500; }
+.pf-form .pf-pick input, .pf-form .pf-check input { width: auto; min-width: 18px; height: 18px; padding: 0; accent-color: var(--b); }
+.pf-check[hidden] { display: none; }
 .pf-opt { font-weight: 400; color: var(--mut); }
 .pf-two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 @media (max-width: 480px) { .pf-two { grid-template-columns: 1fr; } }

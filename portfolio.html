@@ -60,9 +60,15 @@
           <label>Heure souhaitée<input name="time" id="wishtime" type="time"></label>
         </div>
         <label>Type de séance<select name="sessionType" id="types" required><option value="">Choisir…</option></select></label>
+        <fieldset class="pf-pick" id="placePick" hidden>
+          <legend>Où voulez-vous les photos ?</legend>
+          <label><input type="radio" name="placeMode" value="studio" checked> Au studio</label>
+          <label><input type="radio" name="placeMode" value="away"> À un autre endroit</label>
+        </fieldset>
         <label id="placeRow" hidden>Lieu de la séance <span class="pf-req">*</span><input name="location" id="place" maxlength="120" autocomplete="street-address" placeholder="Ex. Pétion-Ville, Église Saint-Pierre…"></label>
-        <p class="pf-hint" id="placeHint" hidden>Portrait et séance studio : ça se passe au studio.</p>
-        <label>Message<textarea name="message" rows="4" maxlength="1000" placeholder="Lieu, nombre de personnes, idées…"></textarea></label>
+        <label class="pf-check" id="placeTbdRow" hidden><input type="checkbox" id="placeTbd"> Le lieu reste à déterminer</label>
+        <p class="pf-hint" id="placeHint" hidden></p>
+        <label>Message<textarea name="message" rows="4" maxlength="1000" placeholder="Nombre de personnes, idées, détails…"></textarea></label>
         <input name="website" class="pf-trap" tabindex="-1" autocomplete="off" aria-hidden="true">
         <button class="pf-btn" type="submit" id="send">Envoyer ma demande</button>
         <p class="pf-msg" id="msg" role="status" aria-live="polite"></p>

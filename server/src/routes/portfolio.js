@@ -11,6 +11,7 @@ import { audit } from '../lib/audit.js';
 import { config } from '../config.js';
 import { requireOwner } from '../middleware/auth.js';
 import { githubReady, putFile, deleteFile, readFile } from '../lib/github.js';
+import { isRawName, rawJpeg } from '../lib/raw.js';
 
 export const CATEGORIES = ['Studio', 'Outdoor', 'Événement', 'Graduation', 'Mariage'];
 const MAX_FILES = 12;
@@ -35,9 +36,13 @@ staffPortfolio.post('/', upload.array('photos', MAX_FILES), async (req, res) => 
   if (!files.length) throw httpError(400, 'Choisissez au moins une photo.');
   const added = [];
   for (const f of files) {
-    if (!/^image\//.test(f.mimetype)) throw httpError(400, `« ${f.originalname} » n’est pas une image.`);
+    const raw = isRawName(f.originalname);
+    if (!raw && !/^image\//.test(f.mimetype)) throw httpError(400, `« ${f.originalname} » n’est pas une image.`);
+    // RAW (NEF, CR2, ARW…) : on travaille sur le JPEG pleine taille que l’appareil a enregistré dedans.
+    const source = raw ? (await rawJpeg(f.buffer))?.data : f.buffer;
+    if (!source) throw httpError(400, `« ${f.originalname} » : aucune image lisible dans ce fichier RAW.`);
     // Réduction : 2048 px max, JPEG haute qualité (le dépôt et la bande passante restent raisonnables).
-    const buf = await sharp(f.buffer).rotate().resize({ width: 2048, height: 2048, fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 86, mozjpeg: true, chromaSubsampling: '4:4:4' }).toBuffer();
+    const buf = await sharp(source).rotate().resize({ width: 2048, height: 2048, fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 86, mozjpeg: true, chromaSubsampling: '4:4:4' }).toBuffer();
     const id = crypto.randomUUID();
     const file = `${id}.jpg`;
     const sha = await putFile(file, buf, `Portfolio : ${category}`).catch((err) => { console.error('Portfolio :', err.message); throw httpError(502, 'Envoi impossible pour le moment. Réessayez dans un instant.'); });

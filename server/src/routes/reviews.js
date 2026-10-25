@@ -8,7 +8,7 @@ import rateLimit from 'express-rate-limit';
 import { pushLater } from '../lib/push.js';
 import { sendMail } from '../lib/mailer.js';
 import { inquiryEmail } from '../lib/emails.js';
-import { settingsOf, slotConflict, studioToday } from '../lib/booking.js';
+import { needsPlace, settingsOf, slotConflict, studioToday } from '../lib/booking.js';
 
 // Avis des clients après livraison : 1 à 5 étoiles + commentaire, un par galerie (modifiable).
 // Le photographe décide de montrer ou non un avis sur la page de connexion.
@@ -129,7 +129,7 @@ const inquiry = z.object({
   email: z.union([z.literal(''), z.string().trim().toLowerCase().email('E-mail invalide.').max(190)]).optional().default(''), // facultatif
   phone: oneLine(40).refine((v) => v.replace(/\D/g, '').length >= 6, 'Entrez votre numéro de téléphone.'), // obligatoire
   sessionType: oneLine(80).optional().default(''),
-  location: oneLine(120).optional().default(''), // lieu de la séance : obligatoire sauf portrait / studio
+  location: oneLine(120).optional().default(''), // lieu de la séance : obligatoire sauf portrait / shoot studio
   date: oneLine(40).optional().default(''),
   time: z.union([z.literal(''), z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Heure invalide.')]).optional().default(''),
   message: z.string().trim().max(1000).optional().default(''),
@@ -153,7 +153,7 @@ publicApi.post('/inquiry', inquiryLimiter, async (req, res) => {
   const o = await owner();
   if (!o) throw httpError(503, 'Studio indisponible.');
   if (!d.sessionType) throw httpError(400, 'Choisissez le type de séance.');
-  if (!/portrait|studio|anniv|birthday/i.test(d.sessionType) && d.location.length < 2) throw httpError(400, 'Indiquez le lieu de la séance.');
+  if (needsPlace(d.sessionType) && d.location.length < 2) throw httpError(400, 'Indiquez le lieu de la séance.');
   if (d.date) {
     const today = studioToday();
     if (!/^\d{4}-\d{2}-\d{2}$/.test(d.date) || d.date < today) throw httpError(400, 'Choisissez une date à venir.');

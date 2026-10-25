@@ -269,14 +269,43 @@
       })
       .catch(function () { return true; });
   }
-  // Lieu : obligatoire pour toute séance qui n'est pas un portrait ou une séance studio (anniversaire au studio…).
-  var STUDIO = /portrait|studio|anniv|birthday/i;
+  // Lieu de la séance selon le type : portrait et shoot studio se passent toujours au studio ;
+  // l'anniversaire a le choix (studio ou ailleurs) ; le shoot dehors peut rester « à déterminer » ;
+  // graduation, mariage, baptême, autre : la personne doit dire où.
+  var AT_STUDIO = 'Au studio', TBD = 'Lieu à déterminer';
+  function placeKind(t) {
+    if (!t) return '';
+    if (/portrait|studio/i.test(t)) return 'studio';
+    if (/anniv|birthday/i.test(t)) return 'choice';
+    if (/outdoor|ext[ée]rieur|dehors|plein air/i.test(t)) return 'outdoor';
+    return 'away';
+  }
+  var pickedStudio = function () { return $('placePick').querySelector('input[value="studio"]').checked; };
+  // Lieu envoyé au studio : « Au studio », « Lieu à déterminer » ou l'adresse écrite.
+  function placeValue() {
+    var kind = placeKind($('types').value);
+    if (kind === 'studio' || (kind === 'choice' && pickedStudio())) return AT_STUDIO;
+    if (kind === 'outdoor' && $('placeTbd').checked) return TBD;
+    return String($('place').value || '').trim();
+  }
   function syncPlace() {
-    var t = $('types').value, studio = !t || STUDIO.test(t);
-    $('placeRow').hidden = studio; $('place').required = !studio; $('placeHint').hidden = !t || !studio;
-    if (studio) $('place').value = '';
+    var kind = placeKind($('types').value);
+    var studio = kind === 'studio' || (kind === 'choice' && pickedStudio());
+    var tbd = kind === 'outdoor' && $('placeTbd').checked;
+    var ask = !!kind && !studio && !tbd;
+    $('placePick').hidden = kind !== 'choice';
+    $('placeTbdRow').hidden = kind !== 'outdoor';
+    if (kind !== 'outdoor') $('placeTbd').checked = false;
+    $('placeRow').hidden = !ask; $('place').required = ask;
+    if (!ask) $('place').value = '';
+    $('placeHint').textContent = kind === 'studio' ? 'Cette séance se passe au studio.'
+      : kind === 'outdoor' ? 'Shoot dehors : dites où, ou cochez « à déterminer » si ce n’est pas encore décidé.' : '';
+    $('placeHint').hidden = !$('placeHint').textContent;
   }
   $('types').addEventListener('change', syncPlace);
+  $('placePick').addEventListener('change', syncPlace);
+  $('placeTbd').addEventListener('change', syncPlace);
+  syncPlace();
   $('wish').addEventListener('change', checkSlot);
   $('wishtime').addEventListener('change', checkSlot);
   $('wish').min = new Date().toISOString().slice(0, 10);
@@ -287,13 +316,14 @@
     var data = {}; new FormData(f).forEach(function (v, k) { data[k] = v; });
     if (!data.name || String(data.phone || '').replace(/\D/g, '').length < 6) { msg.className = 'pf-msg err'; msg.textContent = 'Entrez votre nom et votre numéro de téléphone.'; return; }
     if (!data.sessionType) { msg.className = 'pf-msg err'; msg.textContent = 'Choisissez le type de séance.'; return; }
-    if (!STUDIO.test(data.sessionType) && !String(data.location || '').trim()) { msg.className = 'pf-msg err'; msg.textContent = 'Indiquez le lieu de la séance.'; $('place').focus(); return; }
+    delete data.placeMode; data.location = placeValue();
+    if (!data.location) { msg.className = 'pf-msg err'; msg.textContent = 'Indiquez le lieu de la séance.'; $('place').focus(); return; }
     if (data.date && !data.time) { msg.className = 'pf-msg err'; msg.textContent = 'Choisissez aussi l’heure souhaitée.'; return; }
     btn.disabled = true; msg.className = 'pf-msg'; msg.textContent = 'Envoi…';
     fetch('/api/public/inquiry', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
       .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { return { ok: r.ok, j: j }; }); })
       .then(function (r) {
-        if (r.ok) { f.reset(); msg.className = 'pf-msg ok'; msg.textContent = 'Merci ! Votre demande est envoyée, on vous répond très vite.'; }
+        if (r.ok) { f.reset(); syncPlace(); msg.className = 'pf-msg ok'; msg.textContent = 'Merci ! Votre demande est envoyée, on vous répond très vite.'; }
         else { msg.className = 'pf-msg err'; msg.textContent = (r.j && (r.j.error || r.j.message)) || 'Envoi impossible. Écrivez-nous sur WhatsApp.'; if (r.j && (r.j.times || r.j.dates)) showAlt(r.j, data.date); }
       })
       .catch(function () { msg.className = 'pf-msg err'; msg.textContent = 'Connexion impossible. Réessayez.'; })
