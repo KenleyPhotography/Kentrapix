@@ -6,7 +6,7 @@ body { margin: 0; font-family: Inter, system-ui, sans-serif; color: var(--ink); 
 a { color: inherit; }
 h1, h2 { font-family: Sora, Inter, sans-serif; letter-spacing: -0.02em; margin: 0; }
 
-.pf-bar { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px max(16px, env(safe-area-inset-left)); background: rgba(244, 247, 252, 0.88); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-bottom: 1px solid var(--line); }
+.pf-bar { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px max(16px, env(safe-area-inset-right)) 10px max(16px, env(safe-area-inset-left)); background: rgba(244, 247, 252, 0.88); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-bottom: 1px solid var(--line); }
 .pf-brand { display: flex; align-items: center; gap: 8px; text-decoration: none; font: 800 1.1rem Sora, sans-serif; }
 .pf-brand b { color: var(--b); }
 .pf-bar nav { display: flex; align-items: center; gap: 6px; }

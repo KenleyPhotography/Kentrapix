@@ -186,7 +186,9 @@
 
 .viewer-stage img {
   max-width: min(92%, 1600px);
-  max-height: calc(100vh - 140px);
+  /* 100 % de la scène, pas 100vh : sur mobile, 100vh dépasse l'écran visible
+     et le bas de la photo passait sous la barre du navigateur. */
+  max-height: 100%;
   object-fit: contain;
   border-radius: 4px;
   box-shadow: 0 30px 80px rgba(0, 0, 0, 0.5);

@@ -14,11 +14,15 @@ html {
 body {
   margin: 0;
   min-height: 100vh;
+  min-height: 100dvh; /* mobile : suit les barres du navigateur qui apparaissent et disparaissent */
   background: var(--bg);
   color: var(--text);
   font-family: var(--font-sans);
   font-size: var(--text-md);
   line-height: 1.5;
+  /* Un e-mail, une adresse web ou un nom de fichier trop long passe à la ligne
+     au lieu de pousser la page vers la droite sur un petit écran. */
+  overflow-wrap: break-word;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   font-feature-settings: "cv11", "ss01";

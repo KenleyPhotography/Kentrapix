@@ -78,7 +78,9 @@
 .hb-bar.late { background: var(--v-late); }
 .hb-list li strong { color: var(--v-ink); }
 .viz-empty { margin: 12px 0; color: var(--v-muted); }
-.viz-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+/* white-space : ce tableau n'est pas dans un .table-wrap — sans cela il garde le
+   « nowrap » des tableaux du studio et dépasse de l'écran sur un téléphone. */
+.viz-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; white-space: normal; }
 .viz-table th, .viz-table td { padding: 7px 8px; border-bottom: 1px solid var(--v-grid); text-align: left; }
 .viz-table td:last-child, .viz-table th:last-child { text-align: right; }
 .viz-tip { position: absolute; z-index: 5; pointer-events: none; padding: 7px 11px; border-radius: 10px; background: #082445; color: #fff; font-size: 0.8125rem; font-weight: 600; white-space: nowrap; box-shadow: 0 10px 24px -8px rgba(8, 36, 69, 0.5); }
@@ -90,7 +92,7 @@
 #stats-root .stat strong, #bill-root .stat strong { font-size: clamp(1.25rem, 2.1vw, 1.85rem); overflow-wrap: anywhere; }
 
 /* ---------- Cartes de factures (pas de tableau : lisible sur tous les écrans) ---------- */
-.inv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: var(--space-4, 16px); margin-top: var(--space-4, 16px); }
+.inv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr)); gap: var(--space-4, 16px); margin-top: var(--space-4, 16px); }
 .inv-card { display: grid; gap: 10px; padding: 16px; border: 1px solid var(--border, #e0eaf8); border-radius: 18px; background: var(--surface, #fff); }
 .inv-card.is-late { border-color: #f3c2c2; }
 .inv-card.is-off { opacity: 0.6; }
@@ -108,6 +110,23 @@
 .inv-card .actions { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 4px; border-top: 1px solid var(--border, #e0eaf8); }
 [data-theme="dark"] .inv-card { background: rgba(14, 27, 46, 0.72); }
 [data-theme="dark"] .inv-amounts { background: rgba(28, 119, 238, 0.14); }
+
+/* ---------- Mode sombre : états « retard » et envois ----------
+   Le rouge des retards est écrit en dur plus haut (fond rose #fde8e8, texte #b42318) :
+   sur fond nuit le fond brillait et le texte devenait illisible. Ici, même rouge que
+   le jeton --danger, posé en transparence comme le reste du mode sombre. */
+[data-theme="dark"] .badge.is-late,
+[data-theme="dark"] .rem-row.is-late .rem-ico { background: rgba(242, 107, 110, 0.16); color: var(--danger); }
+[data-theme="dark"] .amt-late,
+[data-theme="dark"] .stat-late strong,
+[data-theme="dark"] .inv-amounts dd.amt-late { color: var(--danger); }
+[data-theme="dark"] .rem-row.is-late,
+[data-theme="dark"] .inv-card.is-late,
+[data-theme="dark"] .todo-card.is-late,
+[data-theme="dark"] #upload-dock .upload-row[data-state="fail"] { border-color: rgba(242, 107, 110, 0.42); }
+[data-theme="dark"] .todo-card.is-late { background: rgba(242, 107, 110, 0.08); }
+[data-theme="dark"] #upload-dock .upload-row[data-state="done"] { border-color: rgba(76, 201, 138, 0.38); }
+[data-theme="dark"] #upload-dock.is-idle .ud-bar i { background: var(--success); }
 .viz .legend svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 
 .inv-card header .inv-ico { flex: none; display: grid; place-items: center; width: 38px; height: 38px; border-radius: 12px; background: var(--blue-soft, #e8f1ff); color: var(--blue, #1265d8); }
@@ -163,7 +182,7 @@
 .star-input .star.on { color: #f5a524; }
 .star-input .star:hover { transform: scale(1.15); }
 .review-form textarea { width: 100%; margin-bottom: 10px; }
-.todo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; margin-top: 12px; }
+.todo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr)); gap: 14px; margin-top: 12px; }
 .todo-card { padding: 14px 16px; border: 1px solid var(--border, #dbe7f8); border-radius: 16px; background: var(--surface, #fff); display: grid; gap: 8px; align-content: start; }
 .todo-card.is-late { border-color: #f1b8b2; background: #fff8f7; }
 .todo-card header { display: flex; align-items: center; gap: 10px; }

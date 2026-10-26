@@ -70,7 +70,10 @@
 [data-theme="dark"] .badge { color: var(--blue-hover); }
 [data-theme="dark"] .btn.icon-btn.danger:hover { border-color: rgba(242, 107, 110, 0.4); background: rgba(242, 107, 110, 0.1); }
 
-/* Pastilles posées sur les photos : verre sombre */
+/* Pastilles posées sur les photos : verre sombre.
+   .photo-check en fait partie : sur sa pastille blanche, son icône (couleur --ink,
+   presque blanche en sombre) devenait invisible. */
+[data-theme="dark"] .photo-check,
 [data-theme="dark"] .photo-heart,
 [data-theme="dark"] .photo-pick,
 [data-theme="dark"] .event-cover .badge,
@@ -90,6 +93,14 @@
 
 /* Champs de formulaire (le reste suit déjà les tokens) */
 [data-theme="dark"] input:disabled { background: rgba(19, 35, 58, 0.5); color: var(--muted); }
+
+/* Bulle d'information des graphiques : déjà sombre, mais elle se confondait avec
+   le fond de la page — un liseré la détache. */
+[data-theme="dark"] .viz-tip { border: 1px solid var(--border-strong); }
+
+/* Avis sous la connexion : les étoiles éteintes étaient d'un gris clair qui brillait
+   presque autant que les étoiles allumées. */
+[data-theme="dark"] .login-reviews .stars .off { color: var(--border-strong); }
 
 /* Choix du thème (page profil + bouton de la barre du haut) */
 .theme-switch { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; padding: 5px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface-2); }

@@ -99,7 +99,8 @@ td p.small { margin-top: 2px; }
 td .btn { min-height: 36px; padding: 7px 14px; font-size: var(--text-xs); box-shadow: none; }
 
 td img { display: inline-block; margin-right: var(--space-3); border-radius: 6px; vertical-align: middle; }
-td input { min-height: 38px; min-width: 160px; padding: 7px 12px; font-size: var(--text-sm); }
+/* min() : sur un écran étroit le champ se réduit au lieu d'élargir le tableau. */
+td input { min-height: 38px; min-width: min(160px, 100%); padding: 7px 12px; font-size: var(--text-sm); }
 
 .settings .table-wrap { box-shadow: none; }
 

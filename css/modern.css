@@ -630,7 +630,7 @@ td .badge + .small { margin-top: 4px; }
 /* Équipe */
 .team-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr));
   gap: var(--space-5);
 }
 
@@ -2127,7 +2127,7 @@ td.actions .btn.icon-btn + .btn.icon-btn { margin-left: 6px; }
 /* ==========================================================================
    Galeries : grandes cartes photo, catégories, progression de sélection
    ========================================================================== */
-.events-grid { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: var(--space-6); }
+.events-grid { grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr)); gap: var(--space-6); }
 .event-card .event-cover { aspect-ratio: 4 / 5; border-radius: 22px; box-shadow: var(--shadow-sm); background: var(--gradient-sidebar); }
 .event-card .event-cover::after { opacity: 1; background: linear-gradient(180deg, transparent 38%, rgba(8, 36, 69, 0.88)); }
 .event-overlay { position: absolute; inset: auto 0 0 0; z-index: 1; padding: 22px 20px 20px; color: #fff; text-align: left; }
@@ -2711,7 +2711,7 @@ div.ord-photo { cursor: pointer; }
 .pfa-item .btn { position: absolute; right: 6px; top: 6px; min-height: 32px; padding: 6px; background: rgba(255, 255, 255, 0.92); }
 
 /* Commandes : catalogue en cartes avec photo de couverture (même style que les galeries). */
-.ord-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+.ord-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr)); gap: 16px; }
 .ord-card { position: relative; display: flex; flex-direction: column; justify-content: flex-end; min-height: 340px; border-radius: 26px; overflow: hidden; background: linear-gradient(160deg, #0c4088, #1265d8); color: #fff; box-shadow: 0 14px 34px rgba(8, 36, 69, 0.16); isolation: isolate; }
 .ord-card > img { position: absolute; inset: 0; z-index: -2; width: 100%; height: 100%; object-fit: cover; transition: transform 0.5s; }
 .ord-card::after { content: ""; position: absolute; inset: 0; z-index: -1; background: linear-gradient(180deg, rgba(8, 36, 69, 0) 25%, rgba(8, 36, 69, 0.55) 60%, rgba(8, 36, 69, 0.92) 100%); }
@@ -2757,3 +2757,44 @@ div.ord-photo { cursor: pointer; }
 
 /* Titres de page : pas de sous-titre (moins de texte). */
 .greeting > p, .greeting-sub { display: none; }
+
+/* ==========================================================================
+   Responsive — règles générales
+   modern.css est chargé après layout/components/admin : ce qui est écrit ici
+   l'emporte, sans avoir à répéter la correction fichier par fichier.
+   ========================================================================== */
+
+/* iPhone : un champ dont le texte fait moins de 16 px fait zoomer toute la page
+   dès qu'on le touche — et la page reste zoomée. 16 px sur écran tactile :
+   plus de zoom involontaire dans les formulaires, les modales et la recherche. */
+@media (pointer: coarse) {
+  input:not([type="file"]):not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea,
+  td input,
+  .search input { font-size: 1rem; }
+}
+
+/* Hauteur de l'écran : 100vh compte les barres du navigateur mobile même quand
+   elles sont rétractées, donc la page dépasse par le bas. dvh suit la zone visible. */
+.workspace { min-height: 100dvh; }
+.modal { max-height: min(88dvh, 860px); }
+
+/* Rien d'autre que du texte ne peut élargir la page. */
+video,
+canvas,
+iframe { max-width: 100%; }
+
+/* Zones qui défilent sur le côté (tableaux, barres de filtres) : défilement fluide
+   au doigt, et le geste ne fait pas reculer la page ou l'onglet. */
+.table-wrap,
+.filterbar { -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; }
+
+/* Encoche et bords arrondis (iPhone, Android en plein écran) : le contenu de la
+   page garde sa marge même couché à l'horizontale. */
+@media (max-width: 800px) {
+  .main {
+    padding-left: max(var(--gutter), env(safe-area-inset-left));
+    padding-right: max(var(--gutter), env(safe-area-inset-right));
+  }
+}
