@@ -28,6 +28,10 @@ export const publicUser = (u) => ({
   moncash: ['owner', 'admin'].includes(u.role) ? u.moncash_number || '' : undefined,
   natcash: ['owner', 'admin'].includes(u.role) ? u.natcash_number || '' : undefined,
   payNote: ['owner', 'admin'].includes(u.role) ? u.pay_note || '' : undefined,
+  // En-tête et métier affichés sur les fiches (factures, contrats).
+  docTitle: ['owner', 'admin'].includes(u.role) ? u.doc_title || '' : undefined,
+  docSubtitle: ['owner', 'admin'].includes(u.role) ? u.doc_subtitle || '' : undefined,
+  jobTitle: ['owner', 'admin'].includes(u.role) ? u.job_title || '' : undefined,
   needsCode: u.role === 'client' && !u.access_granted,
 });
 

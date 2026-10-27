@@ -10,6 +10,12 @@
   var initials = function (n) { return String(n || '').split(/\s+/).filter(Boolean).map(function (w) { return w[0]; }).join('').slice(0, 2).toUpperCase(); };
   // Un contrat de site internet parle du « prestataire », pas du « photographe ».
   var roleOf = function (c) { return c.kind === 'web' ? 'prestataire' : 'photographe'; };
+  // Titre au-dessus de la signature : le métier réglé dans le profil s'il y en a un
+  // (« Le photographe » sinon). Les contrats de site gardent « Le prestataire ».
+  var signRoleOf = function (c) {
+    var job = c.studio && c.studio.jobTitle;
+    return c.kind === 'web' || !job ? 'Le ' + roleOf(c) : job;
+  };
 
   // Met le texte brut du contrat en page (aucun symbole à l'écran) :
   //  - titre en majuscules, parties (photographe / client) côte à côte, sections numérotées « 1. … » en cartes,
@@ -104,7 +110,7 @@
     var avatar = s.avatar ? '<img class="avatar" src="' + esc(s.avatar) + '" alt="">' : '<span class="avatar ini">' + esc(initials(s.name)) + '</span>';
     var site = s.website ? s.website.replace(/^https?:\/\//, '') : '';
     var contacts = [s.phone, s.email, s.address, site, s.instagram && '@' + s.instagram].filter(Boolean).map(esc).join(' · ');
-    var job = web ? 'Prestataire' : 'Photographe';
+    var job = web ? 'Prestataire' : esc(s.jobTitle || 'Photographe'); // échappé : il vient du profil, et person est inséré tel quel
     var person = s.person && s.person !== s.name ? esc(s.person) + ' · ' + job : job;
 
     var clientSign = signed
@@ -136,7 +142,7 @@
         '<div class="contract-text" id="ctext">' + rich(c.body, st) + '</div>' + reservesBox(c, st) +
         '<h3 class="sig-head">Signatures</h3><p class="sig-fait">Fait le <strong>' + esc(date(c.createdAt)) + '</strong></p>' +
         '<div class="sigs">' +
-          '<section class="sig" id="staff-sig"><h3>Le ' + role + '</h3>' + staffSign + '</section>' +
+          '<section class="sig" id="staff-sig"><h3>' + esc(signRoleOf(c)) + '</h3>' + staffSign + '</section>' +
           '<section class="sig"><h3>Le client</h3>' + clientSign + '</section>' +
         '</div>' +
         (signed
@@ -166,7 +172,7 @@
     if (!open) return;
     open.addEventListener('click', function () {
       var box = document.getElementById('staff-sig');
-      box.innerHTML = '<h3>Le ' + roleOf(c) + '</h3><div class="sig-area pad-wrap" id="spad-wrap"><canvas id="spad" aria-label="Zone de signature du ' + roleOf(c) + '"></canvas><span class="pad-hint">Signez ici avec le doigt ou la souris</span></div>' +
+      box.innerHTML = '<h3>' + esc(signRoleOf(c)) + '</h3><div class="sig-area pad-wrap" id="spad-wrap"><canvas id="spad" aria-label="Zone de signature du ' + roleOf(c) + '"></canvas><span class="pad-hint">Signez ici avec le doigt ou la souris</span></div>' +
         '<div class="pad-tools"><button type="button" id="spad-clear">Effacer</button>' + (c.savedSignature ? '<button type="button" id="spad-saved">Utiliser ma signature enregistrée</button>' : '') + '</div>' +
         '<label class="agree sm"><input type="checkbox" id="spad-remember"><span>Garder cette signature pour mes prochains contrats</span></label>' +
         '<button class="sign-btn" type="button" id="spad-go">Valider ma signature</button><p class="sign-error" id="spad-err" role="alert" hidden></p>';

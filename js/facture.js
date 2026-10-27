@@ -59,16 +59,24 @@
         f.payments.map(function (p) { return '<tr><td>' + esc(day(p.paidAt)) + '</td><td>' + esc(METHOD[p.method] || p.method) + '</td><td class="num">' + esc(money(p.amount, cur)) + '</td></tr>'; }).join('') + '</tbody></table>'
       : '';
     var person = s.person && s.person !== s.name ? s.person : s.person || s.name;
+    // En-tête, métier et libellé de signature : réglés par le photographe dans son profil.
+    // Vides, la fiche garde l'en-tête « KentraPix » (sans sous-titre) et le mot « Photographe ».
+    var head = s.docTitle
+      ? '<b>' + esc(s.docTitle) + '</b>'
+      : '<b>Kentra<span>Pix</span></b>';
+    if (s.docSubtitle) head += '<small>' + esc(s.docSubtitle) + '</small>';
+    var job = s.jobTitle || 'Photographe';
+    var signLabel = s.jobTitle || 'Le photographe';
 
     sheet.innerHTML =
       '<header class="band">' +
-        '<div class="brand"><img src="/logo/kentrapix-icon.svg" alt="" width="46" height="46"><div><b>Kentra<span>Pix</span></b><small>Galeries photo privées</small></div></div>' +
+        '<div class="brand"><img src="/logo/kentrapix-icon.svg" alt="" width="46" height="46"><div>' + head + '</div></div>' +
         '<div class="docmeta"><h1><span class="fiche">' + ICON.file + '</span>Facture</h1><p><strong>' + esc(f.number) + '</strong></p><p>Émise le ' + esc(day(f.issuedAt)) + '</p></div>' +
       '</header>' +
       '<div class="body">' +
         (STAMP[f.status] ? '<div class="stamp ' + esc(f.status) + '">' + esc(STAMP[f.status]) + '</div>' : '') +
         '<div class="parties">' +
-          '<section class="card"><h2>Photographe</h2><div class="who">' + avatar + '<div><strong>' + esc(s.name) + '</strong><span>' + (person ? 'Photographe : ' + esc(person) : '') + '</span></div></div>' +
+          '<section class="card"><h2>' + esc(job) + '</h2><div class="who">' + avatar + '<div><strong>' + esc(s.name) + '</strong><span>' + (person ? esc(job) + ' : ' + esc(person) : '') + '</span></div></div>' +
           (contacts ? '<ul class="contacts">' + contacts + '</ul>' : '') + '</section>' +
           '<section class="card to"><h2>Facturé à</h2><strong>' + esc(f.client.name) + '</strong>' + (f.event ? '<p>Galerie : ' + esc(f.event) + '</p>' : '') + '<p><span class="badge ' + esc(f.status) + '">' + esc(STATUS[f.status] || f.status) + '</span></p></section>' +
         '</div>' +
@@ -79,7 +87,7 @@
         pays +
         payBox(f) +
         (f.notes ? '<div class="notes">' + esc(f.notes) + '</div>' : '') +
-        '<div class="sign"><div>' + (s.signature ? '<img class="sig-img" src="' + esc(s.signature) + '" alt="Signature du photographe">' : '') + '<strong>Le photographe</strong><span>' + esc(person || s.name) + '</span></div></div>' +
+        '<div class="sign"><div>' + (s.signature ? '<img class="sig-img" src="' + esc(s.signature) + '" alt="Signature : ' + esc(signLabel) + '">' : '') + '<strong>' + esc(signLabel) + '</strong><span>' + esc(person || s.name) + '</span></div></div>' +
       '</div>';
   }
 })();

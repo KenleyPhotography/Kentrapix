@@ -280,6 +280,8 @@ contractApi.get('/:token', async (req, res) => {
     studio: {
       name: studio?.sender_name || studio?.name || 'KentraPix', person: studio?.name || '', email: studio?.email || '', phone: studio?.phone || '',
       whatsapp: studio?.whatsapp || studio?.phone || '', website: studio?.website || '', address: studio?.address || '', instagram: studio?.instagram || '',
+      // Métier choisi dans le profil : remplace « Photographe » sur le contrat (vide = Photographe ; les contrats de site gardent « Prestataire »).
+      jobTitle: studio?.job_title || '',
       avatar: studio?.avatar_key ? `/api/contract/${token}/avatar` : null,
     },
   });

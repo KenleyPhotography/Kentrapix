@@ -283,6 +283,8 @@ invoiceApi.get('/:token', async (req, res) => {
       name: studio?.sender_name || studio?.name || 'KentraPix', person: studio?.name || '', email: studio?.email || '', phone: studio?.phone || '',
       whatsapp: studio?.whatsapp || studio?.phone || '', website: studio?.website || '', address: studio?.address || '',
       instagram: studio?.instagram || '', bio: studio?.bio || '',
+      // En-tête de la fiche et métier : choisis par le photographe dans son profil (vides = KentraPix / Photographe).
+      docTitle: studio?.doc_title || '', docSubtitle: studio?.doc_subtitle || '', jobTitle: studio?.job_title || '',
       avatar: studio?.avatar_key ? `/api/invoice/${token}/avatar` : null, pay: payInfo(studio), signature: studio?.contract_signature || null,
     },
   });
