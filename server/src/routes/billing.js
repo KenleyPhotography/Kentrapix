@@ -271,7 +271,7 @@ invoiceApi.get('/:token', async (req, res) => {
     `${INVOICE_SELECT} WHERE i.public_token = ?`, [token],
   );
   if (!row) throw httpError(404, 'Facture introuvable.');
-  const [studio] = await query('SELECT name, sender_name, email, phone, whatsapp, website, address, instagram, bio, avatar_key, moncash_number, natcash_number, pay_note, contract_signature FROM users WHERE id = ?', [row.staff_id]);
+  const [studio] = await query('SELECT name, sender_name, email, phone, whatsapp, website, address, instagram, bio, avatar_key, moncash_number, natcash_number, pay_note, contract_signature, doc_title, doc_subtitle, job_title FROM users WHERE id = ?', [row.staff_id]);
   const payments = await query('SELECT * FROM payments WHERE invoice_id = ? ORDER BY paid_at, created_at', [row.id]);
   const inv = mapInvoice(row, payments);
   res.set('Cache-Control', 'no-store').json({

@@ -266,7 +266,7 @@ contractApi.get('/:token', async (req, res) => {
   const [row] = await query(`${CONTRACT_SELECT} WHERE c.public_token = ?`, [token]);
   if (!row || row.status === 'cancelled') throw httpError(404, 'Contrat introuvable ou annulé.');
   guard(req, row);
-  const [studio] = await query('SELECT name, sender_name, email, phone, whatsapp, website, address, instagram, avatar_key FROM users WHERE id = ?', [row.staff_id]);
+  const [studio] = await query('SELECT name, sender_name, email, phone, whatsapp, website, address, instagram, avatar_key, job_title FROM users WHERE id = ?', [row.staff_id]);
   const c = mapContract(row);
   res.set('Cache-Control', 'no-store').json({
     title: row.title, body: row.body, status: row.status, kind: row.kind || 'photo', clientName: row.client_name, guest: !row.client_id,
