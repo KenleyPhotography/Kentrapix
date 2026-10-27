@@ -67,6 +67,9 @@
     if (s.docSubtitle) head += '<small>' + esc(s.docSubtitle) + '</small>';
     var job = s.jobTitle || 'Photographe';
     var signLabel = s.jobTitle || 'Le photographe';
+    // Sous le nom du studio : le nom de la personne, seulement s'il est différent.
+    // Plus de « Photographe : … » en dur — le titre de la carte dit déjà le métier.
+    var sub = s.person && s.person !== s.name ? s.person : '';
 
     sheet.innerHTML =
       '<header class="band">' +
@@ -76,7 +79,7 @@
       '<div class="body">' +
         (STAMP[f.status] ? '<div class="stamp ' + esc(f.status) + '">' + esc(STAMP[f.status]) + '</div>' : '') +
         '<div class="parties">' +
-          '<section class="card"><h2>' + esc(job) + '</h2><div class="who">' + avatar + '<div><strong>' + esc(s.name) + '</strong><span>' + (person ? esc(job) + ' : ' + esc(person) : '') + '</span></div></div>' +
+          '<section class="card"><h2>' + esc(job) + '</h2><div class="who">' + avatar + '<div><strong>' + esc(s.name) + '</strong>' + (sub ? '<span>' + esc(sub) + '</span>' : '') + '</div></div>' +
           (contacts ? '<ul class="contacts">' + contacts + '</ul>' : '') + '</section>' +
           '<section class="card to"><h2>Facturé à</h2><strong>' + esc(f.client.name) + '</strong>' + (f.event ? '<p>Galerie : ' + esc(f.event) + '</p>' : '') + '<p><span class="badge ' + esc(f.status) + '">' + esc(STATUS[f.status] || f.status) + '</span></p></section>' +
         '</div>' +
