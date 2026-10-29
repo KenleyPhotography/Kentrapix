@@ -52,6 +52,40 @@ Chaque **admin** est un photographe indépendant :
 
 Le propriétaire voit tout. Tous les e-mails portent le logo KentraPix (`logo/kentrapix-email.png`, joint en image intégrée).
 
+### Un seul compte, plusieurs photographes
+
+Une personne n'a **qu'un compte** (une adresse e-mail, un mot de passe) et peut être suivie par
+plusieurs photographes. La table `client_photographers` porte ces liens ; `users.created_by` désigne
+le **photographe principal**, seul autorisé à modifier le compte (nom, e-mail, mot de passe, pause,
+suppression). Les liens se créent ainsi :
+
+- le client saisit le **code** du photographe dans « Mes photographes » (`POST /api/client/photographers`) —
+  il apparaît aussitôt dans les « Clients » de ce photographe, qui en est prévenu (cloche + téléphone) ;
+- le photographe ouvre **« Ajouter un client »** et saisit une adresse e-mail. Le studio interroge
+  `GET /api/admin/clients/lookup?email=…` pendant la saisie :
+  - adresse inconnue → les champs nom et mot de passe temporaire restent affichés, le compte est créé
+    (`POST /api/admin/clients`) ;
+  - adresse déjà sur KentraPix → ces champs disparaissent, et la personne est seulement **rattachée**
+    (`POST /api/admin/clients/link`) : aucun compte créé, aucun mot de passe touché, un e-mail la prévient.
+    Ça marche avec le compte d'un autre photographe ou du propriétaire — un photographe (donc un admin)
+    peut être le client d'un autre.
+
+  Si l'adresse est prise entre la vérification et l'envoi, `POST /api/admin/clients` répond 409 avec
+  `existing` et le studio propose le rattachement.
+
+- le photographe **accepte une demande de séance** venue du portfolio public : si l'e-mail n'a pas de
+  compte, il en reçoit un ; s'il en a déjà un, il est simplement rattaché (`routes/booking.js`).
+
+Partout où le studio choisit une personne — galerie, rendez-vous, facture, contrat, commande,
+notification — c'est ce même ensemble qui s'applique (`clientScope` dans `lib/scope.js`) : ses clients
+et tout compte qui l'a pour photographe, jamais lui-même.
+
+Chacun peut défaire le lien : le photographe avec « Retirer de mes clients »
+(`DELETE /api/admin/clients/:id/link`), la personne depuis « Mes photographes »
+(`DELETE /api/client/photographers/:id`). Les deux sont refusés tant que ce photographe a des galeries
+publiées pour cette personne, et le dernier photographe d'un compte qu'il a créé doit passer par
+« Supprimer le client ».
+
 ## E-mails automatiques (Resend)
 
 1. Créez une clé sur https://resend.com/api-keys et collez-la dans `server/.env` : `RESEND_API_KEY=re_...`
@@ -187,6 +221,9 @@ server/
 | GET | `/api/client/downloads/:id/file` | client |
 | GET | `/api/admin/bootstrap` | admin |
 | POST/PATCH | `/api/admin/clients[/:id]`, POST `/clients/:id/password`, GET `/clients/:id/preview` | équipe |
+| GET | `/api/admin/clients/lookup?email=…` | équipe (limité) |
+| POST | `/api/admin/clients/link` (par e-mail), DELETE `/clients/:id/link` | équipe |
+| POST/DELETE | `/api/client/photographers[/:id]` | connecté |
 | POST | `/api/admin/accounts/:id/message` | équipe |
 | POST/PATCH | `/api/admin/team[/:id]`, POST `/team/:id/password` | propriétaire |
 | GET | `/api/admin/emails` | équipe |

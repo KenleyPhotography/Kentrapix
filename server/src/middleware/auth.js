@@ -10,7 +10,10 @@ export const SESSION_COOKIE = 'kp_session';
 const cookieOptions = () => ({
   httpOnly: true, // inaccessible au JavaScript de la page
   secure: config.isProd, // HTTPS obligatoire en production
-  sameSite: 'strict', // protège contre les requêtes d'autres sites (CSRF)
+  // « lax » : le cookie suit un lien cliqué depuis un e-mail (le client reste connecté), mais il ne part
+  // jamais avec une requête montée depuis un autre site. Les écritures de l'API sont en plus filtrées
+  // par corsGate (middleware/security.js), qui refuse tout ce qui ne vient pas de ce site.
+  sameSite: 'lax',
   path: '/',
 });
 

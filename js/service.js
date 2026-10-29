@@ -9,7 +9,9 @@ if(res.headers.get('X-Maintenance')&&!/^\/(admin|login|maintenance)/.test(locati
 if(res.status===401&&!path.startsWith('/api/auth/')){location.href='/login';throw Error('Session expirée.')}if(res.status===204)return null;
 // Page ouverte sans le serveur KentraPix (ex. Live Server sur le port 5500) : pas d'API JSON.
 if(!(res.headers.get('content-type')||'').includes('application/json'))throw Error('Connexion impossible pour le moment. Réessayez dans un instant.');
-const data=await res.json().catch(()=>({}));if(!res.ok){if(data.locked&&location.pathname.includes('admin')){location.reload();throw Error(data.error)}throw Error(data.error||'Une erreur est survenue.')}return data}
+const data=await res.json().catch(()=>({}));if(!res.ok){if(data.locked&&location.pathname.includes('admin')){location.reload();throw Error(data.error)}
+// L'erreur porte aussi la réponse du serveur (err.status, err.data) : certaines pages proposent une suite (compte déjà existant…).
+const err=Error(data.error||'Une erreur est survenue.');err.status=res.status;err.data=data;throw err}return data}
 const data={clients:[],events:[],photos:[],favorites:[],downloads:[],permissions:{},activity:[],stats:{storageBytes:0},selections:{}};
 export const service={data,readOnly:false,async load(role){Object.assign(data,await api(role==='admin'?'/api/admin/bootstrap':'/api/client/bootstrap'))},
 // Aperçu admin : l'espace d'un client, sans rien enregistrer en son nom.

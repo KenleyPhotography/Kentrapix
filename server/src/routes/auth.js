@@ -12,6 +12,7 @@ import { resetLinkEmail, signupEmail, studioResetEmail } from '../lib/emails.js'
 import { audit } from '../lib/audit.js';
 import { upload, storeAvatar, removeKeys } from '../lib/storage.js';
 import { forgetSession, revokeSessions } from '../lib/sessions.js';
+import { pushLater } from '../lib/push.js';
 import { issueSession, clearSession, requireAuth, requireRole, requireStaff, issueStudioUnlock, studioUnlocked } from '../middleware/auth.js';
 import { codeRule } from '../lib/accessCode.js';
 
@@ -23,13 +24,17 @@ export const passwordRule = z
 
 const router = Router();
 
-// Max 10 tentatives de connexion par IP toutes les 15 minutes.
+// Max 10 tentatives ratées par compte et par connexion internet, toutes les 15 minutes.
+// Compté par « connexion + e-mail » et seulement sur les échecs : plusieurs clients derrière la même
+// connexion (téléphone, wifi partagé) ne se bloquent plus entre eux.
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 10,
+  skipSuccessfulRequests: true,
+  keyGenerator: (req) => `${req.ip}|${String(req.body?.email || '').trim().toLowerCase()}`,
   standardHeaders: 'draft-7',
   legacyHeaders: false,
-  message: { error: 'Trop de tentatives. Réessayez dans 15 minutes.' },
+  message: { error: 'Trop de tentatives pour ce compte. Réessayez dans 15 minutes ou utilisez « Mot de passe oublié ».' },
 });
 
 const loginSchema = z.object({
@@ -132,6 +137,8 @@ router.post('/access-code', requireAuth, codeIpLimiter, codeLimiter, async (req,
   await query('UPDATE users SET created_by = ?, access_granted = 1 WHERE id = ? AND access_granted = 0', [staff.id, req.user.id]);
   await query('INSERT INTO client_photographers (client_id, staff_id) VALUES (?, ?) ON CONFLICT DO NOTHING', [req.user.id, staff.id]);
   audit(req, 'auth.code_ok', { details: { photographer: staff.id } });
+  // Le compte entre tout de suite dans les « Clients » de ce photographe : on le prévient.
+  pushLater(staff.id, { title: 'Nouveau client', body: `${req.user.name} vous a ajouté comme photographe.`, url: '/admin', tag: `client-${req.user.id}` });
   const [user] = await query('SELECT * FROM users WHERE id = ?', [req.user.id]);
   res.json({ user: publicUser(user) });
 });

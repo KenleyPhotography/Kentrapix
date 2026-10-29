@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { query } from '../db.js';
 import { httpError } from '../lib/errors.js';
 import { uuid, CLIENT_HAS } from '../lib/data.js';
-import { accountScope } from '../lib/scope.js';
+import { accountScope, clientScope } from '../lib/scope.js';
 import { upload, storeCover, removeKeys } from '../lib/storage.js';
 import { audit } from '../lib/audit.js';
 import { pushLater } from '../lib/push.js';
@@ -234,7 +234,8 @@ staffOrders.post('/', async (req, res) => {
     note: z.string().trim().max(600).optional().default(''),
   }).parse(req.body);
   const [as, ap] = accountScope(req);
-  const [client] = await query(`SELECT u.id FROM users u WHERE u.id = ? AND u.role = 'client' AND ${as}`, [data.clientId, ...ap]);
+  const [cs, cp] = clientScope(req);
+  const [client] = await query(`SELECT u.id FROM users u WHERE u.id = ? AND ${cs} AND ${as}`, [data.clientId, ...cp, ...ap]);
   if (!client) throw httpError(404, 'Client introuvable.');
   let name = data.name; let price = data.price; let currency = data.currency; let productId = null;
   if (data.productId) {

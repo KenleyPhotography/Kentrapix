@@ -9,7 +9,7 @@ import { pushLater } from '../lib/push.js';
 import { sendMail } from '../lib/mailer.js';
 import { sendPrivate } from '../lib/storage.js';
 import { contractEmail } from '../lib/emails.js';
-import { accountScope } from '../lib/scope.js';
+import { accountScope, clientScope } from '../lib/scope.js';
 import { studioToday } from '../lib/booking.js';
 import { CONTRACT_SELECT, mapContract, contractUrl, newContractToken, bodyHash, unsignedBookings, parseChoices } from '../lib/contracts.js';
 
@@ -77,7 +77,8 @@ staffContracts.post('/', async (req, res) => {
   if (!data.clientId && !data.guest) throw httpError(400, 'Choisissez un client ou entrez le nom de la personne.');
   if (data.clientId) {
     const [as, ap] = accountScope(req);
-    const [client] = await query(`SELECT u.id FROM users u WHERE u.id = ? AND u.role = 'client' AND ${as}`, [data.clientId, ...ap]);
+    const [cs, cp] = clientScope(req);
+    const [client] = await query(`SELECT u.id FROM users u WHERE u.id = ? AND ${cs} AND ${as}`, [data.clientId, ...cp, ...ap]);
     if (!client) throw httpError(404, 'Client introuvable.');
   }
   if (data.bookingId && data.clientId) {

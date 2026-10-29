@@ -3,6 +3,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
+import rateLimit from 'express-rate-limit';
 import { query, transaction, toIso } from '../db.js';
 import { httpError } from '../lib/errors.js';
 import {
@@ -18,6 +19,7 @@ import { pushLater } from '../lib/push.js';
 import { sendMail, mailConfigured, fromLine, LOGO_CID } from '../lib/mailer.js';
 import {
   welcomeEmail, galleryReadyEmail, passwordResetEmail, adminInviteEmail, messageEmail, expiryEmail, announcementEmail,
+  clientLinkedEmail,
 } from '../lib/emails.js';
 import { kickAnnouncements } from '../lib/announcements.js';
 import { requireStaff, requireOwner, STAFF_ROLES, requireStudio } from '../middleware/auth.js';
@@ -28,7 +30,7 @@ import {
 } from '../lib/backup.js';
 import { normalizeNumbers } from '../lib/unlock.js';
 const LOCK_LEVELS = [2.5, 6, 12]; // niveaux de flou proposés pour les photos verrouillées
-import { isOwner, accountScope, eventScope } from '../lib/scope.js';
+import { isOwner, accountScope, clientScope, eventScope } from '../lib/scope.js';
 import { billingRouter } from './billing.js';
 import { staffContracts, staffWebContracts } from './contracts.js';
 import { staffReviews } from './reviews.js';
@@ -85,11 +87,29 @@ const studioName = (req) => req.user.sender_name || req.user.name;
 const mailTo = (req, account, template, extra = {}) =>
   sendMail({ to: account.email, userId: account.id, sentBy: req.user.id, ...senderOf(req.user), ...template, ...extra });
 
+/**
+ * Compte tel que le studio le voit, avec sa place dans « Mes clients » :
+ *  - mine   : je peux gérer son compte (je l'ai créé, ou il n'a pas encore de photographe principal) —
+ *             même règle que findOwnClient ;
+ *  - linked : il est dans mes clients (code saisi, ou je l'ai ajouté).
+ * linked accepte un Set d'identifiants (liste complète) ou un booléen (compte seul).
+ */
+const asClient = (req, u, linked) => ({
+  ...mapClient(u),
+  mine: u.role === 'client' && (!u.created_by || u.created_by === req.user.id),
+  linked: linked instanceof Set ? linked.has(u.id) : !!linked,
+});
+
+/** Ce compte est-il déjà dans mes clients ? */
+const isLinked = async (req, clientId) =>
+  (await query('SELECT 1 FROM client_photographers WHERE client_id = ? AND staff_id = ?', [clientId, req.user.id])).length > 0;
+
 // ---------- Tableau de bord ----------
 router.get('/bootstrap', async (req, res) => {
   const [as, ap] = accountScope(req);
+  const [cs, cpar] = clientScope(req);
   const [es, ep] = eventScope(req);
-  const [people, events, photos, downloads, activity, [storage], permissions, selections, maintenance, platformOwner] = await Promise.all([
+  const [people, events, photos, downloads, activity, [storage], permissions, selections, maintenance, platformOwner, links] = await Promise.all([
     query(`SELECT * FROM users u WHERE ${as} ORDER BY name`, ap),
     query(`SELECT ${EVENT_COLUMNS} FROM events e WHERE ${es} ORDER BY e.event_date DESC, e.created_at DESC`, ep),
     query(
@@ -105,7 +125,7 @@ router.get('/bootstrap', async (req, res) => {
          (SELECT COUNT(*) FROM favorites f WHERE f.user_id = u.id) AS favorites,
          (SELECT COALESCE(SUM(d.photo_count), 0) FROM downloads d WHERE d.user_id = u.id) AS downloads,
          u.last_login_at
-       FROM users u WHERE u.role = 'client' AND ${as} ORDER BY u.name`, ap,
+       FROM users u WHERE ${cs} AND ${as} ORDER BY u.name`, [...cpar, ...ap],
     ),
     query(`SELECT COALESCE(SUM(p.size_bytes), 0) AS originals, COALESCE(SUM(p.preview_bytes), 0) AS previews
        FROM photos p JOIN events e ON e.id = p.event_id WHERE ${es}`, ep),
@@ -117,11 +137,15 @@ router.get('/bootstrap', async (req, res) => {
     ),
     maintenanceState(),
     isPlatformOwner(req.user),
+    query('SELECT client_id FROM client_photographers WHERE staff_id = ?', [req.user.id]),
   ]);
-  const accounts = people.map(mapClient);
+  // Mes clients : ceux que j'ai créés, ceux qui ont saisi mon code et ceux que j'ai ajoutés — un
+  // photographe (ou le propriétaire) peut être le client d'un autre photographe, et apparaît donc ici.
+  const linked = new Set(links.map((l) => l.client_id));
+  const accounts = people.map((u) => asClient(req, u, linked));
   res.json({
     accounts, // tous les comptes : peuvent tous recevoir des galeries
-    clients: accounts.filter((a) => a.role === 'client'),
+    clients: accounts.filter((a) => (a.role === 'client' || a.linked) && a.id !== req.user.id),
     // L'équipe n'est visible que par le propriétaire.
     team: isOwner(req) ? accounts.filter((a) => STAFF_ROLES.includes(a.role)) : [],
     events: events.map(mapEvent),
@@ -142,7 +166,7 @@ router.get('/bootstrap', async (req, res) => {
     selections: selections.map((s) => ({
       eventId: s.event_id, userId: s.user_id, name: s.name, count: s.photo_count, submittedAt: toIso(s.submitted_at),
     })),
-    notifications: await staffNotifications({ scope: [es, ep], owner: isOwner(req), events, selections }),
+    notifications: await staffNotifications({ scope: [es, ep], owner: isOwner(req), userId: req.user.id, events, selections }),
   });
 });
 
@@ -202,12 +226,117 @@ async function setTemporaryPassword(account, password) {
 }
 
 // ---------- Clients (propriétaire et admins) ----------
+// Un nouveau compte n'est créé que pour quelqu'un qui n'en a pas encore. Si l'adresse existe déjà
+// (client d'un autre photographe, ou un photographe lui-même), on le dit et la page propose de
+// l'ajouter à ses clients : un seul compte, un seul mot de passe, plusieurs photographes.
 router.post('/clients', async (req, res) => {
   const data = accountSchema.extend({ password: passwordRule, sendEmail: sendFlag }).parse(req.body);
+  const [exists] = await query('SELECT id, name, email, created_by FROM users WHERE email = ?', [data.email]);
+  if (exists) {
+    if (exists.created_by === req.user.id || await isLinked(req, exists.id)) {
+      throw httpError(409, `${exists.name} (${exists.email}) est déjà dans vos clients.`);
+    }
+    const err = httpError(409, `${exists.name} a déjà un compte avec cette adresse. Ajoutez-le à vos clients : il garde son mot de passe et vous le verrez ici.`);
+    err.existing = { id: exists.id, name: exists.name, email: exists.email };
+    throw err;
+  }
   const client = await createAccount(req, 'client', data);
   audit(req, 'client.create', { entity: 'user', entityId: client.id, details: { email: data.email } });
-  const email = data.sendEmail ? queueMail(mailTo(req, client, welcomeEmail({ ...client, password: data.password, studio: studioName(req) }), { kind: 'welcome' })) : null;
-  res.status(201).json({ client: mapClient(client), email });
+  // E-mail attendu (et non mis en file) : le photographe sait tout de suite s'il est bien parti.
+  const email = data.sendEmail
+    ? await mailTo(req, client, welcomeEmail({ ...client, password: data.password, studio: studioName(req) }), { kind: 'welcome' })
+    : null;
+  res.status(201).json({ client: asClient(req, client, false), email });
+});
+
+// Ajouter à ses clients quelqu'un qui a déjà un compte KentraPix : un client suivi par un autre
+// photographe, un autre photographe, ou le propriétaire. Aucun compte n'est créé, aucun mot de passe
+// n'est touché — c'est la même chose que si la personne avait saisi le code du photographe.
+const linkSchema = z.object({
+  email: z.string().trim().toLowerCase().email('Adresse e-mail invalide.').max(190),
+  sendEmail: sendFlag,
+});
+
+// La réponse dit si une adresse a un compte : plafond par photographe, pour qu'on ne puisse pas
+// essayer des adresses en série.
+const linkLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 20,
+  keyGenerator: (req) => `${req.user?.id || 'anon'}`,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: { error: 'Trop d’adresses essayées. Réessayez dans une heure.' },
+});
+
+// La fenêtre « Ajouter un client » interroge cette adresse pendant la frappe : si elle a déjà un compte,
+// il n'y a ni nom ni mot de passe à saisir, seulement un rattachement. Plafond plus large (lecture seule).
+const lookupLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 60,
+  keyGenerator: (req) => `${req.user?.id || 'anon'}`,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: { error: 'Trop d’adresses essayées. Réessayez dans une heure.' },
+});
+
+router.get('/clients/lookup', lookupLimiter, async (req, res) => {
+  const email = z.string().trim().toLowerCase().email('Adresse e-mail invalide.').max(190).parse(req.query.email);
+  const [account] = await query('SELECT id, name, email, role, active, created_by FROM users WHERE email = ?', [email]);
+  res.set('Cache-Control', 'no-store');
+  // Son propre compte : traité comme inconnu, la création dira que l'adresse est prise.
+  if (!account || account.id === req.user.id) return res.json({ found: false });
+  res.json({
+    found: true,
+    name: account.name,
+    email: account.email,
+    role: account.role,
+    active: !!account.active,
+    linked: account.created_by === req.user.id || await isLinked(req, account.id),
+  });
+});
+
+router.post('/clients/link', linkLimiter, async (req, res) => {
+  const { email, sendEmail } = linkSchema.parse(req.body);
+  const [account] = await query('SELECT * FROM users WHERE email = ?', [email]);
+  if (!account) throw httpError(404, 'Aucun compte avec cette adresse. Utilisez « Nouveau client » pour lui en créer un.');
+  if (account.id === req.user.id) throw httpError(400, 'C’est votre propre compte.');
+  if (!account.active) throw httpError(400, `Le compte de ${account.name} est en pause : son photographe principal doit le réactiver.`);
+  const added = await query('INSERT INTO client_photographers (client_id, staff_id) VALUES (?, ?) ON CONFLICT DO NOTHING', [account.id, req.user.id]);
+  if (!added.affectedRows) throw httpError(409, `${account.name} est déjà dans vos clients.`);
+  // Client inscrit seul qui attendait un code : ce rattachement lui ouvre son espace.
+  if (account.role === 'client' && !account.access_granted) {
+    await query('UPDATE users SET access_granted = 1, created_by = COALESCE(created_by, ?) WHERE id = ?', [req.user.id, account.id]);
+  }
+  audit(req, 'client.link', { entity: 'user', entityId: account.id, details: { email } });
+  pushLater(account.id, { title: 'Nouveau photographe', body: `${studioName(req)} vous a ajouté à ses clients.`, url: '/client', tag: `photographer-${req.user.id}` });
+  const mail = sendEmail
+    ? await mailTo(req, account, clientLinkedEmail({ name: account.name, studio: studioName(req) }), { kind: 'message' })
+    : null;
+  const fresh = await findAccount(req, account.id);
+  res.status(201).json({ client: asClient(req, fresh, true), email: mail });
+});
+
+// Retirer quelqu'un de ses clients, sans toucher à son compte : il garde son mot de passe, ses autres
+// photographes et ses galeries. Réservé aux comptes qu'un autre photographe suit déjà (sinon : « Supprimer »).
+router.delete('/clients/:id/link', async (req, res) => {
+  const account = await findAccount(req, req.params.id);
+  if (account.id === req.user.id) throw httpError(400, 'C’est votre propre compte.');
+  const mine = await query('SELECT COUNT(*) AS n FROM events WHERE client_id = ? AND created_by = ?', [account.id, req.user.id]);
+  const n = Number(mine[0].n);
+  if (n) throw httpError(400, `Vous avez encore ${n > 1 ? `${n} galeries` : 'une galerie'} pour ${account.name}. Supprimez-${n > 1 ? 'les' : 'la'} d’abord, ou utilisez « Supprimer le client ».`);
+  const others = await query('SELECT staff_id FROM client_photographers WHERE client_id = ? AND staff_id <> ?', [account.id, req.user.id]);
+  const primary = account.role === 'client' && account.created_by === req.user.id;
+  // Compte client que j'avais créé et que personne d'autre ne suit : il resterait sans photographe, on refuse.
+  if (primary && !others.length) throw httpError(400, `Vous êtes le seul photographe de ${account.name} : utilisez « Supprimer le client ».`);
+  const removed = await query('DELETE FROM client_photographers WHERE client_id = ? AND staff_id = ?', [account.id, req.user.id]);
+  if (primary) {
+    // La place de photographe principal passe au suivant.
+    await query('UPDATE users SET created_by = ? WHERE id = ?', [others[0].staff_id, account.id]);
+  } else if (!removed.affectedRows) {
+    throw httpError(404, `${account.name} n’est pas dans vos clients.`);
+  }
+  audit(req, 'client.unlink', { entity: 'user', entityId: account.id });
+  res.json({ removed: true, name: account.name });
 });
 
 router.patch('/clients/:id', async (req, res) => {
@@ -221,7 +350,7 @@ router.patch('/clients/:id', async (req, res) => {
     [keep(data, client, 'name'), keep(data, client, 'email'), keep(data, client, 'phone'), keep(data, client, 'whatsapp'), active ? 1 : 0, revoke, client.id],
   );
   audit(req, data.active === undefined ? 'client.update' : active ? 'client.activate' : 'client.deactivate', { entity: 'user', entityId: client.id });
-  res.json({ client: mapClient(await findClient(req, client.id)) });
+  res.json({ client: asClient(req, await findClient(req, client.id), await isLinked(req, client.id)) });
 });
 
 // Supprimer un client. Ses galeries : supprimées avec leurs photos (galleries = 'delete'),
@@ -942,13 +1071,14 @@ router.post('/announcements', async (req, res) => {
   }
   // Tous : les clients actifs de ce photographe. Choix : les clients cochés (parmi les siens).
   const [as, ap] = accountScope(req);
+  const [cs, cpar] = clientScope(req);
   let recipients;
   if (data.audience === 'all') {
-    recipients = await query(`SELECT u.id FROM users u WHERE u.role = 'client' AND u.active = 1 AND ${as}`, ap);
+    recipients = await query(`SELECT u.id FROM users u WHERE u.active = 1 AND ${cs} AND ${as}`, [...cpar, ...ap]);
   } else {
     const ids = [...new Set(data.clientIds)];
     recipients = ids.length
-      ? await query(`SELECT u.id FROM users u WHERE u.id IN (${ids.map(() => '?').join(', ')}) AND u.role = 'client' AND u.active = 1 AND ${as}`, [...ids, ...ap])
+      ? await query(`SELECT u.id FROM users u WHERE u.id IN (${ids.map(() => '?').join(', ')}) AND u.active = 1 AND ${cs} AND ${as}`, [...ids, ...cpar, ...ap])
       : [];
     if (recipients.length !== ids.length) throw httpError(400, 'Certains clients sont introuvables ou désactivés.');
   }

@@ -9,6 +9,16 @@ export const accountScope = (req, a = 'u') => (isOwner(req)
   ? [`(${a}.role <> 'client' OR ${a}.created_by IS NULL OR ${a}.created_by = ? OR ${linked(a)})`, [req.user.id, req.user.id]]
   : [`(${a}.created_by = ? OR ${a}.id = ? OR ${linked(a)})`, [req.user.id, req.user.id, req.user.id]]);
 
+/**
+ * Filtre SQL de « mes clients » : les comptes clients, plus tout compte qui m'a pour photographe —
+ * un autre photographe, ou le propriétaire, peut être le client de quelqu'un. Jamais soi-même.
+ * À combiner avec accountScope, qui dit lesquels de ces comptes je vois.
+ */
+export const clientScope = (req, a = 'u') => [
+  `(${a}.role = 'client' OR ${linked(a)}) AND ${a}.id <> ?`,
+  [req.user.id, req.user.id],
+];
+
 /** Filtre SQL des galeries visibles. */
 export const eventScope = (req, e = 'e') => (isOwner(req)
   ? [`(${e}.created_by = ? OR ${e}.created_by IS NULL)`, [req.user.id]]

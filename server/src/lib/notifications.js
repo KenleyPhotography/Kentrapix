@@ -98,11 +98,12 @@ export async function clientNotifications(userId, events) {
 }
 
 /**
- * Notifications de l'équipe : sélections envoyées, commentaires des clients, inscriptions (propriétaire).
+ * Notifications de l'équipe : sélections envoyées, commentaires des clients, nouveaux clients
+ * (code saisi par la personne elle-même) et inscriptions libres (propriétaire).
  * scope : condition SQL sur les galeries visibles par ce membre (alias e) et ses paramètres.
  */
-export async function staffNotifications({ scope: [es, ep], owner, events, selections }) {
-  const [comments, family, signups] = await Promise.all([
+export async function staffNotifications({ scope: [es, ep], owner, userId, events, selections }) {
+  const [comments, family, signups, joined] = await Promise.all([
     query(
       `SELECT c.id, c.body, c.created_at, c.photo_id, p.event_id, u.name AS author FROM photo_comments c
        JOIN users u ON u.id = c.user_id JOIN photos p ON p.id = c.photo_id JOIN events e ON e.id = p.event_id
@@ -120,6 +121,15 @@ export async function staffNotifications({ scope: [es, ep], owner, events, selec
     owner
       ? query(`SELECT id, name, created_at FROM users WHERE role = 'client' AND created_by IS NULL AND created_at > ${WINDOW}
           ORDER BY created_at DESC LIMIT ${LIMIT}`)
+      : [],
+    // Comptes qui se sont rattachés à ce photographe par son code (pas ceux qu'il a créés ou ajoutés lui-même).
+    userId
+      ? query(
+        `SELECT u.id, u.name, u.role, cp.created_at FROM client_photographers cp JOIN users u ON u.id = cp.client_id
+         WHERE cp.staff_id = ? AND cp.created_at > ${WINDOW} AND (u.created_by IS NULL OR u.created_by <> cp.staff_id)
+         ORDER BY cp.created_at DESC LIMIT ${LIMIT}`,
+        [userId],
+      )
       : [],
   ]);
   const nameOf = Object.fromEntries(events.map((e) => [e.id, e.name]));
@@ -146,6 +156,12 @@ export async function staffNotifications({ scope: [es, ep], owner, events, selec
   }
   for (const u of signups) {
     items.push({ id: `signup-${u.id}`, kind: 'signup', date: toIso(u.created_at), title: 'Nouveau compte client', text: u.name });
+  }
+  for (const u of joined) {
+    items.push({
+      id: `joined-${u.id}`, kind: 'signup', date: toIso(u.created_at),
+      title: 'Nouveau client', text: `${u.name} vous a ajouté comme photographe${u.role === 'client' ? '' : ' (photographe)'}`,
+    });
   }
   return sortRecent(items);
 }

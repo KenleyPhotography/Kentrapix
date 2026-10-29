@@ -205,6 +205,30 @@ export function signupEmail({ name }) {
   };
 }
 
+/**
+ * Un photographe ajoute à ses clients quelqu'un qui a déjà un compte : on le prévient.
+ * Pas de mot de passe ici — la personne garde le sien.
+ */
+export function clientLinkedEmail({ name, studio = defaultStudio() }) {
+  const title = `${studio} vous a ajouté à ses clients`;
+  const url = `${config.appUrl}/client`;
+  return {
+    subject: `${studio} vous a ajouté à ses clients`,
+    html: layout({
+      studio,
+      preheader: 'Vous gardez le même compte et le même mot de passe.',
+      title,
+      body: `Bonjour ${esc(firstName(name))},<br><br><strong style="color:#082445">${esc(studio)}</strong> pourra désormais vous publier des galeries dans votre espace KentraPix. Vous gardez le même compte et le même mot de passe : rien à créer.<br><br>Vous le retrouverez dans « Mes photographes », où vous pouvez aussi le retirer de votre liste.`,
+      cta: { label: 'Ouvrir mon espace', url },
+    }),
+    text: `Bonjour ${firstName(name)},
+
+${studio} vous a ajouté à ses clients et pourra vous publier des galeries. Vous gardez le même compte et le même mot de passe.
+
+${url}`,
+  };
+}
+
 export function selectionEmail({ clientName, eventName, numbers, note, requests = [] }) {
   const list = numbers.join(', ');
   return {

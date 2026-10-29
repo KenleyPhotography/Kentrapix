@@ -53,14 +53,16 @@ router.get('/bootstrap', async (req, res) => {
  */
 async function photographersOf(clientId) {
   return query(
-    `SELECT s.* FROM (
+    `SELECT s.*, (SELECT COUNT(*) FROM events e2
+       WHERE e2.created_by = s.id AND e2.published = 1 AND e2.archived = 0 AND ${CLIENT_HAS('e2')}) AS galleries
+     FROM (
        SELECT staff_id AS sid, created_at AS since FROM client_photographers WHERE client_id = ?
        UNION ALL SELECT created_by, created_at FROM users WHERE id = ? AND created_by IS NOT NULL
        UNION ALL SELECT e.created_by, e.created_at FROM events e WHERE ${CLIENT_HAS()} AND e.published = 1 AND e.archived = 0 AND e.created_by IS NOT NULL
      ) x JOIN users s ON s.id = x.sid
      WHERE s.role IN ('owner', 'admin') AND s.active = 1
      GROUP BY s.id ORDER BY MIN(x.since)`,
-    [clientId, clientId, clientId],
+    [clientId, clientId, clientId, clientId],
   );
 }
 
@@ -182,11 +184,41 @@ router.post('/photographers', codeLimiter, async (req, res) => {
     audit(req, 'client.photographer_code_failed');
     throw httpError(400, 'Code incorrect. Vérifiez-le auprès de votre photographe.');
   }
+  if (staff.id === req.user.id) throw httpError(400, 'C’est votre propre code.');
   const added = await query('INSERT INTO client_photographers (client_id, staff_id) VALUES (?, ?) ON CONFLICT DO NOTHING', [req.user.id, staff.id]);
   if (!added.affectedRows) throw httpError(409, 'Ce photographe est déjà dans votre liste.');
   audit(req, 'client.photographer_add', { details: { photographer: staff.id } });
+  // Le photographe le voit tout de suite dans « Mes clients » : on le prévient (cloche + téléphone).
+  pushLater(staff.id, { title: 'Nouveau client', body: `${req.user.name} vous a ajouté comme photographe.`, url: '/admin', tag: `client-${req.user.id}` });
   const rows = await photographersOf(req.user.id);
   res.status(201).json({ photographers: rows.map(mapPhotographer), added: staff.name });
+});
+
+// Retirer un photographe de sa liste : il ne verra plus ce compte dans « Mes clients ».
+// Tant qu'il a des galeries publiées pour ce client, le lien reste (sinon les photos deviendraient inaccessibles).
+router.delete('/photographers/:id', async (req, res) => {
+  const staffId = uuid.parse(req.params.id);
+  const [staff] = await query("SELECT id, name FROM users WHERE id = ? AND role IN ('owner', 'admin')", [staffId]);
+  if (!staff) throw httpError(404, 'Photographe introuvable.');
+  const [{ n }] = await query(
+    `SELECT COUNT(*) AS n FROM events e WHERE e.created_by = ? AND e.published = 1 AND e.archived = 0 AND ${CLIENT_HAS()}`,
+    [staffId, req.user.id],
+  );
+  if (Number(n)) {
+    throw httpError(400, `${staff.name} vous a publié ${Number(n) > 1 ? `${n} galeries` : 'une galerie'} : demandez-lui de les retirer avant de le supprimer de votre liste.`);
+  }
+  const removed = await query('DELETE FROM client_photographers WHERE client_id = ? AND staff_id = ?', [req.user.id, staffId]);
+  // Photographe qui avait créé ce compte : la place de « photographe principal » passe au suivant (ou à personne).
+  const [{ created_by: creator }] = await query('SELECT created_by FROM users WHERE id = ?', [req.user.id]);
+  if (creator === staffId) {
+    const [next] = await query('SELECT staff_id FROM client_photographers WHERE client_id = ? ORDER BY created_at LIMIT 1', [req.user.id]);
+    await query('UPDATE users SET created_by = ? WHERE id = ?', [next?.staff_id ?? null, req.user.id]);
+  } else if (!removed.affectedRows) {
+    throw httpError(404, 'Ce photographe n’est pas dans votre liste.');
+  }
+  audit(req, 'client.photographer_remove', { details: { photographer: staffId } });
+  const rows = await photographersOf(req.user.id);
+  res.json({ photographers: rows.map(mapPhotographer), removed: staff.name });
 });
 
 // ---------- Commentaires ----------

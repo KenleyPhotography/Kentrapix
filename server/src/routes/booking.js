@@ -8,7 +8,7 @@ import { uuid } from '../lib/data.js';
 import { audit } from '../lib/audit.js';
 import { pushLater } from '../lib/push.js';
 import { sendMail } from '../lib/mailer.js';
-import { accountScope } from '../lib/scope.js';
+import { accountScope, clientScope } from '../lib/scope.js';
 import { bookingRequestEmail, bookingStatusEmail, inquiryReplyEmail } from '../lib/emails.js';
 import {
   slotConflict, settingsOf, mapSettings, monthSlots, slotsForDay, mapBooking, BOOKING_SELECT, studioToday, addDays, minutesOf, hhmm, needsPlace,
@@ -112,6 +112,10 @@ staffBooking.patch('/requests/:id', async (req, res) => {
         [id, req.user.id, row.name, row.email.toLowerCase(), row.phone || null, await bcrypt.hash(password, 10)],
       );
       await query('INSERT INTO client_photographers (client_id, staff_id) VALUES (?, ?) ON CONFLICT DO NOTHING', [id, req.user.id]);
+    } else {
+      // Compte déjà existant (chez un autre photographe, ou c'est un photographe) : on le rattache à ses
+      // clients sans rien créer ni toucher à son mot de passe. Sinon la personne n'apparaîtrait jamais ici.
+      await query('INSERT INTO client_photographers (client_id, staff_id) VALUES (?, ?) ON CONFLICT DO NOTHING', [known.id, req.user.id]);
     }
   }
   if (row.email) fire(sendMail({
@@ -258,7 +262,8 @@ staffBooking.post('/bookings', async (req, res) => {
   let client = null;
   if (data.clientId) {
     const [as, ap] = accountScope(req);
-    [client] = await query(`SELECT u.* FROM users u WHERE u.id = ? AND u.role = 'client' AND ${as}`, [data.clientId, ...ap]);
+    const [cs, cp] = clientScope(req);
+    [client] = await query(`SELECT u.* FROM users u WHERE u.id = ? AND ${cs} AND ${as}`, [data.clientId, ...cp, ...ap]);
     if (!client) throw httpError(404, 'Client introuvable.');
   }
   const settings = await settingsOf(req.user.id);

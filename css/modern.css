@@ -2188,6 +2188,13 @@ td.actions .btn.icon-btn + .btn.icon-btn { margin-left: 6px; }
 .pc-link { display: inline-flex; align-items: center; gap: 8px; padding: 9px 14px; border-radius: 999px; background: var(--blue-soft); color: var(--blue); font-weight: 600; font-size: var(--text-sm, 14px); text-decoration: none; transition: background .15s, transform .15s, color .15s; }
 .pc-link svg { width: 16px; height: 16px; }
 .pc-link:hover { background: var(--blue); color: #fff; transform: translateY(-1px); }
+/* Pied de carte « Mes photographes » : retirer ce photographe, ou dire pourquoi c'est impossible. */
+.pc-note { display: flex; align-items: center; gap: 8px; margin: 16px 0 0; padding-top: 14px; border-top: 1px solid var(--border); color: var(--muted); }
+.pc-note svg { width: 16px; height: 16px; flex: none; }
+.pc-foot { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border); }
+.pc-foot .text-link { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: var(--text-sm, 14px); }
+.pc-foot .text-link svg { width: 15px; height: 15px; }
+.pc-foot .text-link:hover { color: var(--danger); }
 [data-theme="dark"] .photographer-card { background: rgba(14, 27, 46, 0.72); }
 [data-theme="dark"] .pc-link { background: rgba(28, 119, 238, 0.18); color: #9cc6ff; }
 .pc-add h2 { margin: 0 0 6px; font-size: 1.1rem; color: var(--ink); }

@@ -37,6 +37,7 @@ export const publicUser = (u) => ({
 
 /** Photographe tel que son client le voit : profil et coordonnées qu'il a choisi de renseigner. */
 export const mapPhotographer = (u) => ({
+  id: u.id,
   name: u.name,
   studio: u.sender_name || '',
   avatar: avatarUrl(u),
@@ -47,6 +48,8 @@ export const mapPhotographer = (u) => ({
   instagram: u.instagram || '',
   address: u.address || '',
   bio: u.bio || '',
+  // Galeries publiées par ce photographe pour ce client : tant qu'il y en a, le client ne peut pas le retirer.
+  galleries: Number(u.galleries || 0),
 });
 
 export const mapClient = (u) => ({

@@ -9,7 +9,7 @@ import { pushLater } from '../lib/push.js';
 import { sendMail } from '../lib/mailer.js';
 import { sendPrivate } from '../lib/storage.js';
 import { invoiceEmail, paymentReminderEmail } from '../lib/emails.js';
-import { accountScope, eventScope } from '../lib/scope.js';
+import { accountScope, clientScope, eventScope } from '../lib/scope.js';
 import {
   CURRENCIES, METHODS, INVOICE_SELECT, mapInvoice, nextNumber, newToken, round2, today, invoiceUrl,
 } from '../lib/billing.js';
@@ -86,7 +86,8 @@ billingRouter.post('/invoices', async (req, res) => {
   if (!data.clientId === !data.guest) throw httpError(400, 'Choisissez un client existant, ou entrez un nouveau client.');
   if (data.clientId) {
     const [as, ap] = accountScope(req);
-    const [client] = await query(`SELECT u.id FROM users u WHERE u.id = ? AND u.role = 'client' AND ${as}`, [data.clientId, ...ap]);
+    const [cs, cp] = clientScope(req);
+    const [client] = await query(`SELECT u.id FROM users u WHERE u.id = ? AND ${cs} AND ${as}`, [data.clientId, ...cp, ...ap]);
     if (!client) throw httpError(404, 'Client introuvable.');
   } else if (data.eventId) {
     throw httpError(400, 'Une galerie ne peut être liée qu’à un client inscrit.');
@@ -235,7 +236,8 @@ billingRouter.post('/reminders', async (req, res) => {
   }).parse(req.body);
   if (data.clientId) {
     const [as, ap] = accountScope(req);
-    const [c] = await query(`SELECT u.id FROM users u WHERE u.id = ? AND u.role = 'client' AND ${as}`, [data.clientId, ...ap]);
+    const [cs, cp] = clientScope(req);
+    const [c] = await query(`SELECT u.id FROM users u WHERE u.id = ? AND ${cs} AND ${as}`, [data.clientId, ...cp, ...ap]);
     if (!c) throw httpError(404, 'Client introuvable.');
   }
   if (data.invoiceId) {

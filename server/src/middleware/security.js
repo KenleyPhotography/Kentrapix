@@ -43,8 +43,8 @@ export function corsGate(req, res, next) {
   }
   if (!PRIVATE.test(req.path)) return next();
   // Sans en-tête CORS, un autre site ne peut pas lire la réponse — mais une requête « simple »
-  // (formulaire, image) partirait quand même : on la refuse. Le cookie de session est déjà en
-  // SameSite=strict ; c'est la deuxième serrure contre les requêtes montées depuis un autre site.
+  // (formulaire, image) partirait quand même : on la refuse. C'est la serrure principale contre les
+  // requêtes montées depuis un autre site ; le cookie de session (SameSite=lax) en est la seconde.
   if (req.method === 'OPTIONS') return res.status(403).end();
   if (origin || req.get('sec-fetch-site') === 'cross-site') throw httpError(403, 'Requête refusée : elle ne vient pas de ce site.');
   next();
