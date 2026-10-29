@@ -237,17 +237,18 @@ export async function bindAdminContracts({ toast, modal, clients }) {
         <label>Observations <span class="optional">(facultatif)</span><input id="ctr-notes" maxlength="300"></label>
       </div>`}
       ${contract ? '' : `<label>Modèle de contrat<select id="ctr-tpl"><option value="">Modèle KentraPix (séance photo)</option><option value="${WEDDING_ID}">Modèle mariage KentraPix</option>${d.templates.map((t) => `<option value="${t.id}">${escape(t.name)}</option>`).join('')}</select></label>`}
+      <label>Objet <span class="optional">(la ligne en tête du contrat)</span><input name="subject" id="ctr-subject" maxlength="120" value="${escape(contract?.subject || '')}" placeholder="Contrat de prestation photographique"></label>
       <label>Titre<input name="title" id="ctr-title" required maxlength="200" value="${escape(contract?.title || '')}" placeholder="Ex. Contrat — Séance photo mariage"></label>
       <label>Texte du contrat <span class="optional">(relisez et adaptez)</span><textarea name="body" id="ctr-body" rows="14" required maxlength="20000" style="font:14px/1.5 Inter,sans-serif">${escape(contract?.body || '')}</textarea></label>
       ${contract ? '' : `<div class="actions" style="justify-content:flex-start"><button type="button" class="btn sm" id="ctr-tpl-save">Enregistrer comme modèle</button><button type="button" class="btn sm danger" id="ctr-tpl-del" hidden>Supprimer ce modèle</button></div>`}`,
     async (v) => {
       if (contract) {
-        await api(`/api/admin/contracts/${contract.id}`, { method: 'PATCH', body: { title: v.title, body: v.body } });
+        await api(`/api/admin/contracts/${contract.id}`, { method: 'PATCH', body: { subject: v.subject, title: v.title, body: v.body } });
         toast('Contrat modifié.');
       } else {
         const who = v.clientId ? { clientId: v.clientId, bookingId: booking?.clientId === v.clientId ? bookingId : '' } : { guest: { name: (v.gname || '').trim(), phone: (v.gphone || '').trim(), email: (v.gemail || '').trim() } };
         if (!v.clientId && (v.gname || '').trim().length < 2) throw Error('Entrez le nom de la personne.');
-        await api('/api/admin/contracts', { method: 'POST', body: { ...who, title: v.title, body: v.body } });
+        await api('/api/admin/contracts', { method: 'POST', body: { ...who, subject: v.subject, title: v.title, body: v.body } });
         toast('Contrat créé : ouvrez-le pour le signer, puis envoyez-le au client.');
       }
       await reload();

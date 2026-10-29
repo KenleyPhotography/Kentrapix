@@ -221,12 +221,13 @@ export async function bindAdminWebContracts({ toast, modal }) {
         <label>Observations <span class="optional">(facultatif)</span><input name="notes" id="web-notes" maxlength="300" value="${escape(f.notes || '')}"></label>
       </fieldset>
       <label>Modèle de contrat<select id="web-tpl"><option value="">Modèle KentraPix (création de site internet)</option>${d.templates.map((t) => `<option value="${t.id}">${escape(t.name)}</option>`).join('')}</select></label>
+      <label>Objet <span class="optional">(la ligne en tête du contrat)</span><input name="subject" id="web-subject" maxlength="120" value="${escape(contract?.subject || '')}" placeholder="Contrat de création de site internet"></label>
       <label>Titre<input name="title" id="web-title" required maxlength="200" value="${escape(contract?.title || '')}" ${contract ? 'data-edited="1"' : ''} placeholder="Ex. Contrat — Site internet Boutique Soleil"></label>
       <label>Texte du contrat <span class="optional">(relisez et adaptez)</span><textarea name="body" id="web-body" rows="14" required maxlength="20000" style="font:14px/1.5 Inter,sans-serif">${escape(contract?.body || '')}</textarea></label>
       <div class="actions" style="justify-content:flex-start"><button type="button" class="btn sm" id="web-tpl-save">Enregistrer comme modèle</button><button type="button" class="btn sm danger" id="web-tpl-del" hidden>Supprimer ce modèle</button></div>`,
     async (v) => {
       const payload = {
-        title: v.title, body: v.body, sheet: sheet(),
+        subject: v.subject, title: v.title, body: v.body, sheet: sheet(),
         client: { name: v.name.trim(), phone: (v.phone || '').trim(), email: (v.email || '').trim() },
       };
       if (contract) {

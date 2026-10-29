@@ -59,6 +59,9 @@ staffContracts.get('/', async (req, res) => {
   });
 });
 
+// Objet : la ligne en tête du contrat, écrite par le photographe. Vide = texte par défaut du type.
+const subjectRule = z.string().trim().max(120, 'Objet trop long (120 caractères max).');
+
 const createSchema = z.object({
   clientId: uuid.optional(),
   // Personne sans compte : nom + téléphone suffisent (e-mail facultatif) ; elle signe depuis le lien, sans se connecter.
@@ -68,6 +71,7 @@ const createSchema = z.object({
     email: z.union([z.literal(''), z.string().trim().toLowerCase().email('E-mail invalide.').max(190)]).optional().default(''),
   }).optional(),
   bookingId: z.union([uuid, z.literal('')]).optional().transform((v) => v || null),
+  subject: subjectRule.optional().default(''),
   title: z.string().trim().min(1, 'Le titre du contrat est obligatoire.').max(200),
   body: z.string().trim().min(30, 'Le contrat est trop court.').max(20000, 'Le contrat est trop long (20 000 caractères max).'),
 });
@@ -89,10 +93,10 @@ staffContracts.post('/', async (req, res) => {
   const signature = await mySignature(req.user.id);
   const id = crypto.randomUUID();
   await query(
-    `INSERT INTO contracts (id, staff_id, client_id, guest_name, guest_phone, guest_email, booking_id, title, body, public_token, staff_signature, staff_signed_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ${signature ? 'CURRENT_TIMESTAMP' : 'NULL'})`,
+    `INSERT INTO contracts (id, staff_id, client_id, guest_name, guest_phone, guest_email, booking_id, subject, title, body, public_token, staff_signature, staff_signed_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ${signature ? 'CURRENT_TIMESTAMP' : 'NULL'})`,
     [id, req.user.id, data.clientId || null, data.clientId ? null : data.guest.name, data.clientId ? null : data.guest.phone || null, data.clientId ? null : data.guest.email || null,
-      data.clientId ? data.bookingId : null, data.title, data.body, newContractToken(), signature],
+      data.clientId ? data.bookingId : null, data.subject || null, data.title, data.body, newContractToken(), signature],
   );
   audit(req, 'contract.create', { entity: 'contract', entityId: id, details: { client: data.clientId || 'hors système' } });
   res.status(201).json({ contract: mapContract(await loadContract(req, id)) });
@@ -161,6 +165,7 @@ function mountCommon(r, kind) {
     const row = await loadContract(req, req.params.id, kind);
     if (row.status === 'signed') throw httpError(400, 'Ce contrat est déjà signé : il ne peut plus être modifié.');
     const data = z.object({
+      subject: subjectRule.optional(),
       title: createSchema.shape.title.optional(),
       body: createSchema.shape.body.optional(),
       sheet: sheetSchema.optional(),
@@ -169,8 +174,9 @@ function mountCommon(r, kind) {
     }).parse(req.body);
     const web = kind === 'web';
     await query(
-      `UPDATE contracts SET title = ?, body = ?, status = ?${web ? ', web_sheet = ?, guest_name = ?, guest_phone = ?, guest_email = ?' : ''} WHERE id = ?`,
-      [data.title ?? row.title, data.body ?? row.body, data.cancelled === undefined ? row.status : data.cancelled ? 'cancelled' : 'pending',
+      `UPDATE contracts SET subject = ?, title = ?, body = ?, status = ?${web ? ', web_sheet = ?, guest_name = ?, guest_phone = ?, guest_email = ?' : ''} WHERE id = ?`,
+      [data.subject === undefined ? row.subject : data.subject || null, data.title ?? row.title, data.body ?? row.body,
+        data.cancelled === undefined ? row.status : data.cancelled ? 'cancelled' : 'pending',
         ...(web ? [
           data.sheet ? JSON.stringify(data.sheet) : row.web_sheet,
           data.client?.name ?? row.guest_name, data.client?.phone || (data.client ? null : row.guest_phone), data.client?.email || (data.client ? null : row.guest_email),
@@ -224,6 +230,7 @@ staffWebContracts.get('/', async (req, res) => {
 
 const webCreateSchema = z.object({
   client: webClientSchema,
+  subject: createSchema.shape.subject,
   title: createSchema.shape.title,
   body: createSchema.shape.body,
   sheet: sheetSchema.optional(),
@@ -235,9 +242,9 @@ staffWebContracts.post('/', async (req, res) => {
   const signature = await mySignature(req.user.id);
   const id = crypto.randomUUID();
   await query(
-    `INSERT INTO contracts (id, staff_id, client_id, kind, guest_name, guest_phone, guest_email, title, body, web_sheet, public_token, staff_signature, staff_signed_at)
-     VALUES (?, ?, NULL, 'web', ?, ?, ?, ?, ?, ?, ?, ?, ${signature ? 'CURRENT_TIMESTAMP' : 'NULL'})`,
-    [id, req.user.id, data.client.name, data.client.phone || null, data.client.email || null, data.title, data.body,
+    `INSERT INTO contracts (id, staff_id, client_id, kind, guest_name, guest_phone, guest_email, subject, title, body, web_sheet, public_token, staff_signature, staff_signed_at)
+     VALUES (?, ?, NULL, 'web', ?, ?, ?, ?, ?, ?, ?, ?, ?, ${signature ? 'CURRENT_TIMESTAMP' : 'NULL'})`,
+    [id, req.user.id, data.client.name, data.client.phone || null, data.client.email || null, data.subject || null, data.title, data.body,
       data.sheet ? JSON.stringify(data.sheet) : null, newContractToken(), signature],
   );
   audit(req, 'contract.create', { entity: 'contract', entityId: id, details: { kind: 'web', client: data.client.name } });
@@ -270,14 +277,14 @@ contractApi.get('/:token', async (req, res) => {
   const [studio] = await query('SELECT name, sender_name, email, phone, whatsapp, website, address, instagram, avatar_key, job_title FROM users WHERE id = ?', [row.staff_id]);
   const c = mapContract(row);
   res.set('Cache-Control', 'no-store').json({
-    title: row.title, body: row.body, status: row.status, kind: row.kind || 'photo', clientName: row.client_name, guest: !row.client_id,
+    subject: row.subject || '', title: row.title, body: row.body, status: row.status, kind: row.kind || 'photo', clientName: row.client_name, guest: !row.client_id,
     canSign: isClient(req, row) && !!row.staff_signature && row.status === 'pending', waitingStaff: isClient(req, row) && !row.staff_signature,
     canStaffSign: req.user?.id === row.staff_id && row.status === 'pending', savedSignature: req.user?.id === row.staff_id && row.status === 'pending' ? await mySignature(req.user.id) : null,
     choices: parseChoices(row.client_choices),
     createdAt: c.createdAt, signedAt: c.signedAt, signedName: c.signedName,
     signature: row.status === 'signed' ? row.signature : null,
     staffSignature: row.staff_signature || null, staffSignedAt: mapContract({ ...row, signed_at: row.staff_signed_at }).signedAt,
-    hash: row.status === 'signed' ? row.body_hash : null,
+    // L'empreinte SHA-256 (body_hash) n'est pas renvoyée : elle reste en base comme preuve du texte signé.
     studio: {
       name: studio?.sender_name || studio?.name || 'KentraPix', person: studio?.name || '', email: studio?.email || '', phone: studio?.phone || '',
       whatsapp: studio?.whatsapp || studio?.phone || '', website: studio?.website || '', address: studio?.address || '', instagram: studio?.instagram || '',

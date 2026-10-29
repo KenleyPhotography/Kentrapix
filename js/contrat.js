@@ -137,7 +137,7 @@
       '</header>' +
       '<div class="body">' +
         (signed ? '<div class="stamp signed">Signé</div>' : '') +
-        '<div class="doc-title"><span>' + (web ? 'Contrat de création de site internet' : 'Contrat de prestation photographique') + '</span><h2>' + esc(c.title) + '</h2><p>Rédigé le ' + esc(date(c.createdAt)) + ' · pour <strong>' + esc(c.clientName) + '</strong></p></div>' +
+        '<div class="doc-title"><span>' + esc(c.subject || (web ? 'Contrat de création de site internet' : 'Contrat de prestation photographique')) + '</span><h2>' + esc(c.title) + '</h2><p>Rédigé le ' + esc(date(c.createdAt)) + ' · pour <strong>' + esc(c.clientName) + '</strong></p></div>' +
         (c.canSign ? '<div class="hint-box"><strong>Avant de signer</strong><span>Touchez une <b>case</b> pour la cocher ou la décocher. Touchez une <b>ligne</b> que vous n’acceptez pas : elle sera soulignée en rouge et le ' + role + ' le verra.</span></div>' : '') +
         '<div class="contract-text" id="ctext">' + rich(c.body, st) + '</div>' + reservesBox(c, st) +
         '<h3 class="sig-head">Signatures</h3><p class="sig-fait">Fait le <strong>' + esc(date(c.createdAt)) + '</strong></p>' +
@@ -146,7 +146,8 @@
           '<section class="sig"><h3>Le client</h3>' + clientSign + '</section>' +
         '</div>' +
         (signed
-          ? '<p class="hash">✓ Contrat signé électroniquement par les deux parties.<br>Empreinte SHA-256 : ' + esc(c.hash) + '</p>'
+          // L'empreinte SHA-256 du contrat signé reste en base (colonne body_hash) : elle n'est pas affichée ici.
+          ? '<p class="hash">✓ Contrat signé électroniquement par les deux parties.</p>'
           : !c.canSign ? ''
           : '<div class="signbox"><label class="agree"><input type="checkbox" id="sg-agree"><span>J’ai lu le contrat ci-dessus et je l’accepte. Je reconnais que ma signature électronique a la même valeur qu’une signature sur papier.</span></label>' +
             '<button class="sign-btn" type="button" id="sg-go">Signer le contrat</button><p class="sign-error" id="sg-err" role="alert" hidden></p></div>') +

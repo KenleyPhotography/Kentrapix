@@ -28,6 +28,8 @@ const iso = (v) => (v ? `${String(v).replace(' ', 'T').replace(/Z$/, '')}Z` : nu
 
 export const mapContract = (c) => ({
   id: c.id,
+  // Ligne en tête de la fiche, au-dessus du titre ; vide = texte par défaut du type (voir js/contrat.js).
+  subject: c.subject || '',
   title: c.title,
   body: c.body,
   status: c.status,
