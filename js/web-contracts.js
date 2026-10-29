@@ -221,9 +221,10 @@ export async function bindAdminWebContracts({ toast, modal }) {
         <label>Observations <span class="optional">(facultatif)</span><input name="notes" id="web-notes" maxlength="300" value="${escape(f.notes || '')}"></label>
       </fieldset>
       <label>Modèle de contrat<select id="web-tpl"><option value="">Modèle KentraPix (création de site internet)</option>${d.templates.map((t) => `<option value="${t.id}">${escape(t.name)}</option>`).join('')}</select></label>
-      <label>Objet <span class="optional">(la ligne en tête du contrat)</span><input name="subject" id="web-subject" maxlength="120" value="${escape(contract?.subject || '')}" placeholder="Contrat de création de site internet"></label>
+      <label>Objet <span class="optional">(la ligne en tête du contrat)</span><input name="subject" id="web-subject" maxlength="120" value="${escape(contract?.subject || '')}" placeholder="Ex. Contrat de création de site internet"></label>
       <label>Titre<input name="title" id="web-title" required maxlength="200" value="${escape(contract?.title || '')}" ${contract ? 'data-edited="1"' : ''} placeholder="Ex. Contrat — Site internet Boutique Soleil"></label>
       <label>Texte du contrat <span class="optional">(relisez et adaptez)</span><textarea name="body" id="web-body" rows="14" required maxlength="20000" style="font:14px/1.5 Inter,sans-serif">${escape(contract?.body || '')}</textarea></label>
+      <p class="field-hint" id="web-kept" hidden>Votre texte est gardé tel quel : les champs ci-dessus ne le modifient plus. Pour repartir du modèle, rechoisissez-le dans la liste.</p>
       <div class="actions" style="justify-content:flex-start"><button type="button" class="btn sm" id="web-tpl-save">Enregistrer comme modèle</button><button type="button" class="btn sm danger" id="web-tpl-del" hidden>Supprimer ce modèle</button></div>`,
     async (v) => {
       const payload = {
@@ -279,14 +280,20 @@ export async function bindAdminWebContracts({ toast, modal }) {
     };
 
     const saved = () => d.templates.find((t) => t.id === el('#web-tpl').value);
-    const refill = () => {
+    // Le texte écrit par le photographe n'est JAMAIS remplacé par les champs de la fiche : dès qu'il y touche,
+    // la fiche cesse de le réécrire (un mot dit pourquoi). Seul un choix dans la liste des modèles le refait,
+    // et encore faut-il le confirmer : ce qu'il a écrit est ce que le client reçoit.
+    const refill = (picked) => {
+      const kept = el('#web-kept');
+      if (touched && !picked) { if (kept) kept.hidden = false; return; }
+      if (touched && !confirm('Reprendre le modèle ? Le texte que vous avez écrit sera remplacé.')) return;
       if (!el('#web-title').dataset.edited) el('#web-title').value = `Contrat — Site internet — ${val('#web-company') || val('#web-name') || 'nouveau client'}`;
-      if (touched && !confirm('Remplacer le texte que vous avez modifié par le modèle mis à jour ?')) return;
       el('#web-body').value = fillTemplate(saved()?.body || DEFAULT_TEMPLATE, vars());
       touched = false;
+      if (kept) kept.hidden = true;
     };
     const syncDel = () => { el('#web-tpl-del').hidden = !saved(); };
-    el('#web-tpl').addEventListener('change', () => { syncDel(); refill(); });
+    el('#web-tpl').addEventListener('change', () => { syncDel(); refill(true); });
     el('#web-tpl-save').onclick = guard(async () => {
       const cur = saved();
       const name = prompt(cur ? 'Nom du modèle (gardez-le pour mettre à jour ce modèle) :' : 'Nom du nouveau modèle (ex. Site vitrine, Boutique en ligne) :', cur?.name || '');
@@ -304,13 +311,13 @@ export async function bindAdminWebContracts({ toast, modal }) {
       if (!cur || !confirm(`Supprimer le modèle « ${cur.name} » ?`)) return;
       await api(`${API}/templates/${cur.id}`, { method: 'DELETE' });
       d.templates = d.templates.filter((t) => t.id !== cur.id);
-      el('#web-tpl').querySelector(`option[value="${cur.id}"]`)?.remove(); el('#web-tpl').value = ''; syncDel(); refill();
+      el('#web-tpl').querySelector(`option[value="${cur.id}"]`)?.remove(); el('#web-tpl').value = ''; syncDel(); refill(true);
     });
 
-    host.querySelectorAll('.web-feat').forEach((c) => c.addEventListener('change', refill));
+    host.querySelectorAll('.web-feat').forEach((c) => c.addEventListener('change', () => refill()));
     ['#web-name', '#web-company', '#web-phone', '#web-email', '#web-type', '#web-domain', '#web-pages', '#web-languages', '#web-price', '#web-deposit',
       '#web-hosting', '#web-maintenance', '#web-plan', '#web-delay', '#web-launch', '#web-revisions', '#web-warranty', '#web-content', '#web-training', '#web-notes']
-      .forEach((id) => el(id).addEventListener('change', refill));
+      .forEach((id) => el(id).addEventListener('change', () => refill()));
     if (!contract) refill();
   }
 

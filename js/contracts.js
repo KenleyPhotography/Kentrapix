@@ -237,9 +237,10 @@ export async function bindAdminContracts({ toast, modal, clients }) {
         <label>Observations <span class="optional">(facultatif)</span><input id="ctr-notes" maxlength="300"></label>
       </div>`}
       ${contract ? '' : `<label>Modèle de contrat<select id="ctr-tpl"><option value="">Modèle KentraPix (séance photo)</option><option value="${WEDDING_ID}">Modèle mariage KentraPix</option>${d.templates.map((t) => `<option value="${t.id}">${escape(t.name)}</option>`).join('')}</select></label>`}
-      <label>Objet <span class="optional">(la ligne en tête du contrat)</span><input name="subject" id="ctr-subject" maxlength="120" value="${escape(contract?.subject || '')}" placeholder="Contrat de prestation photographique"></label>
+      <label>Objet <span class="optional">(la ligne en tête du contrat)</span><input name="subject" id="ctr-subject" maxlength="120" value="${escape(contract?.subject || '')}" placeholder="Ex. Contrat de prestation photographique"></label>
       <label>Titre<input name="title" id="ctr-title" required maxlength="200" value="${escape(contract?.title || '')}" placeholder="Ex. Contrat — Séance photo mariage"></label>
       <label>Texte du contrat <span class="optional">(relisez et adaptez)</span><textarea name="body" id="ctr-body" rows="14" required maxlength="20000" style="font:14px/1.5 Inter,sans-serif">${escape(contract?.body || '')}</textarea></label>
+      ${contract ? '' : `<p class="field-hint" id="ctr-kept" hidden>Votre texte est gardé tel quel : les champs ci-dessus ne le modifient plus. Pour repartir du modèle, rechoisissez-le dans la liste.</p>`}
       ${contract ? '' : `<div class="actions" style="justify-content:flex-start"><button type="button" class="btn sm" id="ctr-tpl-save">Enregistrer comme modèle</button><button type="button" class="btn sm danger" id="ctr-tpl-del" hidden>Supprimer ce modèle</button></div>`}`,
     async (v) => {
       if (contract) {
@@ -259,11 +260,17 @@ export async function bindAdminContracts({ toast, modal, clients }) {
     const el = (id) => host.querySelector(id);
     let touched = false;
     el('#ctr-body').addEventListener('input', () => { touched = true; });
-    const refill = () => {
+    // Le texte écrit par le photographe n'est JAMAIS remplacé par les champs de la fiche : dès qu'il y touche,
+    // la fiche cesse de le réécrire (un mot dit pourquoi). Seul un choix dans la liste des modèles le refait,
+    // et encore faut-il le confirmer : ce qu'il a écrit est ce que le client reçoit.
+    const refill = (picked) => {
+      const kept = el('#ctr-kept');
+      if (touched && !picked) { if (kept) kept.hidden = false; return; }
+      if (touched && !confirm('Reprendre le modèle ? Le texte que vous avez écrit sera remplacé.')) return;
       if (!el('#ctr-title').dataset.edited) el('#ctr-title').value = `Contrat — ${el('#ctr-session').value || 'Séance photo'} — ${vars().client}`;
-      if (touched && !confirm('Remplacer le texte que vous avez modifié par le modèle mis à jour ?')) return;
       el('#ctr-body').value = fillTemplate(currentTemplate(), vars());
       touched = false;
+      if (kept) kept.hidden = true;
     };
     // Mariage : 70 % d'acompte et 30 % de solde, calculés à partir du prix (« 500 USD »).
     const money = (s) => { const m = String(s).replace(/\s/g, '').match(/^(\d+(?:[.,]\d+)?)(.*)$/); return m ? { n: Number(m[1].replace(',', '.')), cur: m[2].trim() } : null; };
@@ -300,7 +307,7 @@ export async function bindAdminContracts({ toast, modal, clients }) {
       syncWedding();
     };
     const syncDel = () => { el('#ctr-tpl-del').hidden = !saved(); };
-    el('#ctr-tpl').addEventListener('change', () => { tplPicked = true; syncDel(); syncWedding(); refill(); });
+    el('#ctr-tpl').addEventListener('change', () => { tplPicked = true; syncDel(); syncWedding(); refill(true); });
     el('#ctr-tpl-save').onclick = guard(async () => {
       const cur = saved();
       const name = prompt(cur ? 'Nom du modèle (gardez-le pour mettre à jour ce modèle) :' : 'Nom du nouveau modèle (ex. Mariage, Portrait, Bébé) :', cur?.name || '');
@@ -318,14 +325,14 @@ export async function bindAdminContracts({ toast, modal, clients }) {
       if (!cur || !confirm(`Supprimer le modèle « ${cur.name} » ?`)) return;
       await api(`/api/admin/contracts/templates/${cur.id}`, { method: 'DELETE' });
       d.templates = d.templates.filter((t) => t.id !== cur.id);
-      el('#ctr-tpl').querySelector(`option[value="${cur.id}"]`)?.remove(); el('#ctr-tpl').value = ''; syncDel(); refill();
+      el('#ctr-tpl').querySelector(`option[value="${cur.id}"]`)?.remove(); el('#ctr-tpl').value = ''; syncDel(); refill(true);
     });
     el('#ctr-title').addEventListener('input', () => { el('#ctr-title').dataset.edited = '1'; });
     el('#ctr-deposit').addEventListener('input', () => { el('#ctr-deposit').dataset.edited = '1'; });
     const syncGuest = () => { el('#ctr-guest').hidden = !!el('#ctr-client').value; };
     el('#ctr-client').addEventListener('change', syncGuest); syncGuest();
     ['#ctr-gname', '#ctr-gphone', '#ctr-gemail', '#ctr-client', '#ctr-session', '#ctr-date', '#ctr-place', '#ctr-price', '#ctr-deposit', '#ctr-ceremony', '#ctr-reception', '#ctr-start', '#ctr-end', '#ctr-delivery', '#ctr-prod-other', '#ctr-printcount', '#ctr-printformat', '#ctr-rights', '#ctr-notes'].forEach((id) => el(id).addEventListener('change', () => { if (id === '#ctr-session') autoTemplate(); refill(); }));
-    host.querySelectorAll('.ctr-prod').forEach((c) => c.addEventListener('change', refill));
+    host.querySelectorAll('.ctr-prod').forEach((c) => c.addEventListener('change', () => refill()));
     autoTemplate();
     refill();
   }

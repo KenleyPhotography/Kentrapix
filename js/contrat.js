@@ -8,14 +8,12 @@
   var stamp = function (iso) { return iso ? new Date(iso).toLocaleString('fr-FR', { dateStyle: 'long', timeStyle: 'short' }) : '—'; };
   var date = function (iso) { return iso ? new Date(iso).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }) : ''; };
   var initials = function (n) { return String(n || '').split(/\s+/).filter(Boolean).map(function (w) { return w[0]; }).join('').slice(0, 2).toUpperCase(); };
-  // Un contrat de site internet parle du « prestataire », pas du « photographe ».
-  var roleOf = function (c) { return c.kind === 'web' ? 'prestataire' : 'photographe'; };
-  // Titre au-dessus de la signature : le métier réglé dans le profil s'il y en a un
-  // (« Le photographe » sinon). Les contrats de site gardent « Le prestataire ».
-  var signRoleOf = function (c) {
-    var job = c.studio && c.studio.jobTitle;
-    return c.kind === 'web' || !job ? 'Le ' + roleOf(c) : job;
-  };
+  // Métier affiché sur le contrat : celui réglé dans « Mon profil », quel que soit le type de contrat.
+  // Rien de réglé : « photographe », ou « prestataire » sur un contrat de site internet.
+  var jobOf = function (c) { return (c.studio && c.studio.jobTitle) || (c.kind === 'web' ? 'Prestataire' : 'Photographe'); };
+  var roleOf = function (c) { return jobOf(c).toLowerCase(); };
+  // Titre au-dessus de la signature : le métier tel qu'il est écrit dans le profil, sinon « Le photographe ».
+  var signRoleOf = function (c) { return (c.studio && c.studio.jobTitle) || 'Le ' + roleOf(c); };
 
   // Met le texte brut du contrat en page (aucun symbole à l'écran) :
   //  - titre en majuscules, parties (photographe / client) côte à côte, sections numérotées « 1. … » en cartes,
@@ -105,12 +103,12 @@
   load();
 
   function draw(c) {
-    var s = c.studio, signed = c.status === 'signed', web = c.kind === 'web', role = roleOf(c);
+    var s = c.studio, signed = c.status === 'signed', role = roleOf(c);
     document.title = c.title + ' — ' + s.name;
     var avatar = s.avatar ? '<img class="avatar" src="' + esc(s.avatar) + '" alt="">' : '<span class="avatar ini">' + esc(initials(s.name)) + '</span>';
     var site = s.website ? s.website.replace(/^https?:\/\//, '') : '';
     var contacts = [s.phone, s.email, s.address, site, s.instagram && '@' + s.instagram].filter(Boolean).map(esc).join(' · ');
-    var job = web ? 'Prestataire' : esc(s.jobTitle || 'Photographe'); // échappé : il vient du profil, et person est inséré tel quel
+    var job = esc(jobOf(c)); // échappé : il vient du profil, et person est inséré tel quel
     var person = s.person && s.person !== s.name ? esc(s.person) + ' · ' + job : job;
 
     var clientSign = signed
@@ -137,7 +135,7 @@
       '</header>' +
       '<div class="body">' +
         (signed ? '<div class="stamp signed">Signé</div>' : '') +
-        '<div class="doc-title"><span>' + esc(c.subject || (web ? 'Contrat de création de site internet' : 'Contrat de prestation photographique')) + '</span><h2>' + esc(c.title) + '</h2><p>Rédigé le ' + esc(date(c.createdAt)) + ' · pour <strong>' + esc(c.clientName) + '</strong></p></div>' +
+        '<div class="doc-title"><span>' + esc(c.subject || 'Contrat') + '</span><h2>' + esc(c.title) + '</h2><p>Rédigé le ' + esc(date(c.createdAt)) + ' · pour <strong>' + esc(c.clientName) + '</strong></p></div>' +
         (c.canSign ? '<div class="hint-box"><strong>Avant de signer</strong><span>Touchez une <b>case</b> pour la cocher ou la décocher. Touchez une <b>ligne</b> que vous n’acceptez pas : elle sera soulignée en rouge et le ' + role + ' le verra.</span></div>' : '') +
         '<div class="contract-text" id="ctext">' + rich(c.body, st) + '</div>' + reservesBox(c, st) +
         '<h3 class="sig-head">Signatures</h3><p class="sig-fait">Fait le <strong>' + esc(date(c.createdAt)) + '</strong></p>' +
