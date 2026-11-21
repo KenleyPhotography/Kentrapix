@@ -3,6 +3,7 @@
 // Quand Render répond, la page redirige toute seule vers le site.
 
 const ORIGIN_TIMEOUT_MS = 8000;
+const ORIGIN_HOSTNAME = "kentrapix.onrender.com";
 
 const WELCOME = `<!doctype html>
 <html lang="fr"><head>
@@ -131,7 +132,18 @@ export default {
   async fetch(request) {
     let res = null;
     try {
-      res = await fetch(request, { signal: AbortSignal.timeout(ORIGIN_TIMEOUT_MS) });
+      const originUrl = new URL(request.url);
+      originUrl.protocol = "https:";
+      originUrl.hostname = ORIGIN_HOSTNAME;
+      const originHeaders = new Headers(request.headers);
+      originHeaders.set("Host", ORIGIN_HOSTNAME);
+      const originRequest = new Request(originUrl, {
+        method: request.method,
+        headers: originHeaders,
+        body: request.body,
+        redirect: "manual",
+      });
+      res = await fetch(originRequest, { signal: AbortSignal.timeout(ORIGIN_TIMEOUT_MS) });
     } catch (e) { /* timeout ou erreur réseau : Render dort encore */ }
 
     if (res && !(await isWaking(request, res))) return res;
