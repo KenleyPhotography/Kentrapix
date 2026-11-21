@@ -1,18 +1,17 @@
-Page « Bienvenue » pendant le réveil de Render
-===============================================
-1. Cloudflare > Workers & Pages > Create > Worker, nom : kentrapix-bienvenue.
-2. Depuis la racine du dépôt :
-     npx wrangler@latest deploy
-   (Wrangler utilise wrangler.toml pour déployer worker.js et la route.)
-   Alternative : Edit code dans le dashboard avec tout le contenu de worker.js.
-3. Dans DNS, l'enregistrement de kentrapix doit être « Proxied » (nuage orange).
-4. Test : suspendre le service Render (Settings > Suspend) ou attendre qu'il dorme,
-   puis ouvrir le site : la page Bienvenue s'affiche, puis le site se charge tout seul.
-   (Reprendre le service ensuite.)
-Le sondage utilise /api/health (déjà défini dans render.yaml).
+Déploiement Cloudflare Worker KentraPix
+=======================================
+Le Worker « kentrapix » sert les fichiers statiques de dist/ et relaie les appels API
+vers le backend configuré dans worker.js. La configuration et le build sont dans le dépôt.
 
-Important : chaque fois que worker.js change ici, il faut le recoller dans Cloudflare
-(Edit code > tout remplacer > Deploy). Le dépôt ne met PAS le Worker à jour tout seul.
+Depuis la racine du dépôt :
+     npx wrangler@latest deploy
+   (wrangler.toml exécute npm run build, puis déploie dist/ et la route du domaine.)
+
+Dans DNS, l'enregistrement de kentrapix doit être « Proxied » (nuage orange).
+Test : attendre que le backend Render dorme,
+   puis ouvrir le site : la page Bienvenue s'affiche, puis le site se charge tout seul.
+
+Le sondage utilise /api/health.
 
 Le Worker laisse passer les réponses qui portent l'en-tête X-Maintenance : c'est le site
 lui-même qui est fermé par le studio (page « en cours de maintenance »), pas Render qui dort.

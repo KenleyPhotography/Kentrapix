@@ -1,3 +1,13 @@
 name = "kentrapix"
+main = "deploy/cloudflare/worker.js"
 compatibility_date = "2026-11-20"
-pages_build_output_dir = "./dist"
+workers_dev = false
+routes = [
+  { pattern = "kentrapix.kenleyelysee.com/*", zone_name = "kenleyelysee.com" }
+]
+
+[build]
+command = "npm run build"
+
+[assets]
+directory = "./dist"

@@ -136,7 +136,6 @@ export default {
       originUrl.protocol = "https:";
       originUrl.hostname = ORIGIN_HOSTNAME;
       const originHeaders = new Headers(request.headers);
-      originHeaders.set("Host", ORIGIN_HOSTNAME);
       const originRequest = new Request(originUrl, {
         method: request.method,
         headers: originHeaders,
