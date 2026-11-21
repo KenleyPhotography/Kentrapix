@@ -1,7 +1,3 @@
-name = "kentrapix-bienvenue"
-main = "deploy/cloudflare/worker.js"
+name = "kentrapix"
 compatibility_date = "2026-11-20"
-
-routes = [
-  { pattern = "kentrapix.kenleyelysee.com/*", zone_name = "kenleyelysee.com" }
-]
+pages_build_output_dir = "./dist"
