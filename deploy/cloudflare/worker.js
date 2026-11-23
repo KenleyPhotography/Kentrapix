@@ -132,10 +132,14 @@ export default {
   async fetch(request) {
     let res = null;
     try {
+      const requestUrl = new URL(request.url);
       const originUrl = new URL(request.url);
       originUrl.protocol = "https:";
       originUrl.hostname = ORIGIN_HOSTNAME;
       const originHeaders = new Headers(request.headers);
+      originHeaders.set("Host", ORIGIN_HOSTNAME);
+      originHeaders.set("X-Forwarded-Host", requestUrl.host);
+      originHeaders.set("X-Forwarded-Proto", requestUrl.protocol.replace(":", ""));
       const originRequest = new Request(originUrl, {
         method: request.method,
         headers: originHeaders,
