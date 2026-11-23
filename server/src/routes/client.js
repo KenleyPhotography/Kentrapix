@@ -18,7 +18,6 @@ import { selectionEmail } from '../lib/emails.js';
 import { config } from '../config.js';
 import { toIso } from '../db.js';
 import { requireRole } from '../middleware/auth.js';
-import { BCRYPT_COST } from './auth.js';
 import { clientNotifications } from '../lib/notifications.js';
 import { clientBooking } from './booking.js';
 import { pushLater } from '../lib/push.js';
@@ -503,7 +502,7 @@ router.get('/events/:id/shares', async (req, res) => {
 
 router.post('/events/:id/shares', async (req, res) => {
   const event = await shareableEvent(req, req.params.id);
-  const share = await createShare({ eventId: event.id, ownerId: req.user.id, data: shareCreateSchema.parse(req.body), bcryptCost: BCRYPT_COST });
+  const share = await createShare({ eventId: event.id, ownerId: req.user.id, data: shareCreateSchema.parse(req.body) });
   audit(req, 'share.create', { entity: 'event', entityId: event.id });
   res.status(201).json({ share });
 });
@@ -513,7 +512,7 @@ router.patch('/shares/:id', async (req, res) => {
   const data = shareUpdateSchema.parse(req.body);
   const [link] = await query('SELECT id FROM share_links WHERE id = ? AND user_id = ?', [uuid.parse(req.params.id), req.user.id]);
   if (!link) throw httpError(404, 'Lien introuvable.');
-  res.json({ share: await updateShare(link.id, data, BCRYPT_COST) });
+  res.json({ share: await updateShare(link.id, data) });
 });
 
 router.delete('/shares/:id', async (req, res) => {

@@ -1,6 +1,5 @@
 import { Router } from 'express';
 import crypto from 'node:crypto';
-import bcrypt from 'bcryptjs';
 import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import { query, utcStamp, toIso } from '../db.js';
@@ -15,6 +14,7 @@ import { forgetSession, revokeSessions } from '../lib/sessions.js';
 import { pushLater } from '../lib/push.js';
 import { issueSession, clearSession, requireAuth, requireRole, requireStaff, issueStudioUnlock, studioUnlocked } from '../middleware/auth.js';
 import { codeRule } from '../lib/accessCode.js';
+import { hashPassword, verifyPassword } from '../lib/passwords.js';
 
 export const BCRYPT_COST = 12;
 export const passwordRule = z
@@ -44,12 +44,12 @@ const loginSchema = z.object({
 });
 
 // Hash factice : la réponse prend le même temps que l'e-mail existe ou non.
-const DUMMY_HASH = bcrypt.hashSync('kentrapix-timing-guard', BCRYPT_COST);
+const DUMMY_HASH = `$2a$12$${'A'.repeat(53)}`;
 
 router.post('/login', loginLimiter, async (req, res) => {
   const { email, password, remember } = loginSchema.parse(req.body);
   const [user] = await query('SELECT * FROM users WHERE email = ?', [email]);
-  const valid = await bcrypt.compare(password, user?.password_hash || DUMMY_HASH);
+  const valid = await verifyPassword(password, user?.password_hash || DUMMY_HASH);
   if (!user || !valid) {
     audit(req, 'auth.login_failed', { userId: user?.id ?? null, details: { email } });
     throw httpError(401, 'E-mail ou mot de passe incorrect.');
@@ -94,7 +94,7 @@ router.post('/signup', signupLimiter, async (req, res) => {
   const [exists] = await query('SELECT id FROM users WHERE email = ?', [data.email]);
   if (exists) throw httpError(409, 'Un compte existe déjà avec cet e-mail. Connectez-vous ou utilisez « Mot de passe oublié ».');
   const id = crypto.randomUUID();
-  const hash = await bcrypt.hash(data.password, BCRYPT_COST);
+  const hash = await hashPassword(data.password);
   await query(
     "INSERT INTO users (id, role, name, email, phone, password_hash, last_login_at, access_granted) VALUES (?, 'client', ?, ?, ?, ?, CURRENT_TIMESTAMP, 0)",
     [id, data.name, data.email, data.phone, hash],
@@ -174,7 +174,7 @@ router.post('/studio/unlock', requireStaff, studioLimiter, async (req, res) => {
   const { password } = z.object({ password: z.string().min(1, 'Entrez le mot de passe du studio.').max(200) }).parse(req.body);
   const [row] = await query('SELECT studio_password_hash FROM users WHERE id = ?', [req.user.id]);
   if (!row.studio_password_hash) throw httpError(400, 'Créez d’abord le mot de passe de votre studio.');
-  if (!(await bcrypt.compare(password, row.studio_password_hash))) {
+  if (!(await verifyPassword(password, row.studio_password_hash))) {
     audit(req, 'studio.unlock_failed');
     throw httpError(401, 'Mot de passe du studio incorrect.');
   }
@@ -193,12 +193,12 @@ router.post('/studio/password', requireStaff, studioLimiter, async (req, res) =>
   }).parse(req.body);
   const [row] = await query('SELECT password_hash, studio_password_hash FROM users WHERE id = ?', [req.user.id]);
   if (row.studio_password_hash) {
-    if (!current || !(await bcrypt.compare(current, row.studio_password_hash))) throw httpError(400, 'Mot de passe actuel du studio incorrect.');
-  } else if (!login || !(await bcrypt.compare(login, row.password_hash))) {
+    if (!current || !(await verifyPassword(current, row.studio_password_hash))) throw httpError(400, 'Mot de passe actuel du studio incorrect.');
+  } else if (!login || !(await verifyPassword(login, row.password_hash))) {
     throw httpError(400, 'Mot de passe de connexion incorrect.');
   }
-  if (await bcrypt.compare(password, row.password_hash)) throw httpError(400, 'Choisissez un mot de passe du studio différent de votre mot de passe de connexion.');
-  await query('UPDATE users SET studio_password_hash = ? WHERE id = ?', [await bcrypt.hash(password, BCRYPT_COST), req.user.id]);
+  if (await verifyPassword(password, row.password_hash)) throw httpError(400, 'Choisissez un mot de passe du studio différent de votre mot de passe de connexion.');
+  await query('UPDATE users SET studio_password_hash = ? WHERE id = ?', [await hashPassword(password), req.user.id]);
   audit(req, row.studio_password_hash ? 'studio.password_change' : 'studio.password_create');
   issueStudioUnlock(res, req.user);
   res.json({ ok: true });
@@ -243,7 +243,7 @@ router.post('/reset', resetLimiter, async (req, res) => {
     [sha256(token)],
   );
   if (!reset) throw httpError(400, 'Ce lien n’est plus valable. Refaites une demande « Mot de passe oublié ».');
-  const hash = await bcrypt.hash(password, BCRYPT_COST);
+  const hash = await hashPassword(password);
   await query('UPDATE password_resets SET used_at = CURRENT_TIMESTAMP WHERE id = ?', [reset.id]);
   await query(
     'UPDATE users SET password_hash = ?, must_change_password = 0, token_version = token_version + 1, studio_password_hash = NULL WHERE id = ?',
@@ -282,9 +282,9 @@ router.post('/studio/reset', requireStaff, studioLimiter, async (req, res) => {
   );
   if (!reset || reset.user_id !== req.user.id) throw httpError(400, 'Ce lien n’est plus valable. Demandez-en un nouveau depuis l’écran du studio.');
   const [row] = await query('SELECT password_hash FROM users WHERE id = ?', [req.user.id]);
-  if (await bcrypt.compare(password, row.password_hash)) throw httpError(400, 'Choisissez un mot de passe du studio différent de votre mot de passe de connexion.');
+  if (await verifyPassword(password, row.password_hash)) throw httpError(400, 'Choisissez un mot de passe du studio différent de votre mot de passe de connexion.');
   await query('UPDATE password_resets SET used_at = CURRENT_TIMESTAMP WHERE id = ?', [reset.id]);
-  await query('UPDATE users SET studio_password_hash = ? WHERE id = ?', [await bcrypt.hash(password, BCRYPT_COST), req.user.id]);
+  await query('UPDATE users SET studio_password_hash = ? WHERE id = ?', [await hashPassword(password), req.user.id]);
   audit(req, 'studio.reset_done');
   issueStudioUnlock(res, req.user);
   res.json({ ok: true });
@@ -420,9 +420,9 @@ router.post('/password', requireAuth, async (req, res) => {
   const { currentPassword, newPassword } = changeSchema.parse(req.body);
   if (currentPassword === newPassword) throw httpError(400, 'Choisissez un mot de passe différent de l’actuel.');
   const [row] = await query('SELECT password_hash FROM users WHERE id = ?', [req.user.id]);
-  if (!(await bcrypt.compare(currentPassword, row.password_hash))) throw httpError(400, 'Mot de passe actuel incorrect.');
+  if (!(await verifyPassword(currentPassword, row.password_hash))) throw httpError(400, 'Mot de passe actuel incorrect.');
 
-  const hash = await bcrypt.hash(newPassword, BCRYPT_COST);
+  const hash = await hashPassword(newPassword);
   // token_version + 1 : déconnecte les autres appareils.
   await query(
     'UPDATE users SET password_hash = ?, must_change_password = 0, token_version = token_version + 1 WHERE id = ?',

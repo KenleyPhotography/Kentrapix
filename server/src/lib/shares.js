@@ -1,10 +1,10 @@
 import crypto from 'node:crypto';
-import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { query, toIso } from '../db.js';
 import { config } from '../config.js';
 import { httpError } from './errors.js';
 import { normalizeNumbers } from './unlock.js';
+import { hashPassword } from './passwords.js';
 
 // Partage famille : liens + mot de passe d'une galerie, créés par le client ou par le studio,
 // et commentaires laissés par la famille (sans compte). Partagé par routes/client.js et routes/admin.js.
@@ -50,7 +50,7 @@ export const shareUpdateSchema = z
   .refine((d) => Object.values(d).some((v) => v !== undefined), 'Rien à modifier.');
 
 /** Crée un lien pour la galerie (appartenant toujours au client : ownerId), noté « créé par le studio » si createdBy. */
-export async function createShare({ eventId, ownerId, createdBy = null, data, bcryptCost }) {
+export async function createShare({ eventId, ownerId, createdBy = null, data }) {
   const [{ n }] = await query('SELECT COUNT(*) AS n FROM share_links WHERE event_id = ? AND user_id = ?', [eventId, ownerId]);
   if (Number(n) >= MAX_LINKS) throw httpError(400, `${MAX_LINKS} liens maximum par galerie : supprimez-en un d’abord.`);
   let photoNumbers = null;
@@ -61,7 +61,7 @@ export async function createShare({ eventId, ownerId, createdBy = null, data, bc
   await query(
     `INSERT INTO share_links (id, event_id, user_id, token, password_hash, label, allow_download, allow_comments, created_by, photo_numbers)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [id, eventId, ownerId, crypto.randomBytes(9).toString('base64url'), await bcrypt.hash(data.password, bcryptCost),
+    [id, eventId, ownerId, crypto.randomBytes(9).toString('base64url'), await hashPassword(data.password),
       data.label || null, data.allowDownload ? 1 : 0, data.allowComments ? 1 : 0, createdBy, photoNumbers],
   );
   const [row] = await query(`${SHARE_SELECT} WHERE l.id = ?`, [id]);
@@ -69,11 +69,11 @@ export async function createShare({ eventId, ownerId, createdBy = null, data, bc
 }
 
 /** Modifie un lien déjà vérifié (téléchargement et/ou commentaires). */
-export async function updateShare(id, data, bcryptCost = 10) {
+export async function updateShare(id, data) {
   const sets = [];
   const params = [];
   if (data.label !== undefined) { sets.push('label = ?'); params.push(data.label || null); }
-  if (data.password !== undefined) { sets.push('password_hash = ?'); params.push(await bcrypt.hash(data.password, bcryptCost)); }
+  if (data.password !== undefined) { sets.push('password_hash = ?'); params.push(await hashPassword(data.password)); }
   if (data.allowDownload !== undefined) { sets.push('allow_download = ?'); params.push(data.allowDownload ? 1 : 0); }
   if (data.allowComments !== undefined) { sets.push('allow_comments = ?'); params.push(data.allowComments ? 1 : 0); }
   if (data.photoNumbers !== undefined) {

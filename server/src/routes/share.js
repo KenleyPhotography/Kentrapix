@@ -1,6 +1,5 @@
 import { Router } from 'express';
 import archiver from 'archiver';
-import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
@@ -10,6 +9,7 @@ import { config } from '../config.js';
 import { httpError } from '../lib/errors.js';
 import { getPermissions, NOT_EXPIRED, isLockedFor } from '../lib/data.js';
 import { inNumbers } from '../lib/unlock.js';
+import { verifyPassword } from '../lib/passwords.js';
 import { sendPrivate, watermarkedPreview, zipOriginals, downloadName } from '../lib/storage.js';
 import { FAMILY_COMMENT_SELECT, familyCommentBody, mapFamilyComment } from '../lib/shares.js';
 
@@ -131,7 +131,7 @@ shareApi.get('/:token', async (req, res) => {
 shareApi.post('/:token/open', tryLimiter, async (req, res) => {
   const link = await findShare(req.params.token);
   const { password } = z.object({ password: z.string().min(1, 'Entrez le mot de passe.').max(200) }).parse(req.body);
-  if (!(await bcrypt.compare(password, link.password_hash))) throw httpError(401, 'Mot de passe incorrect.');
+  if (!(await verifyPassword(password, link.password_hash))) throw httpError(401, 'Mot de passe incorrect.');
   // Même navigateur : on garde l'identifiant de visiteur (ses commentaires restent les siens).
   setShareCookie(res, link.id, visitorOf(req) || crypto.randomUUID());
   await query('UPDATE share_links SET views = views + 1, last_used_at = CURRENT_TIMESTAMP WHERE id = ?', [link.id]);

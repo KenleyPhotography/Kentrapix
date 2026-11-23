@@ -1,7 +1,6 @@
 import { Router } from 'express';
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
-import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import rateLimit from 'express-rate-limit';
 import { query, transaction, toIso } from '../db.js';
@@ -41,7 +40,8 @@ import { visitStats } from '../lib/visits.js';
 import { maintenanceState, setMaintenance, DEFAULT_TITLE, DEFAULT_MESSAGE } from '../lib/maintenance.js';
 import { staffOrders } from './orders.js';
 import { config } from '../config.js';
-import { BCRYPT_COST, passwordRule } from './auth.js';
+import { passwordRule } from './auth.js';
+import { hashPassword } from '../lib/passwords.js';
 import { clientBootstrap } from './client.js';
 import { staffNotifications } from '../lib/notifications.js';
 import {
@@ -195,10 +195,7 @@ async function findOwnClient(req, id) {
   return client;
 }
 
-// Mot de passe TEMPORAIRE (remplacé à la première connexion) : coût de hachage 10, ~4 fois plus rapide que 12
-// (le serveur gratuit est lent). Le mot de passe choisi par la personne, lui, garde le coût 12.
-const TEMP_COST = 10;
-
+// Mot de passe temporaire remplacé à la première connexion.
 /** Envoie un e-mail en arrière-plan : la réponse part tout de suite (l'envoi prend ~1 s). */
 const queueMail = (promise) => {
   Promise.resolve(promise).catch((err) => console.error('E-mail :', err.message));
@@ -207,7 +204,7 @@ const queueMail = (promise) => {
 
 async function createAccount(req, role, data) {
   const id = crypto.randomUUID();
-  const hash = await bcrypt.hash(data.password, TEMP_COST);
+  const hash = await hashPassword(data.password);
   // Mot de passe temporaire : à changer à la première connexion. Un membre de l'équipe reçoit un code d'accès.
   await query(
     `INSERT INTO users (id, role, created_by, name, email, phone, whatsapp, password_hash, must_change_password, access_code)
@@ -218,7 +215,7 @@ async function createAccount(req, role, data) {
 }
 
 async function setTemporaryPassword(account, password) {
-  const hash = await bcrypt.hash(password, TEMP_COST);
+  const hash = await hashPassword(password);
   await query(
     'UPDATE users SET password_hash = ?, must_change_password = 1, token_version = token_version + 1 WHERE id = ?',
     [hash, account.id],
@@ -682,7 +679,7 @@ router.get('/events/:id/shares', async (req, res) => {
 router.post('/events/:id/shares', async (req, res) => {
   const event = await findEvent(req, req.params.id);
   const share = await createShare({
-    eventId: event.id, ownerId: event.client_id, createdBy: req.user.id, data: shareCreateSchema.parse(req.body), bcryptCost: BCRYPT_COST,
+    eventId: event.id, ownerId: event.client_id, createdBy: req.user.id, data: shareCreateSchema.parse(req.body),
   });
   audit(req, 'share.create', { entity: 'event', entityId: event.id, details: { byStudio: true } });
   res.status(201).json({ share });
@@ -698,7 +695,7 @@ async function findShareLink(req, id) {
 
 router.patch('/shares/:id', async (req, res) => {
   const link = await findShareLink(req, req.params.id);
-  res.json({ share: await updateShare(link.id, shareUpdateSchema.parse(req.body), BCRYPT_COST) });
+  res.json({ share: await updateShare(link.id, shareUpdateSchema.parse(req.body)) });
 });
 
 router.delete('/shares/:id', async (req, res) => {

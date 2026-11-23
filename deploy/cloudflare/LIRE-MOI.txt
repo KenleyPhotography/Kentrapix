@@ -1,17 +1,39 @@
 Déploiement Cloudflare Worker KentraPix
 =======================================
-Le Worker « kentrapix » sert les fichiers statiques de dist/ et relaie les appels API
-vers le backend configuré dans worker.js. La configuration et le build sont dans le dépôt.
 
+Le Worker sert les fichiers statiques de dist/ et l'API du serveur Express.
+Le build est configuré dans wrangler.toml.
+
+Préserver les comptes et les photos existants
+---------------------------------------------
+- Garder la même base Supabase et créer Hyperdrive vers cette base. Ne pas initialiser
+  une nouvelle base et ne pas modifier les lignes ni les identifiants des photos.
+- Configurer sur le Worker le même JWT_SECRET que la production actuelle pour ne pas
+  invalider les sessions existantes.
+- Réutiliser le même bucket et les mêmes paramètres B2/R2 (B2_KEY_ID,
+  B2_APPLICATION_KEY, B2_BUCKET et B2_ENDPOINT). Les clés originals/, previews/,
+  thumbs/ et watermarks/ doivent rester inchangées.
+- Exécuter server/scripts/cloudflare-pgcrypto.sql dans le SQL Editor Supabase. Cela
+  permet au Worker gratuit de vérifier les hash bcrypt déjà enregistrés sans les
+  remplacer.
+
+Images et watermark
+-------------------
+Les objets restent privés dans le bucket existant. Le Worker les lit uniquement après
+les contrôles d'accès, puis utilise le binding Images pour les transformations et les
+watermarks. Sharp reste disponible pour le serveur Node local; sur Workers Free, les
+opérations d'image passent par le binding Images car Sharp/libvips natif ne s'exécute
+pas dans cet environnement. Le plan Images gratuit inclut jusqu'à 5 000 transformations
+uniques par mois; les transformations ne signifient pas que les originaux sont déplacés
+vers Cloudflare Images.
+
+Build et déploiement
+--------------------
 Depuis la racine du dépôt :
-     npx wrangler@latest deploy
-   (wrangler.toml exécute npm run build, puis déploie dist/ et la route du domaine.)
+     npm ci --prefix server
+     npm run build
+     npx wrangler deploy
 
-Dans DNS, l'enregistrement de kentrapix doit être « Proxied » (nuage orange).
-Test : attendre que le backend Render dorme,
-   puis ouvrir le site : la page Bienvenue s'affiche, puis le site se charge tout seul.
-
-Le sondage utilise /api/health.
-
-Le Worker laisse passer les réponses qui portent l'en-tête X-Maintenance : c'est le site
-lui-même qui est fermé par le studio (page « en cours de maintenance »), pas Render qui dort.
+Configurer d'abord le binding Hyperdrive HYPERDRIVE et les secrets du Worker. Garder
+Render actif jusqu'à ce que le login d'un compte existant, la galerie privée, la
+sélection des photos et le watermark soient vérifiés en production.

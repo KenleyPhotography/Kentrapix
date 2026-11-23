@@ -1,6 +1,5 @@
 import { Router } from 'express';
 import crypto from 'node:crypto';
-import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { query } from '../db.js';
 import { httpError } from '../lib/errors.js';
@@ -8,6 +7,7 @@ import { uuid } from '../lib/data.js';
 import { audit } from '../lib/audit.js';
 import { pushLater } from '../lib/push.js';
 import { sendMail } from '../lib/mailer.js';
+import { hashPassword } from '../lib/passwords.js';
 import { accountScope, clientScope } from '../lib/scope.js';
 import { bookingRequestEmail, bookingStatusEmail, inquiryReplyEmail } from '../lib/emails.js';
 import {
@@ -109,7 +109,7 @@ staffBooking.patch('/requests/:id', async (req, res) => {
       password = tempPassword();
       await query(
         `INSERT INTO users (id, role, created_by, name, email, phone, password_hash, must_change_password) VALUES (?, 'client', ?, ?, ?, ?, ?, 1)`,
-        [id, req.user.id, row.name, row.email.toLowerCase(), row.phone || null, await bcrypt.hash(password, 10)],
+        [id, req.user.id, row.name, row.email.toLowerCase(), row.phone || null, await hashPassword(password)],
       );
       await query('INSERT INTO client_photographers (client_id, staff_id) VALUES (?, ?) ON CONFLICT DO NOTHING', [id, req.user.id]);
     } else {
