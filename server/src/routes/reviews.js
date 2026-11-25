@@ -1,3 +1,5 @@
+import { publicServices, publicPhotographers } from '../lib/public-services.js';
+import { monthSlots } from '../lib/booking.js';
 import { Router } from 'express';
 import crypto from 'node:crypto';
 import { z } from 'zod';
@@ -115,6 +117,28 @@ publicApi.get('/studio', async (req, res) => {
   res.set('Cache-Control', 'public, max-age=300').json({ name: o.sender_name || o.name, sessionTypes: settings.sessionTypes });
 });
 
+publicApi.get('/public-services', async (_req, res) => {
+  const [{ portfolio_enabled }, staff] = await Promise.all([publicServices(), publicPhotographers()]);
+  res.set('Cache-Control', 'no-store').json({
+    portfolioEnabled: portfolio_enabled,
+    photographers: staff.map(({ id, name, sender_name }) => ({ id, name: sender_name || name })),
+  });
+});
+
+async function bookingPhotographer(id) {
+  const staff = await publicPhotographers();
+  const person = id ? staff.find((member) => member.id === id) : staff[0];
+  if (!person) throw httpError(400, 'Ce photographe ne reçoit pas de réservations.');
+  return person;
+}
+
+publicApi.get('/reservation/:id', async (req, res) => {
+  const person = await bookingPhotographer(z.string().uuid().parse(req.params.id));
+  const { month } = z.object({ month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/) }).parse(req.query);
+  const { settings, days } = await monthSlots(person.id, month, { includePublic: true });
+  res.set('Cache-Control', 'no-store').json({ days, sessionTypes: settings.sessionTypes });
+});
+
 const inquiryLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   limit: 5,
@@ -125,6 +149,7 @@ const inquiryLimiter = rateLimit({
 // Pas de retours à la ligne ni de caractères de contrôle dans les champs courts (objet d'e-mail, journaux).
 const oneLine = (max) => z.string().trim().max(max).regex(/^[^\u0000-\u001f\u007f]*$/, 'Caractères non valides.');
 const inquiry = z.object({
+  staffId: z.string().uuid().optional(),
   name: oneLine(80).min(2, 'Entrez votre nom.'),
   email: z.union([z.literal(''), z.string().trim().toLowerCase().email('E-mail invalide.').max(190)]).optional().default(''), // facultatif
   phone: oneLine(40).refine((v) => v.replace(/\D/g, '').length >= 6, 'Entrez votre numéro de téléphone.'), // obligatoire
@@ -150,8 +175,14 @@ publicApi.get('/slot-check', async (req, res) => {
 publicApi.post('/inquiry', inquiryLimiter, async (req, res) => {
   const d = inquiry.parse(req.body);
   if (d.website) return res.status(201).json({ ok: true }); // robot : on fait semblant
-  const o = await owner();
-  if (!o) throw httpError(503, 'Studio indisponible.');
+  const o = await bookingPhotographer(d.staffId);
+  if (d.staffId && (!d.date || !d.time)) throw httpError(400, 'Choisissez une date et une heure disponibles.');
+  if (d.staffId) {
+    const date = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])-([0-2]\d|3[01])$/).parse(d.date);
+    const { days, settings } = await monthSlots(o.id, date.slice(0, 7), { includePublic: true });
+    if (!days[date]?.includes(d.time)) throw httpError(409, 'Ce créneau n’est plus disponible.');
+    if (!settings.sessionTypes.includes(d.sessionType)) throw httpError(400, 'Choisissez un type de séance proposé par ce photographe.');
+  }
   if (!d.sessionType) throw httpError(400, 'Choisissez le type de séance.');
   if (needsPlace(d.sessionType) && d.location.length < 2) throw httpError(400, 'Indiquez le lieu de la séance.');
   if (d.date) {
@@ -161,12 +192,10 @@ publicApi.post('/inquiry', inquiryLimiter, async (req, res) => {
     const c = await slotConflict(o.id, d.date, d.time);
     if (c) return res.status(409).json({ error: 'Cette date et cette heure sont déjà prises. Choisissez un autre moment.', ...c });
   }
-  try {
-    await query(
-      'INSERT INTO portfolio_requests (id, staff_id, name, email, phone, session_type, location, wished_date, wished_time, message) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [crypto.randomUUID(), o.id, d.name, d.email, d.phone, d.sessionType, d.location, d.date, d.time, d.message],
-    );
-  } catch (err) { console.error('Demande portfolio non enregistrée (migration 039 appliquée ?) :', err.message); }
+  await query(
+    'INSERT INTO portfolio_requests (id, staff_id, name, email, phone, session_type, location, wished_date, wished_time, message) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    [crypto.randomUUID(), o.id, d.name, d.email, d.phone, d.sessionType, d.location, d.date, d.time, d.message],
+  );
   pushLater(o.id, { title: 'Nouvelle demande de séance', body: `${d.name}${d.sessionType ? ` · ${d.sessionType}` : ''}`, url: '/admin', tag: `inquiry-${Date.now()}` });
   sendMail({ to: o.email, userId: o.id, kind: 'inquiry', replyTo: d.email || undefined, ...inquiryEmail({ staffName: o.name, ...d }) })
     .catch((err) => console.error('E-mail demande portfolio :', err.message));

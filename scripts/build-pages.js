@@ -17,6 +17,7 @@ const entries = [
   'admin.html',
   'client.html',
   'portfolio.html',
+  'reservation.html',
   'gallery.html',
   'share.html',
   'contrat.html',

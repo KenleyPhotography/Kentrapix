@@ -1,0 +1,72 @@
+name = "kentrapix-containers-staging"
+main = "deploy/cloudflare/container-worker.js"
+compatibility_date = "2026-11-24"
+workers_dev = true
+
+[build]
+command = "node scripts/build-pages.js"
+
+[assets]
+directory = "./dist"
+binding = "ASSETS"
+run_worker_first = [
+  "/api/*",
+  "/media/*",
+  "/portfolio-media/*",
+  "/",
+  "/login*",
+  "/admin*",
+  "/client*",
+  "/gallery*",
+  "/share*",
+  "/s/*",
+  "/facture*",
+  "/f/*",
+  "/contrat*",
+  "/c/*",
+  "/reservation*",
+  "/portfolio",
+  "/portfolio/",
+  "/portfolio.html",
+  "/studio*",
+  "/outdoor*",
+  "/graduation*",
+  "/evenement*",
+  "/mariage*",
+  "/gaduation*",
+  "/conditions*",
+  "/maintenance*",
+  "/index.html",
+  "/admin.html",
+  "/client.html",
+  "/gallery.html",
+  "/login.html",
+  "/share.html",
+  "/facture.html",
+  "/contrat.html",
+  "/conditions.html",
+  "/manifest.webmanifest",
+  "/sw.js",
+  "/favicon.ico",
+  "/robots.txt",
+  "/sitemap.xml",
+  "/KentraPix.apk",
+]
+
+[[containers]]
+class_name = "KentraPixBackend"
+scheduling_policy = "durable_object"
+[containers.images.base]
+dockerfile = "./Dockerfile"
+build_context = "."
+
+[[durable_objects.bindings]]
+name = "KENTRAPIX_BACKEND"
+class_name = "KentraPixBackend"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["KentraPixBackend"]
+
+[observability]
+enabled = true

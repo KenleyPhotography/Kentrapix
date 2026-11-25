@@ -1,3 +1,4 @@
+import { publicServices, bookingStaff, publicPhotographers } from '../lib/public-services.js';
 import { Router } from 'express';
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
@@ -1291,3 +1292,17 @@ router.put('/permissions', requireOwner, async (req, res) => {
 });
 
 export default router;
+
+router.get('/public-services', requirePlatformOwner, async (_req, res) => {
+  const [settings, staff, selected] = await Promise.all([publicServices(), bookingStaff(), publicPhotographers()]);
+  res.json({ portfolioEnabled: settings.portfolio_enabled, staff: staff.map(({ id, name }) => ({ id, name })), selected: selected.map(({ id }) => id) });
+});
+
+router.put('/public-services', requirePlatformOwner, async (req, res) => {
+  const { portfolioEnabled, selected } = z.object({ portfolioEnabled: z.boolean(), selected: z.array(uuid).max(100) }).strict().parse(req.body);
+  const allowed = new Set((await bookingStaff()).map(({ id }) => id));
+  if (selected.some((id) => !allowed.has(id))) throw httpError(400, 'Sélectionnez uniquement des photographes actifs.');
+  await query('UPDATE site_public_services SET portfolio_enabled = ?, booking_staff = ?::jsonb WHERE id = 1', [portfolioEnabled, JSON.stringify([...new Set(selected)])]);
+  audit(req, 'site.public_services', { entity: 'site', details: { portfolioEnabled, selected } });
+  res.json({ ok: true });
+});

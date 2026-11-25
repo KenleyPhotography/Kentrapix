@@ -1,3 +1,4 @@
+import { publicServices } from '../lib/public-services.js';
 import { Router } from 'express';
 import express from 'express';
 import path from 'node:path';
@@ -76,8 +77,15 @@ router.get('/favicon.ico', (req, res) => res.type('image/png').set('Cache-Contro
 
 // Conditions d'utilisation : page publique (liée depuis la connexion et la barre latérale).
 // Photos ajoutées au portfolio depuis le studio (lues sur GitHub, puis gardées par le CDN).
+router.use(['/studio', '/portfolio', '/portfolio.html', '/portfolio-media'], async (_req, res, next) => {
+  res.set('Cache-Control', 'no-store');
+  if (!(await publicServices()).portfolio_enabled) return res.status(404).sendFile(page('404.html'));
+  next();
+});
 router.get('/portfolio-media/:file', ...portfolioMedia);
 // Portfolio public du studio : vitrine + demande de séance (sans compte).
+router.get(['/reservation', '/reservation.html'], (_req, res) => res.sendFile(page('reservation.html')));
+router.get(['/portfolio', '/portfolio.html'], (_req, res) => res.redirect(302, '/studio'));
 router.get('/studio', (req, res) => { recordVisit(req, '/studio'); res.sendFile(page('portfolio.html')); });
 // Une page par catégorie (même vitrine, filtre présélectionné par js/portfolio.js).
 ['outdoor', 'graduation', 'evenement', 'mariage', 'studio'].forEach((slug) => {

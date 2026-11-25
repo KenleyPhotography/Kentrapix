@@ -24,6 +24,7 @@
     <a class="pf-brand" href="/studio"><img src="/logo/kentrapix-icon.svg" alt="" width="34" height="34"><span>Kentra<b>Pix</b></span></a>
     <nav>
       <a href="#galerie">Portfolio</a>
+      <a href="/reservation">Réservation</a>
       <a href="/login" class="pf-ghost">Espace client</a>
     </nav>
   </header>
@@ -32,7 +33,7 @@
     <p class="pf-kicker">Photographe · Haïti</p>
     <h1>Des images qui racontent <em>votre histoire.</em></h1>
     <div class="pf-actions">
-      <a class="pf-btn" href="#reserver">Demander une séance</a>
+      <a class="pf-btn" href="/reservation">Demander une séance</a>
       <a class="pf-btn pf-btn-ghost" href="#galerie">Voir le portfolio</a>
     </div>
   </section>
@@ -45,36 +46,7 @@
       <button class="pf-btn pf-more" id="more" type="button" hidden>Voir plus de photos</button>
     </section>
 
-    <section id="reserver" class="pf-section pf-book">
-      <div class="pf-book-copy">
-        <h2>Réservez votre séance</h2>
-        <p>Dites-nous ce que vous imaginez. Vous recevez une réponse rapide, sans créer de compte.</p>
-        <a class="pf-wa" id="wa" href="https://wa.me/50939065511" target="_blank" rel="noopener"> WhatsApp</a>
-      </div>
-      <form id="form" class="pf-form" novalidate>
-        <label>Nom<input name="name" autocomplete="name" required maxlength="80"></label>
-        <label>E-mail <span class="pf-opt">(facultatif)</span><input name="email" type="email" autocomplete="email" maxlength="190"></label>
-        <label>Téléphone / WhatsApp<input name="phone" type="tel" autocomplete="tel" inputmode="tel" required maxlength="40" placeholder="+509 …"></label>
-        <div class="pf-two">
-          <label>Date souhaitée<input name="date" id="wish" type="date"></label>
-          <label>Heure souhaitée<input name="time" id="wishtime" type="time"></label>
-        </div>
-        <label>Type de séance<select name="sessionType" id="types" required><option value="">Choisir…</option></select></label>
-        <fieldset class="pf-pick" id="placePick" hidden>
-          <legend>Où voulez-vous les photos ?</legend>
-          <label><input type="radio" name="placeMode" value="studio" checked> Au studio</label>
-          <label><input type="radio" name="placeMode" value="away"> À un autre endroit</label>
-        </fieldset>
-        <label id="placeRow" hidden>Lieu de la séance <span class="pf-req">*</span><input name="location" id="place" maxlength="120" autocomplete="street-address" placeholder="Ex. Pétion-Ville, Église Saint-Pierre…"></label>
-        <label class="pf-check" id="placeTbdRow" hidden><input type="checkbox" id="placeTbd"> Le lieu reste à déterminer</label>
-        <p class="pf-hint" id="placeHint" hidden></p>
-        <label>Message<textarea name="message" rows="4" maxlength="1000" placeholder="Nombre de personnes, idées, détails…"></textarea></label>
-        <input name="website" class="pf-trap" tabindex="-1" autocomplete="off" aria-hidden="true">
-        <button class="pf-btn" type="submit" id="send">Envoyer ma demande</button>
-        <p class="pf-msg" id="msg" role="status" aria-live="polite"></p>
-        <div class="pf-alt" id="alt" hidden></div>
-      </form>
-    </section>
+
   </main>
 
   <footer class="pf-foot">© <span id="year"></span> KentraPix · <a href="/conditions">Conditions</a> · <a href="/login">Espace client</a></footer>

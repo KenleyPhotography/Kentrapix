@@ -1,3 +1,4 @@
+import { publicServices } from '../lib/public-services.js';
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import crypto from 'node:crypto';
@@ -67,6 +68,8 @@ export const publicPortfolio = Router();
 
 // Photos ajoutées depuis le studio (le portfolio les affiche avec celles de kenleyelysee.com).
 publicPortfolio.get('/portfolio', async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  if (!(await publicServices()).portfolio_enabled) return res.status(404).json({ error: 'Portfolio indisponible.' });
   const rows = await query('SELECT id, category, file, created_at FROM portfolio_photos ORDER BY created_at DESC').catch(() => []);
   res.set('Cache-Control', 'public, max-age=60').json({ photos: rows.map(mapPhoto) });
 });

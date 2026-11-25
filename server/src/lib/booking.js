@@ -76,14 +76,19 @@ export function slotsForDay(settings, day, { blocked = false, taken = [], today 
 }
 
 /** Créneaux libres de chaque jour d'un mois 'YYYY-MM' : { '2026-11-03': ['09:00', …], … } (jours sans créneau absents). */
-export async function monthSlots(staffId, month) {
+export async function monthSlots(staffId, month, { includePublic = false } = {}) {
   const settings = await settingsOf(staffId);
   const first = `${month}-01`;
   const end = (() => { const d = new Date(`${first}T12:00:00Z`); d.setUTCMonth(d.getUTCMonth() + 1); d.setUTCDate(0); return d.toISOString().slice(0, 10); })();
-  const [blocked, taken] = await Promise.all([
+  const [blocked, taken, accepted] = await Promise.all([
     query('SELECT day FROM booking_blocked_days WHERE staff_id = ? AND day BETWEEN ? AND ?', [staffId, first, end]),
     query("SELECT day, start_time, duration_min FROM bookings WHERE staff_id = ? AND status IN ('pending', 'confirmed', 'proposed') AND day BETWEEN ? AND ?", [staffId, first, end]),
+    includePublic ? query("SELECT wished_date, wished_time FROM portfolio_requests WHERE staff_id = ? AND status = 'accepted' AND wished_date BETWEEN ? AND ?", [staffId, first, end]) : [],
   ]);
+  for (const request of accepted) {
+    if (request.wished_time) taken.push({ day: request.wished_date, start_time: request.wished_time, duration_min: settings.durationMin });
+    else blocked.push({ day: request.wished_date });
+  }
   const blockedSet = new Set(blocked.map((b) => String(b.day).slice(0, 10)));
   const byDay = {};
   for (const t of taken) (byDay[String(t.day).slice(0, 10)] ??= []).push(t);
