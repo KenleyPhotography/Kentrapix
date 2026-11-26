@@ -1,32 +1,122 @@
 import { api, escape, service } from './service.js';
 
 export function publicServicesSection() {
-  return service.data.platformOwner ? '<section class="settings" id="public-services"><h2>Portfolio et réservations</h2><p role="status">Chargement…</p></section>' : '';
+  return service.data.platformOwner ? '<section class="settings" id="public-services"><h2>Portfolio, équipe et réservations</h2><p role="status">Chargement…</p></section>' : '';
 }
 
 export async function bindPublicServices(toast) {
   const section = document.getElementById('public-services');
   if (!section) return;
   try {
-    const { portfolioEnabled, staff, selected } = await api('/api/admin/public-services');
-    section.innerHTML = `<h2>Portfolio et réservations</h2>
+    const { portfolioEnabled, staff, selected, teamSelected } = await api('/api/admin/public-services');
+    section.innerHTML = `<h2>Portfolio, équipe et réservations</h2>
       <form>
         <label><input type="checkbox" name="portfolio" ${portfolioEnabled ? 'checked' : ''}> Afficher le portfolio public</label>
         <fieldset><legend>Photographes autorisés à recevoir des réservations</legend>
           ${staff.map(({ id, name }) => `<div><label><input type="checkbox" name="staff" value="${escape(id)}" ${selected.includes(id) ? 'checked' : ''}> ${escape(name)}</label></div>`).join('')}
         </fieldset>
+        <fieldset><legend>Photographes visibles dans l’équipe publique</legend>
+          ${staff.map(({ id, name }) => `<div><label><input type="checkbox" name="team" value="${escape(id)}" ${teamSelected.includes(id) ? 'checked' : ''}> ${escape(name)}</label></div>`).join('')}
+        </fieldset>
         <button class="btn primary" type="submit">Enregistrer</button>
-      </form>`;
+      </form>
+      <h3>Limites des portfolios</h3>
+      ${staff.map(({ id, name, portfolioPhotoLimit }) => `<form class="bk-form" data-quota="${escape(id)}">
+        <label>${escape(name)}<input name="limit" type="number" min="10" max="2147483647" step="1" required value="${portfolioPhotoLimit}"></label>
+        <button class="btn" type="submit">Enregistrer la limite</button>
+      </form>`).join('')}`;
+    const operations = document.createElement('div');
+    section.append(operations);
+    bindBookingOperations(operations, toast);
+    section.querySelectorAll('[data-quota]').forEach(form => {
+      form.onsubmit = async (event) => {
+        event.preventDefault();
+        const button = form.querySelector('button');
+        button.disabled = true;
+        try {
+          await api('/api/admin/public-services/' + encodeURIComponent(form.dataset.quota) + '/portfolio-limit', {
+            method: 'PUT', body: { limit: form.elements.limit.valueAsNumber },
+          });
+          toast('Limite enregistrée.');
+        } catch (error) { toast(error.message); }
+        finally { button.disabled = false; }
+      };
+    });
     section.querySelector('form').onsubmit = async (event) => {
       event.preventDefault();
       const data = new FormData(event.target);
       const button = event.target.querySelector('button');
       button.disabled = true;
       try {
-        await api('/api/admin/public-services', { method: 'PUT', body: { portfolioEnabled: data.has('portfolio'), selected: data.getAll('staff') } });
+        await api('/api/admin/public-services', { method: 'PUT', body: { portfolioEnabled: data.has('portfolio'), selected: data.getAll('staff'), teamSelected: data.getAll('team') } });
         toast('Réglages enregistrés.');
       } catch (error) { toast(error.message); }
       finally { button.disabled = false; }
     };
   } catch (error) { section.querySelector('p').textContent = error.message; }
+}
+
+async function bindBookingOperations(root, toast) {
+  try {
+    const { settings, applications, payments, team } = await api('/api/admin/booking-operations');
+    root.innerHTML = `<h3>Paiements des réservations</h3>
+      <form class="bk-form" data-payment-settings>
+        <label>Numéro MonCash<input name="moncash" type="tel" value="${escape(settings.moncash || '')}"></label>
+        <label>Numéro NatCash<input name="natcash" type="tel" value="${escape(settings.natcash || '')}"></label>
+        <label>Acompte (HTG)<input name="amount" type="number" min="0" max="10000000" required value="${settings.amount || 0}"></label>
+        <label>Frais de candidature (HTG, 0 = gratuit)<input name="applicationAmount" type="number" min="0" max="10000000" required value="${settings.applicationAmount || 0}"></label>
+        <button class="btn primary">Enregistrer les paiements</button>
+      </form>
+      <h3>Transferts à vérifier</h3>
+      ${payments.map(payment => `<p>${escape(payment.name)} · ${escape(payment.payment_code)} · ${payment.payment_amount} HTG
+        ${payment.payment_verified_at ? '· Vérifié' : `<button type="button" class="btn" data-operation="payments/${payment.id}/verify">Marquer vérifié</button>`}</p>`).join('') || '<p>Aucun transfert à vérifier.</p>'}
+      <h3>Candidatures photographes</h3>
+      ${applications.map(person => `<article><p><strong>${escape(person.name)}</strong> · ${escape(person.email)} · ${escape(person.phone)}</p>
+        <p>${escape(person.message)}</p>
+        ${person.transfer_code ? `<p>${escape(person.payment_method)} · ${person.payment_amount} HTG · TransCode ${escape(person.transfer_code)}</p>` : ''}
+        ${person.has_logo ? `<form class="bk-form" data-assign-logo="${escape(person.id)}">
+          <img src="/api/admin/booking-operations/applications/${escape(person.id)}/logo" alt="Logo proposé" width="100" height="100" style="object-fit:contain">
+          <label>Attribuer à<select name="staffId" required><option value="">Choisir un photographe</option>${team.map(member => `<option value="${escape(member.id)}">${escape(member.name)}</option>`).join('')}</select></label>
+          <button class="btn">Attribuer le logo</button>
+        </form>` : ''}
+        ${person.reviewed_at ? '<p>Candidature examinée</p>' : `<button type="button" class="btn" data-operation="applications/${person.id}/review">Marquer examinée</button>`}
+      </article>`).join('') || '<p>Aucune candidature.</p>'}`;
+    const form = root.querySelector('[data-payment-settings]');
+    form.onsubmit = async (event) => {
+      event.preventDefault();
+      const { moncash, natcash, amount, applicationAmount } = Object.fromEntries(new FormData(form));
+      const button = form.querySelector('button');
+      button.disabled = true;
+      try {
+        await api('/api/admin/booking-operations/payment', { method: 'PUT', body: { moncash, natcash, amount: Number(amount), applicationAmount: Number(applicationAmount) } });
+        toast('Réglages de paiement enregistrés.');
+      } catch (error) { toast(error.message); }
+      finally { button.disabled = false; }
+    };
+    root.querySelectorAll('[data-assign-logo]').forEach(assignment => {
+      assignment.onsubmit = async event => {
+        event.preventDefault();
+        const button = assignment.querySelector('button');
+        button.disabled = true;
+        try {
+          await api('/api/admin/booking-operations/applications/' + encodeURIComponent(assignment.dataset.assignLogo) + '/logo', {
+            method: 'PUT', body: { staffId: assignment.elements.staffId.value },
+          });
+          toast('Logo attribué.');
+        } catch (error) { toast(error.message); }
+        finally { button.disabled = false; }
+      };
+    });
+    root.querySelectorAll('[data-operation]').forEach(button => {
+      button.onclick = async () => {
+        if (button.dataset.operation.startsWith('payments/') && !confirm('Avez-vous vérifié le transfert et le montant dans MonCash ou NatCash ?')) return;
+        button.disabled = true;
+        try {
+          await api('/api/admin/booking-operations/' + button.dataset.operation, { method: 'PUT', body: {} });
+          await bindBookingOperations(root, toast);
+        } catch (error) { toast(error.message); }
+        finally { button.disabled = false; }
+      };
+    });
+  } catch (error) { root.textContent = error.message; }
 }

@@ -19,7 +19,7 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400..700&display=swap">
   <link rel="stylesheet" href="/css/portfolio.css">
 </head>
-<body>
+<body class="reservation-page">
   <header class="pf-bar">
     <a class="pf-brand" href="/studio"><img src="/logo/kentrapix-icon.svg" alt="" width="34" height="34"><span>Kentra<b>Pix</b></span></a>
     <nav>
@@ -32,20 +32,39 @@
   <main>
     <section id="reserver" class="pf-section pf-book">
       <div class="pf-book-copy">
-        <h1>Réservez votre séance</h1>
-        <p>Dites-nous ce que vous imaginez. Vous recevez une réponse rapide, sans créer de compte.</p>
+        <h1>Réservez votre séance photo</h1>
+        <p>Choisissez votre photographe et indiquez le moment qui vous convient. Vous recevrez sa réponse par e-mail ou WhatsApp.</p>
         <a class="pf-wa" id="wa" href="https://wa.me/50935022418" target="_blank" rel="noopener"> WhatsApp</a>
       </div>
-      <form id="form" class="pf-form" novalidate>
+      <form id="form" class="pf-form">
+        <h2>Votre demande</h2>
+        <ol class="reservation-steps" aria-label="Étapes de réservation">
+          <li data-step-indicator><span>1</span> Coordonnées</li><li data-step-indicator><span>2</span> Date et heure</li><li data-step-indicator><span>3</span> Séance</li>
+        </ol>
+        <section data-step><h3 tabindex="-1">Vos coordonnées</h3>
+          <p class="reservation-form-note">Le photographe vous répondra par e-mail ou WhatsApp.</p>
+        <div class="reservation-contact-grid">
         <label>Nom<input name="name" autocomplete="name" required maxlength="80"></label>
         <label>E-mail <span class="pf-opt">(facultatif)</span><input name="email" type="email" autocomplete="email" maxlength="190"></label>
         <label>Téléphone / WhatsApp<input name="phone" type="tel" autocomplete="tel" inputmode="tel" required maxlength="40" placeholder="+509 …"></label>
+        </div>
+        </section>
+        <section data-step><h3 tabindex="-1">Date et heure souhaitées</h3>
         <label>Photographe<select name="staffId" id="photographer" required></select></label>
+        <label class="pf-check"><input type="checkbox" id="manual-slot"> Saisir une date et une heure</label>
+        <div id="available-slots">
         <label>Mois<input id="booking-month" type="month" required></label>
         <div class="pf-two">
           <label>Date disponible<select name="date" id="wish" required></select></label>
           <label>Heure disponible<select name="time" id="wishtime" required></select></label>
         </div>
+        </div>
+        <div id="manual-slots" class="pf-two" hidden>
+          <label>Date souhaitée<input id="manual-date" type="date" required disabled></label>
+          <label>Heure souhaitée<input id="manual-time" type="time" required disabled></label>
+        </div>
+        </section>
+        <section data-step><h3 tabindex="-1">Détails de la séance</h3>
         <label>Type de séance<select name="sessionType" id="types" required><option value="">Choisir…</option></select></label>
         <fieldset class="pf-pick" id="placePick" hidden>
           <legend>Où voulez-vous les photos ?</legend>
@@ -57,15 +76,52 @@
         <p class="pf-hint" id="placeHint" hidden></p>
         <label>Message<textarea name="message" rows="4" maxlength="1000" placeholder="Nombre de personnes, idées, détails…"></textarea></label>
         <input name="website" class="pf-trap" tabindex="-1" autocomplete="off" aria-hidden="true">
-        <button class="pf-btn" type="submit" id="send" disabled>Envoyer ma demande</button>
+        </section>
+        <div class="reservation-step-actions">
+          <button class="pf-btn step-back" type="button" data-step-back>Retour</button>
+          <button class="pf-btn" type="button" data-step-next>Continuer</button>
+          <button class="pf-btn" type="submit" id="send" data-step-submit disabled>Envoyer ma demande</button>
+        </div>
         <p class="pf-msg" id="msg" role="status" aria-live="polite"></p>
+      </form>
+      <section class="pf-form" id="payment-details" hidden aria-live="polite"></section>
+    </section>
+    <section id="devenir-photographe" class="pf-section pf-book application-screen">
+      <div class="pf-book-copy"><h2>Devenir photographe</h2><p>Présentez votre travail à Kentra Pix. Le propriétaire examine votre candidature et vous contacte.</p></div>
+      <form id="photographer-application" class="pf-form">
+        <div class="application-fields" data-details>
+        <label>Nom complet<input name="name" autocomplete="name" minlength="2" maxlength="80" required></label>
+        <label>E-mail<input name="email" type="email" autocomplete="email" maxlength="190" required></label>
+        <label>Téléphone<input name="phone" type="tel" autocomplete="tel" maxlength="40" required></label>
+        <label>Logo du photographe <input name="logo" type="file" accept="image/png,.png" required>
+          <span class="pf-opt">PNG transparent, symbole sans texte. Un logo tout blanc est refusé. Maximum 4 Mo.</span>
+        </label>
+        <label>Présentation et lien vers votre portfolio<textarea name="message" rows="4" maxlength="1000"></textarea></label>
+        <input name="website" class="pf-trap" tabindex="-1" autocomplete="off" aria-hidden="true">
+        </div>
+        <section data-transfer hidden>
+          <h3 tabindex="-1">Paiement de la candidature</h3>
+          <p data-amount></p>
+          <div class="application-fields" data-payment-fields>
+            <label>Service<select name="method" required disabled></select></label>
+            <label>Numéro de paiement<input data-number readonly></label>
+            <button type="button" class="pf-btn" data-copy>Copier le numéro</button>
+            <label>TransCode du transfert<input name="transferCode" required disabled minlength="3" maxlength="60" pattern="[A-Za-z0-9\-]+"></label>
+          </div>
+        </section>
+        <div class="reservation-step-actions">
+          <button type="button" class="pf-btn step-back" data-back hidden>Retour</button>
+          <button class="pf-btn" data-continue>Continuer</button>
+          <button class="pf-btn" data-send hidden>Envoyer ma candidature</button>
+        </div>
+        <p role="status"></p>
       </form>
     </section>
   </main>
 
-  <footer class="pf-foot">© <span id="year"></span> KentraPix · <a href="/conditions">Conditions</a> · <a href="/login">Espace client</a></footer>
+  <footer class="pf-foot"><a href="https://wa.me/50935022418">WhatsApp +509 3502-2418</a> · <a href="mailto:kentrapix@gmail.com">kentrapix@gmail.com</a><br>© <span id="year"></span> KentraPix · <a href="/conditions">Conditions</a> · <a href="/login">Espace client</a></footer>
 
   <script src="/js/public-links.js" defer></script>
-  <script src="/js/reservation.js" defer></script>
+  <script type="module" src="/js/reservation.js"></script>
 </body>
 </html>

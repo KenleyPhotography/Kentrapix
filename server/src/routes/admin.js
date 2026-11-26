@@ -7,7 +7,7 @@ import rateLimit from 'express-rate-limit';
 import { query, transaction, toIso } from '../db.js';
 import { httpError } from '../lib/errors.js';
 import {
-  upload, uploadAudio, storePhoto, storeCover, storeMusic, removeKeys, removeWatermarks, isRemote, prepareDirectUpload, confirmDirectUpload,
+  upload, uploadAudio, readFile, storePhoto, storeCover, storeMusic, removeKeys, removeWatermarks, isRemote, prepareDirectUpload, confirmDirectUpload,
   storedName,
 } from '../lib/storage.js';
 import {
@@ -1295,14 +1295,73 @@ export default router;
 
 router.get('/public-services', requirePlatformOwner, async (_req, res) => {
   const [settings, staff, selected] = await Promise.all([publicServices(), bookingStaff(), publicPhotographers()]);
-  res.json({ portfolioEnabled: settings.portfolio_enabled, staff: staff.map(({ id, name }) => ({ id, name })), selected: selected.map(({ id }) => id) });
+  res.json({ portfolioEnabled: settings.portfolio_enabled, staff: staff.map(({ id, name, portfolio_photo_limit }) => ({ id, name, portfolioPhotoLimit: portfolio_photo_limit })), selected: selected.map(({ id }) => id), teamSelected: staff.filter(({ id }) => settings.team_staff.includes(id)).map(({ id }) => id) });
 });
 
 router.put('/public-services', requirePlatformOwner, async (req, res) => {
-  const { portfolioEnabled, selected } = z.object({ portfolioEnabled: z.boolean(), selected: z.array(uuid).max(100) }).strict().parse(req.body);
+  const { portfolioEnabled, selected, teamSelected } = z.object({ portfolioEnabled: z.boolean(), selected: z.array(uuid).max(100), teamSelected: z.array(uuid).max(100).optional() }).strict().parse(req.body);
   const allowed = new Set((await bookingStaff()).map(({ id }) => id));
-  if (selected.some((id) => !allowed.has(id))) throw httpError(400, 'Sélectionnez uniquement des photographes actifs.');
-  await query('UPDATE site_public_services SET portfolio_enabled = ?, booking_staff = ?::jsonb WHERE id = 1', [portfolioEnabled, JSON.stringify([...new Set(selected)])]);
-  audit(req, 'site.public_services', { entity: 'site', details: { portfolioEnabled, selected } });
+  if ([...selected, ...(teamSelected || [])].some((id) => !allowed.has(id))) throw httpError(400, 'Sélectionnez uniquement des photographes actifs.');
+  await query('UPDATE site_public_services SET portfolio_enabled = ?, booking_staff = ?::jsonb, team_staff = COALESCE(?::jsonb, team_staff) WHERE id = 1', [portfolioEnabled, JSON.stringify([...new Set(selected)]), teamSelected === undefined ? null : JSON.stringify([...new Set(teamSelected)])]);
+  audit(req, 'site.public_services', { entity: 'site', details: { portfolioEnabled, selected, teamSelected } });
+  res.json({ ok: true });
+});
+
+router.put('/public-services/:id/portfolio-limit', requirePlatformOwner, async (req, res) => {
+  const id = uuid.parse(req.params.id);
+  const { limit } = z.object({ limit: z.number().int().min(10).max(2147483647) }).strict().parse(req.body);
+  const [staff] = await query("UPDATE users SET portfolio_photo_limit = ? WHERE id = ? AND active = 1 AND role IN ('owner', 'admin') RETURNING id", [limit, id]);
+  if (!staff) throw httpError(404, 'Photographe actif introuvable.');
+  audit(req, 'portfolio.limit', { entity: 'user', entityId: id, details: { limit } });
+  res.json({ limit });
+});
+
+router.get('/booking-operations', requirePlatformOwner, async (_req, res) => {
+  const [[settings], applications, payments, team] = await Promise.all([
+    query('SELECT booking_payment FROM site_public_services WHERE id = 1'),
+    query('SELECT id, name, email, phone, message, reviewed_at, payment_method, transfer_code, payment_amount, logo_key IS NOT NULL AS has_logo FROM photographer_applications ORDER BY reviewed_at NULLS FIRST, created_at DESC LIMIT 100'),
+    query('SELECT id, name, payment_code, payment_amount, payment_verified_at FROM portfolio_requests WHERE payment_code IS NOT NULL ORDER BY payment_verified_at NULLS FIRST, created_at DESC LIMIT 100'),
+    bookingStaff(),
+  ]);
+  res.set('Cache-Control', 'no-store').json({ settings: settings.booking_payment, applications, payments, team: team.map(({ id, name }) => ({ id, name })) });
+});
+
+router.put('/booking-operations/payment', requirePlatformOwner, async (req, res) => {
+  const number = z.string().trim().regex(/^(?:\+?509)?[0-9]{8}$|^$/, 'Saisissez 8 chiffres, avec ou sans indicatif +509.');
+  const settings = z.object({ moncash: number, natcash: number, amount: z.number().int().min(0).max(10000000), applicationAmount: z.number().int().min(0).max(10000000).optional().default(0) }).strict().parse(req.body);
+  if (settings.applicationAmount && !settings.moncash && !settings.natcash) throw httpError(400, 'Ajoutez un numéro MonCash ou NatCash pour les frais de candidature.');
+  await query('UPDATE site_public_services SET booking_payment = ?::jsonb WHERE id = 1', [JSON.stringify(settings)]);
+  res.json({ ok: true });
+});
+
+router.put('/booking-operations/applications/:id/review', requirePlatformOwner, async (req, res) => {
+  const [row] = await query('UPDATE photographer_applications SET reviewed_at = COALESCE(reviewed_at, CURRENT_TIMESTAMP) WHERE id = ? RETURNING id', [uuid.parse(req.params.id)]);
+  if (!row) throw httpError(404, 'Candidature introuvable.');
+  res.json({ ok: true });
+});
+
+router.put('/booking-operations/payments/:id/verify', requirePlatformOwner, async (req, res) => {
+  const [row] = await query('UPDATE portfolio_requests SET payment_verified_at = COALESCE(payment_verified_at, CURRENT_TIMESTAMP) WHERE id = ? AND payment_code IS NOT NULL RETURNING id', [uuid.parse(req.params.id)]);
+  if (!row) throw httpError(404, 'Paiement introuvable.');
+  audit(req, 'booking.payment_verified', { entity: 'portfolio_request', entityId: row.id });
+  res.json({ ok: true });
+});
+
+router.get('/booking-operations/applications/:id/logo', requirePlatformOwner, async (req, res) => {
+  const [application] = await query('SELECT logo_key FROM photographer_applications WHERE id = ?', [uuid.parse(req.params.id)]);
+  if (!application?.logo_key) throw httpError(404, 'Logo introuvable.');
+  res.set('Cache-Control', 'private, no-store').type('image/png').send(await readFile(application.logo_key));
+});
+
+router.put('/booking-operations/applications/:id/logo', requirePlatformOwner, async (req, res) => {
+  const id = uuid.parse(req.params.id);
+  const { staffId } = z.object({ staffId: uuid }).strict().parse(req.body);
+  const [result] = await query(`INSERT INTO photographer_profiles (staff_id, logo_key)
+    SELECT u.id, a.logo_key FROM users u CROSS JOIN photographer_applications a
+    WHERE u.id = ? AND u.active = 1 AND u.role IN ('owner', 'admin')
+      AND a.id = ? AND a.logo_key IS NOT NULL
+    ON CONFLICT (staff_id) DO UPDATE SET logo_key = EXCLUDED.logo_key RETURNING staff_id`, [staffId, id]);
+  if (!result) throw httpError(404, 'Logo ou photographe introuvable.');
+  audit(req, 'photographer.logo_assigned', { entity: 'user', entityId: staffId });
   res.json({ ok: true });
 });

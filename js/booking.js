@@ -204,26 +204,37 @@ export async function bindAdminBooking({ toast, modal, clients }) {
       const href = waLink(r.phone, [
         `${hello()} ${firstName(r.name)},`,
         status === 'accepted'
-          ? `votre demande de séance${r.date ? ` du ${fday(r.date)}` : ''} est acceptée. On vous contacte très vite pour les détails.`
+          ? `votre demande de séance${r.date ? ` du ${fday(r.date)}${r.time ? ` à ${r.time}` : ''}` : ''} est acceptée. On vous contacte très vite pour les détails.`
           : status === 'cancelled' ? `la séance${r.date ? ` du ${fday(r.date)}${r.time ? ` à ${r.time}` : ''}` : ''} est malheureusement annulée. Écrivez-moi pour choisir un autre moment.`
           : `votre demande de séance${r.date ? ` du ${fday(r.date)}` : ''} n’est malheureusement pas disponible.${pdate ? ` Je vous propose plutôt le ${fday(pdate)}${ptime ? ` à ${ptime}` : ''}.` : ''}`,
         reply,
       ].filter(Boolean).join(' '));
       if (!href) return;
-      modal('Prévenir par WhatsApp', `<p class="small">${escape(r.name)} n’a pas donné d’e-mail. Ouvrez WhatsApp : le message est déjà écrit, il ne reste qu’à l’envoyer.</p>`,
+      modal('Prévenir par WhatsApp', `<p class="small">${escape(r.name)} peut être prévenu sur WhatsApp. Ouvrez WhatsApp : le message est déjà écrit, il ne reste qu’à l’envoyer.</p>`,
         async () => { window.open(href, '_blank', 'noopener'); }, { submit: 'Ouvrir WhatsApp' });
     };
-    root.querySelectorAll('[data-req-ok]').forEach((b) => { b.onclick = guard(async () => { b.disabled = true; const r = await answer(b.dataset.reqOk, 'accepted'); const req = d.requests.find((x) => x.id === b.dataset.reqOk); toast(r.accountCreated ? 'Demande acceptée : compte client créé, accès envoyés par e-mail.' : req && !req.email ? 'Demande acceptée.' : 'Demande acceptée : la personne est prévenue par e-mail.'); await reload(); if (req && !req.email) waNotify(req, 'accepted'); }); });
+    root.querySelectorAll('[data-req-ok]').forEach((button) => {
+      button.onclick = guard(async () => {
+        const request = d.requests.find(item => item.id === button.dataset.reqOk);
+        button.disabled = true;
+        try {
+          const result = await answer(request.id, 'accepted');
+          toast(result.emailSent ? 'Demande acceptée. E-mail envoyé.' : 'Demande acceptée.');
+          await reload();
+          if (!result.emailSent) waNotify(request, 'accepted');
+        } finally { button.disabled = false; }
+      });
+    });
     root.querySelectorAll('[data-req-cancel]').forEach((b) => { b.onclick = guard(async () => {
       if (!confirm('Annuler cette séance ? L’heure redevient libre et la personne est prévenue.')) return;
       const id = b.dataset.reqCancel; const r = d.requests.find((x) => x.id === id);
-      await answer(id, 'cancelled'); toast('Séance annulée : l’heure est de nouveau libre.'); await reload();
-      if (r && !r.email) waNotify(r, 'cancelled');
+      const result = await answer(id, 'cancelled'); toast('Séance annulée : l’heure est de nouveau libre.'); await reload();
+      if (r && !result.emailSent) waNotify(r, 'cancelled');
     }); });
     root.querySelectorAll('[data-req-no]').forEach((b) => { b.onclick = () => {
       const id = b.dataset.reqNo; const r = d.requests.find((x) => x.id === id);
       modal('Refuser cette demande', `<p class="small">${escape(r.name)} · ${escape(r.sessionType || 'Séance')}${r.date ? ` · date demandée : ${escape(r.date)}` : ''}</p><label>Autre date proposée <span class="optional">(facultatif)</span><input type="date" name="pdate" min="${d.today}"></label><label>Heure proposée <span class="optional">(facultatif)</span><input type="time" name="ptime"></label><label>Message <span class="optional">(facultatif)</span><input name="reply" maxlength="500" placeholder="Ex. Je suis pris à cette date, écrivez-moi pour une autre."></label>`,
-        async (v) => { await answer(id, 'declined', v.reply || '', v.pdate || '', v.ptime || ''); toast(r.email ? 'Demande refusée : la personne est prévenue par e-mail.' : 'Demande refusée.'); await reload(); if (!r.email) waNotify(r, 'declined', v.reply || '', v.pdate || '', v.ptime || ''); }, { submit: 'Envoyer' });
+        async (v) => { const result = await answer(id, 'declined', v.reply || '', v.pdate || '', v.ptime || ''); toast(result.emailSent ? 'Demande refusée. E-mail envoyé.' : 'Demande refusée.'); await reload(); if (!result.emailSent) waNotify(r, 'declined', v.reply || '', v.pdate || '', v.ptime || ''); }, { submit: 'Envoyer' });
     }; });
     root.querySelectorAll('[data-bka-ok]').forEach((b) => { b.onclick = guard(async () => { b.disabled = true; await api(`/api/admin/booking/bookings/${b.dataset.bkaOk}`, { method: 'PATCH', body: { status: 'confirmed' } }); toast('Rendez-vous confirmé : le client est prévenu.'); await reload(); }); });
     root.querySelectorAll('[data-bka-no]').forEach((b) => { b.onclick = () => {

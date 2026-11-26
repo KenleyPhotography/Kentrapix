@@ -80,6 +80,28 @@ export async function monthSlots(staffId, month, { includePublic = false } = {})
   const settings = await settingsOf(staffId);
   const first = `${month}-01`;
   const end = (() => { const d = new Date(`${first}T12:00:00Z`); d.setUTCMonth(d.getUTCMonth() + 1); d.setUTCDate(0); return d.toISOString().slice(0, 10); })();
+  const days = await availableDays(staffId, first, end, settings, includePublic);
+  return { settings, days };
+}
+
+export async function nextPublicSlot(staffId, settings) {
+  if (!settings.enabled) return null;
+  const today = studioToday();
+  const from = addDays(today, settings.minNoticeDays);
+  const end = addDays(today, settings.horizonDays);
+  if (from > end) return null;
+  const timeNow = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'America/Port-au-Prince', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+  }).format();
+  const days = await availableDays(staffId, from, end, settings, true);
+  for (const [day, hours] of Object.entries(days)) {
+    const time = hours.find(hour => day > today || hour > timeNow);
+    if (time) return { day, time };
+  }
+  return null;
+}
+
+async function availableDays(staffId, first, end, settings, includePublic) {
   const [blocked, taken, accepted] = await Promise.all([
     query('SELECT day FROM booking_blocked_days WHERE staff_id = ? AND day BETWEEN ? AND ?', [staffId, first, end]),
     query("SELECT day, start_time, duration_min FROM bookings WHERE staff_id = ? AND status IN ('pending', 'confirmed', 'proposed') AND day BETWEEN ? AND ?", [staffId, first, end]),
@@ -97,7 +119,7 @@ export async function monthSlots(staffId, month, { includePublic = false } = {})
     const slots = slotsForDay(settings, day, { blocked: blockedSet.has(day), taken: byDay[day] || [] });
     if (slots.length) days[day] = slots;
   }
-  return { settings, days };
+  return days;
 }
 
 /** Heures déjà prises entre deux dates : séances confirmées, demandes du portfolio acceptées (jour entier si sans heure), jours bloqués. */

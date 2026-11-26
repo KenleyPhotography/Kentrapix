@@ -1,4 +1,4 @@
-// Studio : ajouter ou retirer des photos du portfolio public. Les fichiers ne vont ni sur R2 ni sur Supabase (GitHub, côté serveur).
+// Studio : ajouter ou retirer les photos du portfolio public.
 import { api, escape } from './service.js';
 import { ACCEPT_PHOTO, isRaw, rawImage } from './raw.js';
 import { icon } from './icons.js';
@@ -32,22 +32,31 @@ export async function bindAdminPortfolio({ toast }) {
 
   const draw = () => {
     if (!d.tableReady) { root.innerHTML = '<section class="settings bill-block"><h2>Portfolio</h2><p class="small">Cette section n’est pas disponible pour le moment. Réessayez plus tard.</p></section>'; return; }
+    const remaining = Math.max(0, d.photoLimit - d.photos.length);
+    const batchLimit = Math.min(12, remaining);
     const by = {};
     for (const p of d.photos) (by[p.category] ??= []).push(p);
     root.innerHTML = `<section class="settings bill-block">
       <h2>Mon profil public</h2>
       <form id="pfa-profile" class="bk-form">
-        <label><input type="checkbox" name="published" ${d.profile.published ? 'checked' : ''}> Publier mon profil dans l’annuaire</label>
+        <p>Le propriétaire choisit les profils qui apparaissent dans l’équipe publique.</p>
         <label>Ville ou zone d’intervention<input name="location" maxlength="100" value="${escape(d.profile.location)}"></label>
         <label>Présentation<textarea name="bio" maxlength="700" rows="4">${escape(d.profile.bio)}</textarea></label>
+        <fieldset><legend>Coordonnées publiques</legend>
+          <label>Téléphone<input name="phone" type="tel" maxlength="40" value="${escape(d.profile.phone)}"></label>
+          <label>E-mail<input name="email" type="email" maxlength="190" value="${escape(d.profile.email)}"></label>
+          <label>Nom d’utilisateur Instagram<input name="instagram" maxlength="31" placeholder="@votrecompte" value="${escape(d.profile.instagram)}"></label>
+          <label>Site web<input name="website" type="url" maxlength="250" placeholder="https://…" value="${escape(d.profile.website)}"></label>
+        </fieldset>
         <button class="btn primary" type="submit">Enregistrer le profil</button>
       </form>
     </section><section class="settings bill-block"><h2>${icon('upload')} Ajouter des photos</h2>
       ${d.ready ? '' : '<p class="small" style="color:#c2410c">L’ajout de photos n’est pas disponible pour le moment.</p>'}
+      <p>${d.photos.length} / ${d.photoLimit} photos · ${remaining} place(s) disponible(s).</p>
       <form id="pfa-form" class="bk-form">
         <label>Catégorie<select name="category">${d.categories.map((c) => `<option>${escape(c)}</option>`).join('')}</select></label>
-        <label>Photos <span class="optional">(jusqu’à 12 à la fois)</span><input type="file" name="photos" accept="${ACCEPT_PHOTO}" multiple required></label>
-        <button class="btn primary" ${d.ready ? '' : 'disabled'}>${icon('upload')} Ajouter au portfolio</button>
+        <label>Photos <span class="optional">(jusqu’à ${batchLimit} à la fois)</span><input type="file" name="photos" accept="${ACCEPT_PHOTO}" multiple required></label>
+        <button class="btn primary" ${d.ready && remaining ? '' : 'disabled'}>${icon('upload')} Ajouter au portfolio</button>
       </form></section>
       <section class="settings bill-block"><h2>Photos ajoutées ${d.photos.length ? `<span class="count-pill">${d.photos.length}</span>` : ''}</h2>
       ${d.photos.length ? Object.keys(by).map((c) => `<h3 class="small" style="margin:14px 0 8px">${escape(c)}</h3><div class="pfa-grid">${by[c].map((p) => `<figure class="pfa-item"><img src="${escape(p.src)}" alt="" loading="lazy"><button type="button" class="btn sm" data-pfa-del="${p.id}" aria-label="Retirer cette photo">${icon('trash')}</button></figure>`).join('')}</div>`).join('') : '<p class="small">Aucune photo ajoutée pour l’instant.</p>'}
@@ -59,7 +68,8 @@ export async function bindAdminPortfolio({ toast }) {
       button.disabled = true;
       try {
         const { profile } = await api('/api/admin/portfolio/profile', { method: 'PUT', body: {
-          published: data.has('published'), location: data.get('location'), bio: data.get('bio'),
+          location: data.get('location'), bio: data.get('bio'), phone: data.get('phone'), email: data.get('email').trim(),
+          instagram: data.get('instagram'), website: data.get('website'),
         } });
         d.profile = profile;
         toast('Profil enregistré.');
@@ -68,7 +78,7 @@ export async function bindAdminPortfolio({ toast }) {
     root.querySelector('#pfa-form').addEventListener('submit', guard(async (e) => {
       e.preventDefault();
       const f = e.currentTarget, btn = f.querySelector('button'), files = f.photos.files;
-      if (files.length > 12) { toast('12 photos au maximum à la fois.'); return; }
+      if (files.length > batchLimit) { toast(`Nombre de photos autorisé pour cet envoi : ${batchLimit}.`); return; }
       const form = new FormData(); form.append('category', f.category.value);
       btn.disabled = true; btn.textContent = 'Préparation…';
       for (const file of files) form.append('photos', await shrink(file));

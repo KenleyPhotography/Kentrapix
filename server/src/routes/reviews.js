@@ -1,3 +1,6 @@
+import multer from 'multer';
+import sharp from 'sharp';
+import { isRemote, putFile, removeKeys } from '../lib/storage.js';
 import { publicServices, publicPhotographers } from '../lib/public-services.js';
 import { monthSlots } from '../lib/booking.js';
 import { Router } from 'express';
@@ -150,6 +153,7 @@ const inquiryLimiter = rateLimit({
 const oneLine = (max) => z.string().trim().max(max).regex(/^[^\u0000-\u001f\u007f]*$/, 'Caractères non valides.');
 const inquiry = z.object({
   staffId: z.string().uuid().optional(),
+  manual: z.boolean().optional().default(false),
   name: oneLine(80).min(2, 'Entrez votre nom.'),
   email: z.union([z.literal(''), z.string().trim().toLowerCase().email('E-mail invalide.').max(190)]).optional().default(''), // facultatif
   phone: oneLine(40).refine((v) => v.replace(/\D/g, '').length >= 6, 'Entrez votre numéro de téléphone.'), // obligatoire
@@ -172,6 +176,72 @@ publicApi.get('/slot-check', async (req, res) => {
   res.set('Cache-Control', 'no-store').json(c ? { ok: false, error: 'Cette date et cette heure sont déjà prises. Choisissez un autre moment.', ...c, today } : { ok: true, today });
 });
 
+async function applicationPayment() {
+  const [row] = await query('SELECT booking_payment FROM site_public_services WHERE id = 1');
+  const { applicationAmount, moncash, natcash } = row.booking_payment;
+  return applicationAmount && (moncash || natcash) ? { amount: applicationAmount, moncash, natcash } : null;
+}
+
+publicApi.get('/photographer-applications/payment', async (_req, res) => {
+  res.set('Cache-Control', 'no-store').json({ payment: await applicationPayment() });
+});
+
+const applicationLogo = multer({ storage: multer.memoryStorage(), limits: { fileSize: 4 * 1024 * 1024, files: 1, fields: 8 } }).single('logo');
+
+async function validateLogo(file) {
+  const message = 'Ajoutez un logo PNG transparent et non entièrement blanc.';
+  if (!file) throw httpError(400, message);
+  try {
+    const source = sharp(file.buffer, { limitInputPixels: 16_000_000 });
+    const info = await source.metadata();
+    if (info.format !== 'png' || !info.hasAlpha) throw new Error();
+    const logo = await source.resize({ width: 800, height: 800, fit: 'inside', withoutEnlargement: true }).png().toBuffer();
+    const pixels = await sharp(logo).ensureAlpha().toColourspace('srgb').raw().toBuffer();
+    let transparent = false, colored = false;
+    for (let i = 0; i < pixels.length; i += 4) {
+      if (pixels[i + 3] === 0) transparent = true;
+      if (pixels[i + 3] >= 32 && Math.min(pixels[i], pixels[i + 1], pixels[i + 2]) < 245) colored = true;
+    }
+    if (!transparent || !colored) throw new Error();
+    return logo;
+  } catch { throw httpError(400, message); }
+}
+
+publicApi.post('/photographer-applications', inquiryLimiter, applicationLogo, async (req, res) => {
+  const data = z.object({
+    name: oneLine(80).min(2),
+    email: z.string().trim().email().max(190),
+    phone: oneLine(40).refine(value => value.replace(/\D/g, '').length >= 6),
+    message: z.string().trim().max(1000),
+    website: z.string().max(200).optional(),
+    method: z.enum(['moncash', 'natcash']).optional(),
+    transferCode: z.string().trim().regex(/^[A-Za-z0-9-]{3,60}$/).optional(),
+  }).parse(req.body);
+  if (!data.website) {
+    const payment = await applicationPayment();
+    if (payment && (!data.method || !payment[data.method] || !data.transferCode)) {
+      throw httpError(400, 'Choisissez le service de paiement et indiquez le TransCode.');
+    }
+    if (!isRemote) throw httpError(503, 'Le stockage des logos est indisponible.');
+    const logo = await validateLogo(req.file);
+    const id = crypto.randomUUID();
+    const logoKey = `photographer-logos/${id}.png`;
+    await putFile(logoKey, logo, 'image/png');
+    try {
+      const [saved] = await query(`INSERT INTO photographer_applications
+        (id, name, email, phone, message, payment_method, transfer_code, payment_amount, logo_key)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING RETURNING id`,
+      [id, data.name, data.email, data.phone, data.message,
+        payment ? data.method : null, payment ? data.transferCode : null, payment?.amount ?? null, logoKey]);
+      if (!saved) throw httpError(409, 'Ce TransCode a déjà été utilisé.');
+    } catch (error) {
+      await removeKeys([logoKey]);
+      throw error;
+    }
+  }
+  res.status(201).json({ ok: true });
+});
+
 publicApi.post('/inquiry', inquiryLimiter, async (req, res) => {
   const d = inquiry.parse(req.body);
   if (d.website) return res.status(201).json({ ok: true }); // robot : on fait semblant
@@ -180,24 +250,30 @@ publicApi.post('/inquiry', inquiryLimiter, async (req, res) => {
   if (d.staffId) {
     const date = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])-([0-2]\d|3[01])$/).parse(d.date);
     const { days, settings } = await monthSlots(o.id, date.slice(0, 7), { includePublic: true });
-    if (!days[date]?.includes(d.time)) throw httpError(409, 'Ce créneau n’est plus disponible.');
+    if (!d.manual && !days[date]?.includes(d.time)) throw httpError(409, 'Ce créneau n’est plus disponible.');
     if (!settings.sessionTypes.includes(d.sessionType)) throw httpError(400, 'Choisissez un type de séance proposé par ce photographe.');
   }
   if (!d.sessionType) throw httpError(400, 'Choisissez le type de séance.');
   if (needsPlace(d.sessionType) && d.location.length < 2) throw httpError(400, 'Indiquez le lieu de la séance.');
   if (d.date) {
     const today = studioToday();
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(d.date) || d.date < today) throw httpError(400, 'Choisissez une date à venir.');
+    const parsed = new Date(d.date + 'T12:00:00Z');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d.date) || !Number.isFinite(+parsed) || parsed.toISOString().slice(0, 10) !== d.date || d.date < today) throw httpError(400, 'Choisissez une date à venir.');
     if (!d.time) throw httpError(400, 'Choisissez aussi une heure.');
     const c = await slotConflict(o.id, d.date, d.time);
     if (c) return res.status(409).json({ error: 'Cette date et cette heure sont déjà prises. Choisissez un autre moment.', ...c });
   }
+  const [settings] = await query('SELECT booking_payment FROM site_public_services WHERE id = 1');
+  const methods = settings.booking_payment;
+  const payment = methods.amount && (methods.moncash || methods.natcash)
+    ? { ...methods, code: 'KP-' + crypto.randomBytes(8).toString('hex').toUpperCase() }
+    : null;
   await query(
-    'INSERT INTO portfolio_requests (id, staff_id, name, email, phone, session_type, location, wished_date, wished_time, message) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-    [crypto.randomUUID(), o.id, d.name, d.email, d.phone, d.sessionType, d.location, d.date, d.time, d.message],
+    'INSERT INTO portfolio_requests (id, staff_id, name, email, phone, session_type, location, wished_date, wished_time, message, payment_code, payment_amount) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    [crypto.randomUUID(), o.id, d.name, d.email, d.phone, d.sessionType, d.location, d.date, d.time, d.message, payment?.code ?? null, payment?.amount ?? null],
   );
   pushLater(o.id, { title: 'Nouvelle demande de séance', body: `${d.name}${d.sessionType ? ` · ${d.sessionType}` : ''}`, url: '/admin', tag: `inquiry-${Date.now()}` });
   sendMail({ to: o.email, userId: o.id, kind: 'inquiry', replyTo: d.email || undefined, ...inquiryEmail({ staffName: o.name, ...d }) })
     .catch((err) => console.error('E-mail demande portfolio :', err.message));
-  res.status(201).json({ ok: true });
+  res.set('Cache-Control', 'no-store').status(201).json({ ok: true, payment });
 });

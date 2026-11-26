@@ -6,30 +6,59 @@
   <meta name="description" content="Découvrez les photographes de Kentra Pix, explorez leurs portfolios et choisissez un créneau pour votre séance.">
   <title>Photographes — Kentra Pix</title>
   <link rel="icon" href="/logo/kentrapix-icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/portfolio.css">
   <link rel="stylesheet" href="/css/photographes.css">
 </head>
 <body>
   <header class="top">
     <a class="brand" href="/photographes"><img src="/logo/kentrapix-icon.svg" width="36" height="36" alt=""> Kentra Pix</a>
-    <nav aria-label="Navigation"><a href="/photographes">Photographes</a><a href="/reservation">Réservation</a><a class="outline" href="/login">Connexion</a></nav>
+    <button class="nav-toggle" type="button" aria-controls="site-nav" aria-expanded="false"><span aria-hidden="true">☰</span> Menu</button>
+    <nav id="site-nav" aria-label="Navigation"><a href="/photographes#annuaire">Trouver un photographe</a><a class="outline" href="/login">Connexion</a></nav>
   </header>
   <main>
     <section class="hero" id="intro">
       <div>
-        <h1>Trouvez le regard qui racontera votre histoire.</h1>
+        <h1>Le bon regard pour <em>vos plus beaux moments.</em></h1>
         <p>Kentra Pix réunit des photographes et leurs clients en Haïti. Découvrez leur travail, demandez une séance à une date disponible et retrouvez vos photos dans votre galerie privée.</p>
-        <a class="primary" href="#annuaire">Découvrir les photographes</a>
+        <div class="hero-actions"><a class="hero-login" href="/login">Connexion</a></div>
       </div>
-      <img src="/img/portfolio-hero.webp" alt="" fetchpriority="high">
+      <img src="/img/equipe-kentra.png" alt="L’équipe Kentra avec un appareil photo et des ordinateurs portables" fetchpriority="high">
     </section>
     <section id="annuaire" class="directory" aria-labelledby="directory-title">
       <h2 id="directory-title">Les photographes</h2>
-      <label id="search-label">Rechercher un nom ou une ville <input type="search" id="search"></label>
+      <div class="directory-filters" id="directory-filters">
+        <label id="search-label">Rechercher un nom ou une ville <input type="search" id="search"></label>
+        <label>Type de séance <select id="specialty-filter"><option value="">Tous les services</option></select></label>
+      </div>
       <p id="status" role="status">Chargement…</p>
       <div class="cards" id="profiles"></div>
     </section>
+    <section id="how-it-works" class="directory how-it-works">
+      <h2>Comment ça marche ?</h2>
+      <ol><li>Choisissez un photographe</li><li>Demandez une date</li><li>Recevez sa réponse par e-mail ou WhatsApp</li></ol>
+    </section>
+    <section class="team-banner" aria-labelledby="team-banner-title">
+      <div><h2 id="team-banner-title">Devenez photographe<br>sur Kentra Pix</h2><p>Présentez votre travail et rejoignez notre équipe de photographes.</p></div>
+      <a href="/reservation#devenir-photographe" data-open-application>Présenter ma candidature <span aria-hidden="true">↗</span></a>
+    </section>
+    <section id="partenaires" class="directory partner-section" aria-labelledby="partners-title">
+      <h2 id="partners-title">Nos partenaires</h2>
+      <div id="partner-logos" class="partner-logos"></div>
+      <p id="partner-status" role="status"></p>
+    </section>
   </main>
-  <footer><a href="/conditions">Conditions</a><a href="https://wa.me/50935022418">WhatsApp</a></footer>
+  <dialog id="application-dialog" class="booking-screen reservation-page" aria-labelledby="application-title">
+    <header class="booking-screen-bar"><strong id="application-title">Devenir photographe</strong><form method="dialog"><button class="outline">Fermer ×</button></form></header>
+    <div class="booking-screen-content" id="application-content"></div>
+  </dialog>
+  <footer class="site-footer">
+    <div class="footer-content">
+      <div><a class="footer-brand" href="/photographes">Kentra Pix</a><p>Photographes, réservations et galeries privées en Haïti.</p></div>
+      <nav aria-label="Liens utiles"><strong>Explorer</strong><a href="/photographes#annuaire">Photographes</a><a href="/reservation#devenir-photographe" data-open-application>Devenir photographe</a><a href="/login">Espace client</a></nav>
+      <div><strong>Contact</strong><a href="https://wa.me/50935022418">WhatsApp · +509 3502-2418</a><a href="mailto:kentrapix@gmail.com">kentrapix@gmail.com</a></div>
+    </div>
+    <div class="footer-bottom"><span>© Kentra Pix</span><a href="/conditions">Conditions d’utilisation</a></div>
+  </footer>
   <script src="/js/photographes.js" defer></script>
 </body>
 </html>

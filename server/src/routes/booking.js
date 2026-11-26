@@ -99,7 +99,10 @@ staffBooking.patch('/requests/:id', async (req, res) => {
       throw httpError(409, `Cette heure est déjà prise. Refusez la demande en proposant un autre moment${hint ? ` (libres : ${hint})` : ''}.`);
     }
   }
-  await query('UPDATE portfolio_requests SET status = ?, reply = ? WHERE id = ?', [status, reply || null, row.id]);
+  if (proposedTime && !proposedDate) throw httpError(400, 'Choisissez la date proposée.');
+  if (proposedDate && proposedDate < studioToday()) throw httpError(400, 'Choisissez une date à venir.');
+  const [updated] = await query('UPDATE portfolio_requests SET status = ?, reply = ? WHERE id = ? AND status = ? RETURNING id', [status, reply || null, row.id, row.status]);
+  if (!updated) throw httpError(409, 'Cette demande a déjà été traitée.');
   // Acceptée : si la personne n'a pas encore de compte, on lui en crée un (mot de passe initial à changer à la première connexion).
   let password;
   if (status === 'accepted' && row.email) {
@@ -118,13 +121,13 @@ staffBooking.patch('/requests/:id', async (req, res) => {
       await query('INSERT INTO client_photographers (client_id, staff_id) VALUES (?, ?) ON CONFLICT DO NOTHING', [known.id, req.user.id]);
     }
   }
-  if (row.email) fire(sendMail({
+  const notification = row.email ? await sendMail({
     to: row.email, userId: req.user.id, sentBy: req.user.id, kind: 'inquiry-reply',
     fromName: studioName(req.user), replyTo: req.user.email,
     ...inquiryReplyEmail({ name: row.name, email: row.email, password, studio: studioName(req.user), accepted: status === 'accepted', cancelled: status === 'cancelled', sessionType: row.session_type, date: row.wished_date, time: row.wished_time, reply, proposedDate, proposedTime }),
-  }));
+  }) : null;
   audit(req, `inquiry.${status}`, { entity: 'portfolio_request', entityId: row.id });
-  res.json({ ok: true, status, accountCreated: !!password });
+  res.json({ ok: true, status, accountCreated: !!password, emailSent: notification?.status === 'sent' });
 });
 
 async function loadOwn(req, id) {
