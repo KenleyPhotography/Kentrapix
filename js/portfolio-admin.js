@@ -47,6 +47,7 @@ export async function bindAdminPortfolio({ toast }) {
           <label>E-mail<input name="email" type="email" maxlength="190" value="${escape(d.profile.email)}"></label>
           <label>Nom d’utilisateur Instagram<input name="instagram" maxlength="31" placeholder="@votrecompte" value="${escape(d.profile.instagram)}"></label>
           <label>Site web<input name="website" type="url" maxlength="250" placeholder="https://…" value="${escape(d.profile.website)}"></label>
+          <label>Lien du portfolio<input name="portfolioUrl" type="url" maxlength="250" placeholder="https://…" value="${escape(d.profile.portfolioUrl)}"></label>
         </fieldset>
         <button class="btn primary" type="submit">Enregistrer le profil</button>
       </form>
@@ -69,7 +70,7 @@ export async function bindAdminPortfolio({ toast }) {
       try {
         const { profile } = await api('/api/admin/portfolio/profile', { method: 'PUT', body: {
           location: data.get('location'), bio: data.get('bio'), phone: data.get('phone'), email: data.get('email').trim(),
-          instagram: data.get('instagram'), website: data.get('website'),
+          instagram: data.get('instagram'), website: data.get('website'), portfolioUrl: data.get('portfolioUrl'),
         } });
         d.profile = profile;
         toast('Profil enregistré.');

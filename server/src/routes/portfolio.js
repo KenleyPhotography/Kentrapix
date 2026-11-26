@@ -24,7 +24,7 @@ const mapPhoto = (r) => ({ id: r.id, category: r.category, src: `/portfolio-medi
 
 // ---------- Studio (propriétaire) ----------
 export const staffPortfolio = Router();
-const profileDefaults = { bio: '', location: '', phone: '', email: '', instagram: '', website: '' };
+const profileDefaults = { bio: '', location: '', phone: '', email: '', instagram: '', website: '', portfolioUrl: '' };
 staffPortfolio.put('/profile', async (req, res) => {
   const profile = z.object({
     published: z.boolean().optional(),
@@ -34,25 +34,27 @@ staffPortfolio.put('/profile', async (req, res) => {
     email: z.union([z.literal(''), z.string().email().max(190)]).optional(),
     instagram: z.string().trim().regex(/^@?[A-Za-z0-9._]{0,30}$/).transform(value => value.replace(/^@/, '')).optional(),
     website: z.string().trim().max(250).refine(value => value === '' || /^https?:\/\//i.test(value) && URL.canParse(value), 'Utilisez une adresse http ou https.').optional(),
+    portfolioUrl: z.string().trim().max(250).refine(value => value === '' || /^https?:\/\//i.test(value) && URL.canParse(value), 'Utilisez une adresse http ou https.').optional(),
   }).strict().parse(req.body);
   const [saved] = await query(`INSERT INTO photographer_profiles
-    (staff_id, bio, location, public_phone, public_email, instagram, website)
-    VALUES (?, ?, ?, COALESCE(?, ''), COALESCE(?, ''), COALESCE(?, ''), COALESCE(?, ''))
+    (staff_id, bio, location, public_phone, public_email, instagram, website, portfolio_url)
+    VALUES (?, ?, ?, COALESCE(?, ''), COALESCE(?, ''), COALESCE(?, ''), COALESCE(?, ''), COALESCE(?, ''))
     ON CONFLICT (staff_id) DO UPDATE SET bio = EXCLUDED.bio, location = EXCLUDED.location,
       public_phone = COALESCE(?, photographer_profiles.public_phone),
       public_email = COALESCE(?, photographer_profiles.public_email),
       instagram = COALESCE(?, photographer_profiles.instagram),
-      website = COALESCE(?, photographer_profiles.website)
-    RETURNING bio, location, public_phone AS phone, public_email AS email, instagram, website`,
+      website = COALESCE(?, photographer_profiles.website),
+      portfolio_url = COALESCE(?, photographer_profiles.portfolio_url)
+    RETURNING bio, location, public_phone AS phone, public_email AS email, instagram, website, portfolio_url AS "portfolioUrl"`,
   [req.user.id, profile.bio, profile.location, profile.phone ?? null, profile.email ?? null,
-    profile.instagram ?? null, profile.website ?? null, profile.phone ?? null, profile.email ?? null,
-    profile.instagram ?? null, profile.website ?? null]);
+    profile.instagram ?? null, profile.website ?? null, profile.portfolioUrl ?? null, profile.phone ?? null, profile.email ?? null,
+    profile.instagram ?? null, profile.website ?? null, profile.portfolioUrl ?? null]);
   res.json({ profile: saved });
 });
 
 staffPortfolio.get('/', async (req, res) => {
   const rows = await query('SELECT id, category, file, created_at FROM portfolio_photos WHERE staff_id = ? ORDER BY created_at DESC', [req.user.id]).catch(() => null);
-  const [profile] = await query('SELECT bio, location, public_phone AS phone, public_email AS email, instagram, website FROM photographer_profiles WHERE staff_id = ?', [req.user.id]);
+  const [profile] = await query('SELECT bio, location, public_phone AS phone, public_email AS email, instagram, website, portfolio_url AS "portfolioUrl" FROM photographer_profiles WHERE staff_id = ?', [req.user.id]);
   const [staff] = await query('SELECT portfolio_photo_limit FROM users WHERE id = ?', [req.user.id]);
   res.json({ photoLimit: staff.portfolio_photo_limit, profile: profile || profileDefaults, ready: isRemote, tableReady: rows !== null, categories: CATEGORIES, photos: (rows || []).map(mapPhoto) });
 });
@@ -170,7 +172,7 @@ publicPortfolio.get('/photographers', async (req, res) => {
   const [{ portfolio_enabled }, bookable, profiles] = await Promise.all([
     publicServices(), publicPhotographers(),
     query(`SELECT u.id, COALESCE(NULLIF(BTRIM(u.sender_name), ''), u.name) AS name, u.name AS full_name, COALESCE(p.bio, '') AS bio, COALESCE(p.location, '') AS location,
-      p.public_phone AS phone, p.public_email AS email, p.instagram, p.website, p.logo_key, row_to_json(booking) AS booking_settings
+      p.public_phone AS phone, p.public_email AS email, p.instagram, p.website, p.portfolio_url, p.logo_key, row_to_json(booking) AS booking_settings
       FROM users u LEFT JOIN photographer_profiles p ON p.staff_id = u.id
       LEFT JOIN booking_settings booking ON booking.staff_id = u.id
       CROSS JOIN site_public_services settings
@@ -203,7 +205,7 @@ publicPortfolio.get('/photographers', async (req, res) => {
         return null;
       }) : null,
       logo: profile.logo_key ? `/api/public/photographers/${profile.id}/logo` : null,
-      ...(id ? { fullName: profile.full_name, phone: profile.phone, email: profile.email, instagram: profile.instagram, website: profile.website } : {}),
+      ...(id ? { fullName: profile.full_name, phone: profile.phone, email: profile.email, instagram: profile.instagram, website: profile.website, portfolioUrl: profile.portfolio_url } : {}),
       bookable, photos,
     };
   }));

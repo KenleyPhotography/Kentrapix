@@ -149,6 +149,12 @@
 
     const portfolio = element('section', '', 'profile-portfolio');
     portfolio.append(element('h2', 'Portfolio'));
+    if (/^https?:\/\//i.test(person.portfolioUrl || '')) {
+      const external = link('Voir le portfolio externe', person.portfolioUrl, 'outline');
+      external.target = '_blank';
+      external.rel = 'noopener noreferrer';
+      portfolio.append(external);
+    }
     if (!person.photos.length) portfolio.append(element('p', 'Aucune photo disponible pour le moment.'));
     const works = element('div', '', 'works');
     for (const photo of person.photos) {
