@@ -12,7 +12,7 @@ import { uuid, CLIENT_HAS, NOT_EXPIRED } from '../lib/data.js';
 import rateLimit from 'express-rate-limit';
 import { pushLater } from '../lib/push.js';
 import { sendMail } from '../lib/mailer.js';
-import { inquiryEmail } from '../lib/emails.js';
+import { inquiryEmail, messageEmail } from '../lib/emails.js';
 import { needsPlace, settingsOf, slotConflict, studioToday } from '../lib/booking.js';
 
 // Avis des clients après livraison : 1 à 5 étoiles + commentaire, un par galerie (modifiable).
@@ -238,6 +238,15 @@ publicApi.post('/photographer-applications', inquiryLimiter, applicationLogo, as
       await removeKeys([logoKey]);
       throw error;
     }
+    const recipient = await owner();
+    if (recipient) await sendMail({
+      to: recipient.email, userId: recipient.id, kind: 'photographer_application',
+      ...messageEmail({
+        name: recipient.name,
+        subject: 'Nouvelle candidature photographe',
+        message: `${data.name} souhaite devenir photographe sur Kentra Pix. Consultez Équipe dans votre espace propriétaire.`,
+      }),
+    }).catch(error => console.error('Notification candidature :', error.name));
   }
   res.status(201).json({ ok: true });
 });

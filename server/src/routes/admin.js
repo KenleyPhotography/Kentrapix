@@ -60,7 +60,7 @@ router.use('/portfolio', staffPortfolio);
 router.get('/visits', requireOwner, async (req, res) => { res.set('Cache-Control', 'no-store').json(await visitStats()); });
 router.use('/contracts', staffContracts);
 // Contrats de site internet : liste indépendante (la signature, elle, reste celle du studio : /contracts/signature).
-router.use('/websites', staffWebContracts);
+router.use('/websites', requireOwner, staffWebContracts);
 router.use('/reviews', staffReviews);
 router.use('/todo', staffTodo);
 router.use('/orders', staffOrders);
@@ -429,8 +429,11 @@ router.get('/clients/:id/preview', async (req, res) => {
 // ---------- Équipe (propriétaire uniquement) ----------
 // Nouvel admin : compte créé avec un mot de passe temporaire.
 router.post('/team', requireOwner, async (req, res) => {
-  const data = accountSchema.extend({ password: passwordRule, sendEmail: sendFlag }).parse(req.body);
+  const data = accountSchema.extend({ password: passwordRule, sendEmail: sendFlag, publish: z.boolean().optional() }).parse(req.body);
+  if (data.publish && !(await isPlatformOwner(req.user))) throw httpError(403, 'Seul le propriétaire principal peut publier un photographe.');
   const admin = await createAccount(req, 'admin', data);
+  if (data.publish) await query(`UPDATE site_public_services SET team_staff = team_staff || jsonb_build_array(?::varchar)
+    WHERE id = 1 AND NOT team_staff @> jsonb_build_array(?::varchar)`, [admin.id, admin.id]);
   audit(req, 'team.create', { entity: 'user', entityId: admin.id, details: { email: data.email } });
   const email = data.sendEmail ? queueMail(mailTo(req, admin, adminInviteEmail({ ...admin, password: data.password }), { kind: 'admin_invite' })) : null;
   res.status(201).json({ account: mapClient(admin), email });
@@ -1319,7 +1322,7 @@ router.put('/public-services/:id/portfolio-limit', requirePlatformOwner, async (
 router.get('/booking-operations', requirePlatformOwner, async (_req, res) => {
   const [[settings], applications, payments, team] = await Promise.all([
     query('SELECT booking_payment FROM site_public_services WHERE id = 1'),
-    query('SELECT id, name, email, phone, message, reviewed_at, payment_method, transfer_code, payment_amount, logo_key IS NOT NULL AS has_logo FROM photographer_applications ORDER BY reviewed_at NULLS FIRST, created_at DESC LIMIT 100'),
+    query('SELECT id, name, email, phone, message, reviewed_at, payment_method, transfer_code, payment_amount, approved_staff_id, logo_key IS NOT NULL AS has_logo FROM photographer_applications ORDER BY reviewed_at NULLS FIRST, created_at DESC LIMIT 100'),
     query('SELECT id, name, payment_code, payment_amount, payment_verified_at FROM portfolio_requests WHERE payment_code IS NOT NULL ORDER BY payment_verified_at NULLS FIRST, created_at DESC LIMIT 100'),
     bookingStaff(),
   ]);
@@ -1364,4 +1367,37 @@ router.put('/booking-operations/applications/:id/logo', requirePlatformOwner, as
   if (!result) throw httpError(404, 'Logo ou photographe introuvable.');
   audit(req, 'photographer.logo_assigned', { entity: 'user', entityId: staffId });
   res.json({ ok: true });
+});
+
+router.put('/team/applications/:id/approve', requirePlatformOwner, async (req, res) => {
+  const id = uuid.parse(req.params.id);
+  const result = await transaction(async conn => {
+    const [[candidate]] = await conn.execute('SELECT * FROM photographer_applications WHERE id = ? FOR UPDATE', [id]);
+    if (!candidate) throw httpError(404, 'Candidature introuvable.');
+    if (candidate.approved_staff_id) return { staffId: candidate.approved_staff_id };
+    const [[existing]] = await conn.execute('SELECT id, role, active FROM users WHERE lower(email) = ? FOR UPDATE', [candidate.email.toLowerCase()]);
+    if (existing && (!existing.active || !STAFF_ROLES.includes(existing.role))) {
+      throw httpError(409, 'Ce compte existe déjà. Activez-le comme photographe dans Équipe avant d’approuver sa candidature.');
+    }
+    const staffId = existing?.id || crypto.randomUUID();
+    const password = existing ? null : crypto.randomBytes(16).toString('base64url');
+    if (!existing) {
+      await conn.execute(`INSERT INTO users (id, role, created_by, name, email, phone, password_hash, must_change_password, access_code)
+        VALUES (?, 'admin', ?, ?, ?, ?, ?, 1, ?)`,
+      [staffId, req.user.id, candidate.name, candidate.email.toLowerCase(), candidate.phone, await hashPassword(password), await freshCode()]);
+    }
+    await conn.execute(`INSERT INTO photographer_profiles (staff_id, logo_key) VALUES (?, ?)
+      ON CONFLICT (staff_id) DO UPDATE SET logo_key = COALESCE(EXCLUDED.logo_key, photographer_profiles.logo_key)`, [staffId, candidate.logo_key]);
+    await conn.execute(`UPDATE site_public_services SET team_staff = team_staff || jsonb_build_array(?::varchar)
+      WHERE id = 1 AND NOT team_staff @> jsonb_build_array(?::varchar)`, [staffId, staffId]);
+    await conn.execute('UPDATE photographer_applications SET approved_staff_id = ?, reviewed_at = CURRENT_TIMESTAMP WHERE id = ?', [staffId, id]);
+    return { staffId, password, name: candidate.name, email: candidate.email };
+  });
+  let invitation = null;
+  if (result.password) {
+    invitation = await mailTo(req, { id: result.staffId, email: result.email },
+      adminInviteEmail({ name: result.name, email: result.email, password: result.password }), { kind: 'admin_invite' });
+  }
+  audit(req, 'photographer.application_approved', { entity: 'user', entityId: result.staffId });
+  res.json({ staffId: result.staffId, invitation });
 });

@@ -194,7 +194,7 @@ export async function bindAdminBooking({ toast, modal, clients }) {
   };
 
   const draw = () => {
-    root.innerHTML = `${requestsHtml()}${pendingHtml()}${deliveriesHtml()}${calendarHtml()}${settingsHtml()}`;
+    root.innerHTML = `<button type="button" class="btn primary" data-bka-add>Ajouter un rendez-vous</button>${requestsHtml()}${pendingHtml()}${deliveriesHtml()}${calendarHtml()}${settingsHtml()}`;
     root.querySelector('[data-bk-prev]')?.addEventListener('click', () => { st.month -= 1; if (st.month < 0) { st.month = 11; st.year -= 1; } draw(); });
     root.querySelector('[data-bk-next]')?.addEventListener('click', () => { st.month += 1; if (st.month > 11) { st.month = 0; st.year += 1; } draw(); });
     root.querySelectorAll('[data-bka-day]').forEach((b) => b.addEventListener('click', () => { st.day = b.dataset.bkaDay; draw(); }));
@@ -303,9 +303,10 @@ export async function bindAdminBooking({ toast, modal, clients }) {
         toast('Remise des photos enregistrée.'); await reload();
       }, { submit: 'Enregistrer' });
     }; });
-    root.querySelector('[data-bka-add]')?.addEventListener('click', () => {
-      const day = st.day; const list = clients();
-      modal('Ajouter un rendez-vous', `<label>Client<select name="clientId" id="bka-who">${list.map((c) => `<option value="${c.id}">${escape(c.name)}</option>`).join('')}<option value="">Autre personne (pas encore dans le système)</option></select></label>
+    root.querySelectorAll('[data-bka-add]').forEach(button => button.addEventListener('click', () => {
+      const day = button.dataset.bkaAdd || d.today; const list = clients();
+      modal('Ajouter un rendez-vous', `<label>Client<select name="clientId" id="bka-who"><option value="">Personne sans compte Kentra Pix</option>${list.map((c) => `<option value="${c.id}">${escape(c.name)}</option>`).join('')}</select></label>
+        <label>Date<input type="date" name="day" min="${d.today}" value="${day}" required></label>
         <div id="bka-guest" hidden><label>Nom<input name="gname" id="bka-gname" maxlength="80" placeholder="Ex. Marie Joseph"></label>
         <div class="row2"><label>Téléphone / WhatsApp<input name="gphone" type="tel" maxlength="40"></label><label>E-mail <span class="optional">(facultatif)</span><input name="gemail" type="email" maxlength="190"></label></div></div>
         <label>Heure<input type="time" name="start" value="${d.settings.start}" required></label>
@@ -316,7 +317,7 @@ export async function bindAdminBooking({ toast, modal, clients }) {
         async (v) => {
           // Portrait et shoot studio : toujours au studio. Tout le reste (anniversaire compris) demande un lieu.
           if (!(v.location || '').trim() && !ALWAYS_STUDIO.test(v.sessionType || '')) throw Error('Indiquez le lieu du rendez-vous (ex. « Au studio »).');
-          const body = { day, start: v.start, sessionType: v.sessionType || '', location: (v.location || '').trim(), ...(v.delivery ? { deliveryDate: v.delivery } : {}) };
+          const body = { day: v.day, start: v.start, sessionType: v.sessionType || '', location: (v.location || '').trim(), ...(v.delivery ? { deliveryDate: v.delivery } : {}) };
           if (v.clientId) body.clientId = v.clientId;
           else {
             if (!v.gname || v.gname.trim().length < 2) throw Error('Entrez le nom de la personne.');
@@ -331,7 +332,7 @@ export async function bindAdminBooking({ toast, modal, clients }) {
       const typeEl = host.querySelector('#bka-type');
       const syncPlace = () => { host.querySelector('#bka-place-req').hidden = ALWAYS_STUDIO.test(typeEl.value); };
       typeEl.addEventListener('input', syncPlace); syncPlace();
-    });
+    }));
     root.querySelectorAll('.bk-days .chip').forEach((c) => c.addEventListener('click', (e) => { e.preventDefault(); const i = c.querySelector('input'); i.checked = !i.checked; c.classList.toggle('active', i.checked); }));
     root.querySelector('#bka-form')?.addEventListener('submit', guard(async (e) => {
       e.preventDefault();

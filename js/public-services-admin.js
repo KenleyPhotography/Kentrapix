@@ -56,10 +56,11 @@ export async function bindPublicServices(toast) {
   } catch (error) { section.querySelector('p').textContent = error.message; }
 }
 
-async function bindBookingOperations(root, toast) {
+export async function bindBookingOperations(root, toast, applicationsOnly = false, refresh) {
+  if (!root) return;
   try {
     const { settings, applications, payments, team } = await api('/api/admin/booking-operations');
-    root.innerHTML = `<h3>Paiements des réservations</h3>
+    root.innerHTML = `${applicationsOnly ? '' : `<h3>Paiements des réservations</h3>
       <form class="bk-form" data-payment-settings>
         <label>Numéro MonCash<input name="moncash" type="tel" value="${escape(settings.moncash || '')}"></label>
         <label>Numéro NatCash<input name="natcash" type="tel" value="${escape(settings.natcash || '')}"></label>
@@ -69,8 +70,8 @@ async function bindBookingOperations(root, toast) {
       </form>
       <h3>Transferts à vérifier</h3>
       ${payments.map(payment => `<p>${escape(payment.name)} · ${escape(payment.payment_code)} · ${payment.payment_amount} HTG
-        ${payment.payment_verified_at ? '· Vérifié' : `<button type="button" class="btn" data-operation="payments/${payment.id}/verify">Marquer vérifié</button>`}</p>`).join('') || '<p>Aucun transfert à vérifier.</p>'}
-      <h3>Candidatures photographes</h3>
+        ${payment.payment_verified_at ? '· Vérifié' : `<button type="button" class="btn" data-operation="payments/${payment.id}/verify">Marquer vérifié</button>`}</p>`).join('') || '<p>Aucun transfert à vérifier.</p>'}`}
+      ${applicationsOnly ? `<h3>Candidatures photographes</h3>
       ${applications.map(person => `<article><p><strong>${escape(person.name)}</strong> · ${escape(person.email)} · ${escape(person.phone)}</p>
         <p>${escape(person.message)}</p>
         ${person.transfer_code ? `<p>${escape(person.payment_method)} · ${person.payment_amount} HTG · TransCode ${escape(person.transfer_code)}</p>` : ''}
@@ -79,10 +80,11 @@ async function bindBookingOperations(root, toast) {
           <label>Attribuer à<select name="staffId" required><option value="">Choisir un photographe</option>${team.map(member => `<option value="${escape(member.id)}">${escape(member.name)}</option>`).join('')}</select></label>
           <button class="btn">Attribuer le logo</button>
         </form>` : ''}
-        ${person.reviewed_at ? '<p>Candidature examinée</p>' : `<button type="button" class="btn" data-operation="applications/${person.id}/review">Marquer examinée</button>`}
-      </article>`).join('') || '<p>Aucune candidature.</p>'}`;
+         ${person.approved_staff_id ? '<p>Photographe approuvé et ajouté à l’équipe.</p>' : `<label><input type="checkbox" data-approve="${escape(person.id)}"> Approuver et afficher dans l’équipe publique</label>`}
+        ${person.reviewed_at ? '<p>Candidature examinée</p>'  : `<button type="button" class="btn" data-operation="applications/${person.id}/review">Marquer examinée</button>`}
+      </article>`).join('') || '<p>Aucune candidature.</p>'}` : ''}`;
     const form = root.querySelector('[data-payment-settings]');
-    form.onsubmit = async (event) => {
+    if (form) form.onsubmit = async (event) => {
       event.preventDefault();
       const { moncash, natcash, amount, applicationAmount } = Object.fromEntries(new FormData(form));
       const button = form.querySelector('button');
@@ -93,6 +95,21 @@ async function bindBookingOperations(root, toast) {
       } catch (error) { toast(error.message); }
       finally { button.disabled = false; }
     };
+    root.querySelectorAll('[data-approve]').forEach(toggle => {
+      toggle.onchange = async () => {
+        if (!toggle.checked) return;
+        toggle.disabled = true;
+        try {
+          const { invitation } = await api('/api/admin/team/applications/' + encodeURIComponent(toggle.dataset.approve) + '/approve', { method: 'PUT', body: {} });
+          toast(invitation && invitation.status !== 'sent'
+            ? 'Photographe approuvé. L’invitation n’a pas été envoyée. Réinitialisez son mot de passe dans Équipe.'
+            : 'Photographe approuvé et affiché.');
+          if (refresh) await refresh();
+          else await bindBookingOperations(root, toast, applicationsOnly, refresh);
+        } catch (error) { toggle.checked = false; toast(error.message); }
+        finally { toggle.disabled = false; }
+      };
+    });
     root.querySelectorAll('[data-assign-logo]').forEach(assignment => {
       assignment.onsubmit = async event => {
         event.preventDefault();
@@ -113,7 +130,7 @@ async function bindBookingOperations(root, toast) {
         button.disabled = true;
         try {
           await api('/api/admin/booking-operations/' + button.dataset.operation, { method: 'PUT', body: {} });
-          await bindBookingOperations(root, toast);
+          await bindBookingOperations(root, toast, applicationsOnly, refresh);
         } catch (error) { toast(error.message); }
         finally { button.disabled = false; }
       };
