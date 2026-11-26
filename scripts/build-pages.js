@@ -18,6 +18,7 @@ const entries = [
   'client.html',
   'portfolio.html',
   'reservation.html',
+  'photographes.html',
   'gallery.html',
   'share.html',
   'contrat.html',

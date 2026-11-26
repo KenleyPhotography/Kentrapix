@@ -156,3 +156,8 @@
 
 .login-portfolio { background: #fff; color: #1265d8; animation: none; }
 .login-portfolio:hover, .login-portfolio:focus-visible { background: #eef5ff; }
+
+@media (max-width: 480px) {
+  .login-public-links { left: 8px; right: 8px; justify-content: flex-end; flex-wrap: wrap; gap: 4px; }
+  .login-public-links .login-book { padding-inline: 10px; }
+}

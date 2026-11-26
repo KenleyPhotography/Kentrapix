@@ -57,7 +57,8 @@
   }).then(({ photographers }) => {
     options(photographer, photographers.map(person => [person.id, person.name]), 'Choisir…');
     if (photographers.length) {
-      photographer.value = photographers[0].id;
+      const selected = new URLSearchParams(location.search).get('photographe');
+      photographer.value = photographers.find(person => person.id === selected)?.id || photographers[0].id;
       loadCalendar();
     } else msg.textContent = 'Aucun photographe ne reçoit de réservations actuellement.';
   }).catch(() => { msg.textContent = 'Impossible de charger les photographes.'; });

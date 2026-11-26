@@ -13,7 +13,7 @@ const OPTIONAL_ENV = [
 ];
 
 function dynamicPath(pathname) {
-  return pathname === '/' || pathname === '/reservation' || pathname === '/reservation/' || pathname === '/reservation.html' || pathname === '/portfolio' || pathname === '/portfolio/' || pathname === '/portfolio.html' || pathname === '/api' || pathname.startsWith('/api/')
+  return /^\/photographes(?:\.html|\/)?$/.test(pathname) || pathname === '/' || pathname === '/reservation' || pathname === '/reservation/' || pathname === '/reservation.html' || pathname === '/portfolio' || pathname === '/portfolio/' || pathname === '/portfolio.html' || pathname === '/api' || pathname.startsWith('/api/')
     || pathname === '/media' || pathname.startsWith('/media/')
     || pathname === '/portfolio-media' || pathname.startsWith('/portfolio-media/')
     || /^\/(login|admin|client|gallery|share|facture|f|contrat|c|studio|outdoor|graduation|evenement|mariage|gaduation|conditions|maintenance)(\/|$|\.)/.test(pathname)

@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Découvrez les photographes de Kentra Pix, explorez leurs portfolios et choisissez un créneau pour votre séance.">
+  <title>Photographes — Kentra Pix</title>
+  <link rel="icon" href="/logo/kentrapix-icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/photographes.css">
+</head>
+<body>
+  <header class="top">
+    <a class="brand" href="/photographes"><img src="/logo/kentrapix-icon.svg" width="36" height="36" alt=""> Kentra Pix</a>
+    <nav aria-label="Navigation"><a href="/photographes">Photographes</a><a href="/reservation">Réservation</a><a class="outline" href="/login">Connexion</a></nav>
+  </header>
+  <main>
+    <section class="hero" id="intro">
+      <div>
+        <h1>Trouvez le regard qui racontera votre histoire.</h1>
+        <p>Kentra Pix réunit des photographes et leurs clients en Haïti. Découvrez leur travail, demandez une séance à une date disponible et retrouvez vos photos dans votre galerie privée.</p>
+        <a class="primary" href="#annuaire">Découvrir les photographes</a>
+      </div>
+      <img src="/img/portfolio-hero.webp" alt="" fetchpriority="high">
+    </section>
+    <section id="annuaire" class="directory" aria-labelledby="directory-title">
+      <h2 id="directory-title">Les photographes</h2>
+      <label id="search-label">Rechercher un nom ou une ville <input type="search" id="search"></label>
+      <p id="status" role="status">Chargement…</p>
+      <div class="cards" id="profiles"></div>
+    </section>
+  </main>
+  <footer><a href="/conditions">Conditions</a><a href="https://wa.me/50935022418">WhatsApp</a></footer>
+  <script src="/js/photographes.js" defer></script>
+</body>
+</html>

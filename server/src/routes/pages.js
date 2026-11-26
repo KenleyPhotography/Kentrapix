@@ -84,6 +84,7 @@ router.use(['/studio', '/portfolio', '/portfolio.html', '/portfolio-media'], asy
 });
 router.get('/portfolio-media/:file', ...portfolioMedia);
 // Portfolio public du studio : vitrine + demande de séance (sans compte).
+router.get(['/photographes', '/photographes.html'], (_req, res) => res.sendFile(page('photographes.html')));
 router.get(['/reservation', '/reservation.html'], (_req, res) => res.sendFile(page('reservation.html')));
 router.get(['/portfolio', '/portfolio.html'], (_req, res) => res.redirect(302, '/studio'));
 router.get('/studio', (req, res) => { recordVisit(req, '/studio'); res.sendFile(page('portfolio.html')); });

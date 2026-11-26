@@ -1,4 +1,4 @@
-import { publicServices } from '../lib/public-services.js';
+import { publicServices, publicPhotographers } from '../lib/public-services.js';
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import crypto from 'node:crypto';
@@ -10,7 +10,6 @@ import { httpError } from '../lib/errors.js';
 import { uuid } from '../lib/data.js';
 import { audit } from '../lib/audit.js';
 import { config } from '../config.js';
-import { requireOwner } from '../middleware/auth.js';
 import { githubReady, putFile, deleteFile, readFile } from '../lib/github.js';
 import { isRawName, rawJpeg } from '../lib/raw.js';
 
@@ -23,11 +22,23 @@ const mapPhoto = (r) => ({ id: r.id, category: r.category, src: `/portfolio-medi
 
 // ---------- Studio (propriétaire) ----------
 export const staffPortfolio = Router();
-staffPortfolio.use(requireOwner);
+const profileDefaults = { published: false, bio: '', location: '' };
+staffPortfolio.put('/profile', async (req, res) => {
+  const profile = z.object({
+    published: z.boolean(),
+    bio: z.string().trim().max(700),
+    location: z.string().trim().max(100),
+  }).strict().parse(req.body);
+  await query(`INSERT INTO photographer_profiles (staff_id, published, bio, location) VALUES (?, ?, ?, ?)
+    ON CONFLICT (staff_id) DO UPDATE SET published = EXCLUDED.published, bio = EXCLUDED.bio, location = EXCLUDED.location`,
+  [req.user.id, profile.published, profile.bio, profile.location]);
+  res.json({ profile });
+});
 
 staffPortfolio.get('/', async (req, res) => {
   const rows = await query('SELECT id, category, file, created_at FROM portfolio_photos WHERE staff_id = ? ORDER BY created_at DESC', [req.user.id]).catch(() => null);
-  res.json({ ready: githubReady(), tableReady: rows !== null, categories: CATEGORIES, photos: (rows || []).map(mapPhoto) });
+  const [profile] = await query('SELECT published, bio, location FROM photographer_profiles WHERE staff_id = ?', [req.user.id]);
+  res.json({ profile: profile || profileDefaults, ready: githubReady(), tableReady: rows !== null, categories: CATEGORIES, photos: (rows || []).map(mapPhoto) });
 });
 
 staffPortfolio.post('/', upload.array('photos', MAX_FILES), async (req, res) => {
@@ -70,8 +81,12 @@ export const publicPortfolio = Router();
 publicPortfolio.get('/portfolio', async (req, res) => {
   res.set('Cache-Control', 'no-store');
   if (!(await publicServices()).portfolio_enabled) return res.status(404).json({ error: 'Portfolio indisponible.' });
-  const rows = await query('SELECT id, category, file, created_at FROM portfolio_photos ORDER BY created_at DESC').catch(() => []);
-  res.set('Cache-Control', 'public, max-age=60').json({ photos: rows.map(mapPhoto) });
+  const rows = await query(`SELECT photo.id, photo.category, photo.file, photo.created_at
+    FROM portfolio_photos photo JOIN users u ON u.id = photo.staff_id
+    LEFT JOIN photographer_profiles p ON p.staff_id = u.id
+    WHERE u.active = 1 AND (u.role = 'owner' OR (u.role = 'admin' AND p.published = TRUE))
+    ORDER BY photo.created_at DESC`);
+  res.json({ photos: rows.map(mapPhoto) });
 });
 
 // Fichier d'une photo : lu sur GitHub une fois, puis gardé par Cloudflare et le navigateur (nom unique = jamais modifié).
@@ -82,7 +97,11 @@ export const portfolioMedia = [mediaLimiter, async (req, res) => {
   const file = req.params.file;
   if (!/^[0-9a-f-]{36}\.jpg$/.test(file) || !githubReady()) return res.status(404).end();
   // Seulement les photos enregistrées : un visiteur ne peut pas faire appeler GitHub avec des noms inventés.
-  const [known] = await query('SELECT 1 AS ok FROM portfolio_photos WHERE file = ?', [file]);
+  const [known] = await query(`SELECT 1 AS ok FROM portfolio_photos photo
+    JOIN users u ON u.id = photo.staff_id
+    LEFT JOIN photographer_profiles p ON p.staff_id = u.id
+    WHERE photo.file = ? AND (u.id = ? OR (u.active = 1 AND
+      (u.role = 'owner' OR (u.role = 'admin' AND p.published = TRUE))))`, [file, req.user?.id || null]);
   if (!known) return res.status(404).end();
   let buf = cache.get(file);
   if (!buf) {
@@ -91,5 +110,32 @@ export const portfolioMedia = [mediaLimiter, async (req, res) => {
     cache.set(file, buf);
     if (cache.size > CACHE_MAX) cache.delete(cache.keys().next().value);
   }
-  res.set({ 'Content-Type': 'image/jpeg', 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'public, max-age=31536000, immutable' }).send(buf);
+  res.set({ 'Content-Type': 'image/jpeg', 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'private, no-store' }).send(buf);
 }];
+
+publicPortfolio.get('/photographers', async (req, res) => {
+  const id = req.query.id === undefined ? null : uuid.parse(req.query.id);
+  const [{ portfolio_enabled }, bookable, profiles] = await Promise.all([
+    publicServices(), publicPhotographers(),
+    query(`SELECT u.id, COALESCE(NULLIF(u.sender_name, ''), u.name) AS name, p.bio, p.location
+      FROM photographer_profiles p JOIN users u ON u.id = p.staff_id
+      WHERE p.published = TRUE AND u.active = 1 AND u.role IN ('owner', 'admin')
+      AND (?::varchar IS NULL OR u.id = ?) ORDER BY name, u.id`, [id, id]),
+  ]);
+  if (id && !profiles.length) throw httpError(404, 'Profil introuvable.');
+  const photos = portfolio_enabled && profiles.length ? await query(`SELECT * FROM (
+    SELECT id, staff_id, category, file, created_at,
+      row_number() OVER (PARTITION BY staff_id ORDER BY created_at DESC, id) AS position
+    FROM portfolio_photos
+    WHERE staff_id = ANY(?::varchar[])
+  ) AS ranked WHERE position <= ? ORDER BY position`, [profiles.map(profile => profile.id), id ? 100 : 1]) : [];
+  const photosByStaff = new Map();
+  for (const photo of photos) {
+    if (!photosByStaff.has(photo.staff_id)) photosByStaff.set(photo.staff_id, []);
+    photosByStaff.get(photo.staff_id).push(mapPhoto(photo));
+  }
+  const eligible = new Set(bookable.map(person => person.id));
+  res.set('Cache-Control', 'no-store').json({ photographers: profiles.map(profile => ({
+    ...profile, bookable: eligible.has(profile.id), photos: photosByStaff.get(profile.id) || [],
+  })) });
+});

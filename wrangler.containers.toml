@@ -25,6 +25,7 @@ run_worker_first = [
   "/contrat*",
   "/c/*",
   "/reservation*",
+  "/photographes*",
   "/portfolio",
   "/portfolio/",
   "/portfolio.html",
