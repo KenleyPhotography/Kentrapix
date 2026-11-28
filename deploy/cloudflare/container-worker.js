@@ -86,6 +86,12 @@ export class KentraPixBackend extends DurableObject {
 
   async startOnce() {
     const container = this.ctx.container;
+    if (container.running) {
+      const info = await container.inspect();
+      if (info?.image && info.image !== container.images.base) {
+        await container.destroy('Deploying updated KentraPix backend image');
+      }
+    }
     if (!container.running) {
       container.start({
         image: container.images.base,
