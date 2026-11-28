@@ -1,3 +1,5 @@
+import { config } from '../config.js';
+import { trackingLink, subscriptionAllows } from '../lib/public-tracking.js';
 import { Router } from 'express';
 import crypto from 'node:crypto';
 import { z } from 'zod';
@@ -99,7 +101,10 @@ staffBooking.patch('/requests/:id', async (req, res) => {
       throw httpError(409, `Cette heure est déjà prise. Refusez la demande en proposant un autre moment${hint ? ` (libres : ${hint})` : ''}.`);
     }
   }
-  await query('UPDATE portfolio_requests SET status = ?, reply = ? WHERE id = ?', [status, reply || null, row.id]);
+  if (Boolean(proposedTime) !== Boolean(proposedDate)) throw httpError(400, 'Indiquez la date et l’heure proposées.');
+  if (proposedDate && proposedDate < studioToday()) throw httpError(400, 'Choisissez une date à venir.');
+  const [updated] = await query('UPDATE portfolio_requests SET status = ?, reply = ?, proposed_date = ?, proposed_time = ? WHERE id = ? AND status = ? RETURNING id', [status, reply || null, status === 'declined' ? proposedDate || null : null, status === 'declined' ? proposedTime || null : null, row.id, row.status]);
+  if (!updated) throw httpError(409, 'Cette demande a déjà été traitée.');
   // Acceptée : si la personne n'a pas encore de compte, on lui en crée un (mot de passe initial à changer à la première connexion).
   let password;
   if (status === 'accepted' && row.email) {
@@ -118,13 +123,13 @@ staffBooking.patch('/requests/:id', async (req, res) => {
       await query('INSERT INTO client_photographers (client_id, staff_id) VALUES (?, ?) ON CONFLICT DO NOTHING', [known.id, req.user.id]);
     }
   }
-  if (row.email) fire(sendMail({
+  const notification = row.email ? await sendMail({
     to: row.email, userId: req.user.id, sentBy: req.user.id, kind: 'inquiry-reply',
     fromName: studioName(req.user), replyTo: req.user.email,
-    ...inquiryReplyEmail({ name: row.name, email: row.email, password, studio: studioName(req.user), accepted: status === 'accepted', cancelled: status === 'cancelled', sessionType: row.session_type, date: row.wished_date, time: row.wished_time, reply, proposedDate, proposedTime }),
-  }));
+    ...inquiryReplyEmail({ name: row.name, email: row.email, password, studio: studioName(req.user), accepted: status === 'accepted', cancelled: status === 'cancelled', sessionType: row.session_type, date: row.wished_date, time: row.wished_time, reply, proposedDate, proposedTime, trackingUrl: row.tracking_token ? new URL(trackingLink('reservation', row.tracking_token), config.appUrl).href : null }),
+  }) : null;
   audit(req, `inquiry.${status}`, { entity: 'portfolio_request', entityId: row.id });
-  res.json({ ok: true, status, accountCreated: !!password });
+  res.json({ ok: true, status, accountCreated: !!password, emailSent: notification?.status === 'sent', tracking: row.tracking_token ? trackingLink('reservation', row.tracking_token) : null });
 });
 
 async function loadOwn(req, id) {
@@ -288,8 +293,17 @@ staffBooking.post('/bookings', async (req, res) => {
 export function clientBooking({ photographersOf }) {
   const router = Router();
 
+  const availableStaff = async (clientId) => {
+    const staff = await photographersOf(clientId);
+    if (!staff.length) return staff;
+    const allowed = await query(`SELECT u.id FROM users u WHERE u.id = ANY(?::varchar[])
+      AND (u.role = 'owner' OR ${subscriptionAllows('u.id', true)})`, [staff.map(person => person.id)]);
+    const ids = new Set(allowed.map(person => person.id));
+    return staff.filter(person => ids.has(person.id));
+  };
+
   const myStaff = async (req, staffId) => {
-    const list = await photographersOf(req.user.id);
+    const list = await availableStaff(req.user.id);
     const s = list.find((x) => x.id === uuid.parse(staffId));
     if (!s) throw httpError(404, 'Photographe introuvable.');
     return s;
@@ -297,7 +311,7 @@ export function clientBooking({ photographersOf }) {
 
   // Photographes chez qui l'on peut réserver + mes rendez-vous.
   router.get('/', async (req, res) => {
-    const staff = await photographersOf(req.user.id);
+    const staff = await availableStaff(req.user.id);
     const settings = staff.length
       ? await query(`SELECT * FROM booking_settings WHERE staff_id IN (${staff.map(() => '?').join(', ')})`, staff.map((s) => s.id))
       : [];

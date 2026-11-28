@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Comparez les forfaits Portfolio et Studio de Kentra Pix pour les photographes en Haïti.">
+  <title>Tarifs — Kentra Pix</title>
+  <link rel="icon" href="/logo/kentrapix-icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/portfolio.css">
+  <link rel="stylesheet" href="/css/photographes.css">
+  <link rel="stylesheet" href="https://fontlibrary.org/face/glacial-indifference" media="screen">
+  <link rel="stylesheet" href="/css/public-refresh.css">
+</head>
+<body class="public-site">
+  <header class="top">
+    <a class="public-nav-logo" href="/photographes" aria-label="KentraPix, accueil"><img src="/logo/kentrapix-icon.svg" width="36" height="36" alt=""></a>
+    <button class="nav-toggle" type="button" aria-label="Ouvrir ou fermer la navigation" aria-controls="site-nav" aria-expanded="false"><span aria-hidden="true">☰</span></button>
+    <nav id="site-nav" aria-label="Navigation"><a href="/photographes#annuaire">Trouver un photographe</a><a href="/tarifs" aria-current="page">Tarifs</a></nav>
+  </header>
+  <main>
+<section id="tarifs" class="directory pricing" aria-labelledby="pricing-title">
+      <p class="public-eyebrow">Pour les photographes</p>
+      <h1 id="pricing-title">Votre talent mérite<br>sa propre vitrine.</h1>
+      <p class="public-section-lead">Choisissez le forfait adapté à votre activité, du portfolio à la gestion de vos séances.</p>
+      <div class="pricing-grid">
+        <article class="pricing-plan">
+          <h3>Kentra Pix Portfolio</h3>
+          <p>Présentez votre travail et laissez les clients vous contacter depuis votre profil.</p>
+          <div class="pricing-price"><strong>500 GDS</strong> / mois</div>
+          <p class="pricing-year">ou <strong>5 000 GDS</strong> / an</p>
+          <ul><li>Profil public et portfolio photo</li><li>Liens WhatsApp et Instagram</li></ul>
+          <a class="outline" href="#souscrire" data-plan="portfolio">Choisir Portfolio</a>
+        </article>
+        <article class="pricing-plan pricing-studio">
+          <h3>Kentra Pix Studio</h3>
+          <p>Gérez vos séances, vos paiements et la remise de vos photos au même endroit.</p>
+          <div class="pricing-price"><strong>1 000 GDS</strong> / mois</div>
+          <p class="pricing-year">ou <strong>12 000 GDS</strong> / an</p>
+          <ul><li>Profil public et portfolio photo</li><li>Réservations et calendrier</li><li>Suivi des paiements et factures</li><li>Livraison des photos en galeries privées</li></ul>
+          <a class="primary" href="#souscrire" data-plan="studio">Choisir Studio</a>
+        </article>
+      </div>
+    </section>
+    <section class="directory" id="souscrire">
+      <p class="public-eyebrow">Paiement des photographes</p>
+      <h2>Payer ou renouveler mon abonnement</h2>
+      <p class="public-section-lead">Choisissez votre forfait et votre période, effectuez le transfert au numéro indiqué, puis envoyez le TransCode pour vérification.</p>
+      <form class="pf-form" id="subscription">
+        <label>E-mail de votre compte photographe<input name="email" type="email" required maxlength="190"></label>
+        <div class="pf-two">
+          <label>Forfait<select name="plan"><option value="portfolio">Portfolio</option><option value="studio">Studio</option></select></label>
+          <label>Période<select name="period"><option value="month">Mensuelle</option><option value="year">Annuelle</option></select></label>
+        </div>
+        <p id="subscription-amount"></p>
+        <label>Moyen de paiement<select name="method" required></select></label>
+        <div class="public-payment-methods" role="group" aria-label="Choisir un moyen de paiement">
+          <button type="button" class="public-payment-method" data-payment-method="moncash" aria-pressed="false" hidden><img src="/logo/moncash.jpg" width="110" height="76" alt="MonCash"><span>MonCash</span></button>
+          <button type="button" class="public-payment-method" data-payment-method="natcash" aria-pressed="false" hidden><img src="/logo/natcash.png" width="76" height="76" alt="NatCash"><span>NatCash</span></button>
+        </div>
+        <label>Numéro à payer<input id="subscription-number" readonly></label>
+        <p class="pf-hint">Ce numéro est configuré par le propriétaire de KentraPix. Vérifiez le destinataire dans votre application avant de confirmer le transfert.</p>
+        <button class="outline" type="button" id="subscription-copy">Copier le numéro</button>
+        <label>TransCode<input name="transferCode" required minlength="3" maxlength="60"></label>
+        <button class="pf-btn" type="submit" disabled>Envoyer pour vérification</button>
+        <p role="status"></p>
+      </form>
+    </section>
+    <section class="directory" aria-labelledby="pricing-faq">
+      <h2 id="pricing-faq">Questions fréquentes</h2>
+      <details><summary>Comment payer ?</summary><p>Choisissez le forfait et la période, puis entrez le TransCode après le transfert. Le propriétaire vérifie le paiement avant d’activer l’abonnement.</p></details>
+      <details><summary>Quelle est la différence entre Portfolio et Studio ?</summary><p>Portfolio sert à présenter votre travail et vos coordonnées. Studio ajoute la réservation, la gestion et la livraison de photos.</p></details>
+      <details><summary>Combien de photos peut-on publier ?</summary><p>La limite de départ est de 10 photos. Le propriétaire peut l’ajuster pour chaque photographe.</p></details>
+      <details><summary>Comment renouveler ?</summary><p>Envoyez une nouvelle demande avec le même e-mail. Le suivi privé affiche la date d’échéance après activation.</p></details>
+    </section>
+  </main>
+  <script type="module" src="/js/public-nav.js"></script>
+  <script type="module" src="/js/subscriptions.js"></script>
+<a class="public-mobile-whatsapp" href="https://wa.me/50935022418" target="_blank" rel="noopener noreferrer" aria-label="Contacter KentraPix sur WhatsApp"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M21 11.5a9 9 0 0 1-13.4 7.9L3 21l1.6-4.6A9 9 0 1 1 21 11.5Z"/><path d="M8 7.5c0 4 4.5 8 8 8l1-2.5-2.5-1-1 1a9 9 0 0 1-3-3l1-1L10 6.5Z"/></svg><span>WhatsApp</span></a>
+</body>
+</html>

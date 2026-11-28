@@ -18,13 +18,17 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400..700&display=swap">
   <link rel="stylesheet" href="/css/portfolio.css">
+  <link rel="stylesheet" href="https://fontlibrary.org/face/glacial-indifference" media="screen">
+  <link rel="stylesheet" href="/css/public-refresh.css">
 </head>
-<body>
+<body class="public-site">
   <header class="pf-bar">
-    <a class="pf-brand" href="/studio"><img src="/logo/kentrapix-icon.svg" alt="" width="34" height="34"><span>Kentra<b>Pix</b></span></a>
+    <a class="public-nav-logo" href="/photographes" aria-label="KentraPix, accueil"><img src="/logo/kentrapix-icon.svg" alt="" width="34" height="34"></a>
     <nav>
       <a href="#galerie">Portfolio</a>
-      <a href="/login" class="pf-ghost">Espace client</a>
+      <a href="/photographes">Photographes</a>
+      <a href="/reservation">Réservation</a>
+
     </nav>
   </header>
 
@@ -32,7 +36,7 @@
     <p class="pf-kicker">Photographe · Haïti</p>
     <h1>Des images qui racontent <em>votre histoire.</em></h1>
     <div class="pf-actions">
-      <a class="pf-btn" href="#reserver">Demander une séance</a>
+      <a class="pf-btn" href="/reservation">Demander une séance</a>
       <a class="pf-btn pf-btn-ghost" href="#galerie">Voir le portfolio</a>
     </div>
   </section>
@@ -45,41 +49,11 @@
       <button class="pf-btn pf-more" id="more" type="button" hidden>Voir plus de photos</button>
     </section>
 
-    <section id="reserver" class="pf-section pf-book">
-      <div class="pf-book-copy">
-        <h2>Réservez votre séance</h2>
-        <p>Dites-nous ce que vous imaginez. Vous recevez une réponse rapide, sans créer de compte.</p>
-        <a class="pf-wa" id="wa" href="https://wa.me/50939065511" target="_blank" rel="noopener"> WhatsApp</a>
-      </div>
-      <form id="form" class="pf-form" novalidate>
-        <label>Nom<input name="name" autocomplete="name" required maxlength="80"></label>
-        <label>E-mail <span class="pf-opt">(facultatif)</span><input name="email" type="email" autocomplete="email" maxlength="190"></label>
-        <label>Téléphone / WhatsApp<input name="phone" type="tel" autocomplete="tel" inputmode="tel" required maxlength="40" placeholder="+509 …"></label>
-        <div class="pf-two">
-          <label>Date souhaitée<input name="date" id="wish" type="date"></label>
-          <label>Heure souhaitée<input name="time" id="wishtime" type="time"></label>
-        </div>
-        <label>Type de séance<select name="sessionType" id="types" required><option value="">Choisir…</option></select></label>
-        <fieldset class="pf-pick" id="placePick" hidden>
-          <legend>Où voulez-vous les photos ?</legend>
-          <label><input type="radio" name="placeMode" value="studio" checked> Au studio</label>
-          <label><input type="radio" name="placeMode" value="away"> À un autre endroit</label>
-        </fieldset>
-        <label id="placeRow" hidden>Lieu de la séance <span class="pf-req">*</span><input name="location" id="place" maxlength="120" autocomplete="street-address" placeholder="Ex. Pétion-Ville, Église Saint-Pierre…"></label>
-        <label class="pf-check" id="placeTbdRow" hidden><input type="checkbox" id="placeTbd"> Le lieu reste à déterminer</label>
-        <p class="pf-hint" id="placeHint" hidden></p>
-        <label>Message<textarea name="message" rows="4" maxlength="1000" placeholder="Nombre de personnes, idées, détails…"></textarea></label>
-        <input name="website" class="pf-trap" tabindex="-1" autocomplete="off" aria-hidden="true">
-        <button class="pf-btn" type="submit" id="send">Envoyer ma demande</button>
-        <p class="pf-msg" id="msg" role="status" aria-live="polite"></p>
-        <div class="pf-alt" id="alt" hidden></div>
-      </form>
-    </section>
-  </main>
 
-  <footer class="pf-foot">© <span id="year"></span> KentraPix · <a href="/conditions">Conditions</a> · <a href="/login">Espace client</a></footer>
+  </main>
 
   <div class="pf-lightbox" id="lb" hidden><button id="lb-close" aria-label="Fermer">×</button><button id="lb-prev" class="lb-nav" aria-label="Précédente">‹</button><button id="lb-next" class="lb-nav lb-next" aria-label="Suivante">›</button><img id="lb-img" alt=""></div>
   <script src="/js/portfolio.js" defer></script>
+<a class="public-mobile-whatsapp" href="https://wa.me/50935022418" target="_blank" rel="noopener noreferrer" aria-label="Contacter KentraPix sur WhatsApp"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M21 11.5a9 9 0 0 1-13.4 7.9L3 21l1.6-4.6A9 9 0 1 1 21 11.5Z"/><path d="M8 7.5c0 4 4.5 8 8 8l1-2.5-2.5-1-1 1a9 9 0 0 1-3-3l1-1L10 6.5Z"/></svg><span>WhatsApp</span></a>
 </body>
 </html>

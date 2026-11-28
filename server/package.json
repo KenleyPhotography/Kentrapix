@@ -12,6 +12,7 @@
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
     "db:init": "node scripts/db-init.js",
+    "db:migrate": "node scripts/db-migrate.js",
     "create-admin": "node scripts/create-admin.js",
     "push:keys": "node scripts/push-keys.js",
     "storage:setup": "node scripts/storage-setup.js",

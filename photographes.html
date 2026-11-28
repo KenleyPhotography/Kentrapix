@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Découvrez les photographes de Kentra Pix, explorez leurs portfolios et choisissez un créneau pour votre séance.">
+  <title>Photographes — Kentra Pix</title>
+  <link rel="icon" href="/logo/kentrapix-icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/portfolio.css">
+  <link rel="stylesheet" href="/css/photographes.css">
+  <link rel="stylesheet" href="https://fontlibrary.org/face/glacial-indifference" media="screen">
+  <link rel="stylesheet" href="/css/public-refresh.css">
+</head>
+<body class="public-site">
+  <header class="top">
+    <a class="public-nav-logo" href="/photographes" aria-label="KentraPix, accueil"><img src="/logo/kentrapix-icon.svg" width="36" height="36" alt=""></a>
+    <button class="nav-toggle" type="button" aria-label="Ouvrir ou fermer la navigation" aria-controls="site-nav" aria-expanded="false"><span aria-hidden="true">☰</span></button>
+    <nav id="site-nav" aria-label="Navigation"><a href="/photographes#annuaire">Trouver un photographe</a><a href="/tarifs">Tarifs</a></nav>
+  </header>
+  <main>
+    <section class="hero" id="intro">
+      <div class="hero-copy">
+        <p class="public-eyebrow">Photographes en Haïti</p>
+        <h1>Le bon regard pour <em>vos plus beaux moments.</em></h1>
+        <p>Découvrez les photographes de Kentra Pix en Haïti, réservez une séance et retrouvez vos photos dans votre galerie privée.</p>
+        <div class="hero-actions"><a class="primary" href="#annuaire">Trouver mon photographe</a><a class="hero-login" href="/login">Connexion</a></div>
+        <p class="public-hero-note">Votre séance, votre photographe, vos souvenirs.</p>
+      </div>
+      <img src="/img/equipe-kentra.png" alt="L’équipe Kentra avec un appareil photo et des ordinateurs portables" fetchpriority="high">
+    </section>
+    <section id="annuaire" class="directory" aria-labelledby="directory-title">
+      <p class="public-eyebrow">Un regard qui vous ressemble</p>
+      <h2 id="directory-title">Trouver votre photographe</h2>
+      <p class="public-section-lead">Explorez les profils et choisissez le photographe qui donnera vie à votre projet.</p>
+      <div class="directory-filters" id="directory-filters">
+        <label id="search-label">Rechercher un nom ou une ville <input type="search" id="search"></label>
+        <label>Type de séance <select id="specialty-filter"><option value="">Tous les services</option></select></label>
+      </div>
+      <p id="status" role="status">Chargement…</p>
+      <div class="cards" id="profiles"></div>
+    </section>
+    <section class="directory public-showcase" id="inspiration" aria-labelledby="inspiration-title">
+      <p class="public-eyebrow">À travers leurs objectifs</p>
+      <h2 id="inspiration-title">Des instants à partager.</h2>
+      <p class="public-section-lead">Un aperçu des dernières photos publiées dans nos portfolios.</p>
+      <p id="featured-status" role="status">Chargement des photos…</p>
+      <div class="public-featured-grid" id="featured-photos"></div>
+      <a class="outline public-section-link" id="latest-portfolio" href="/photographes#annuaire" hidden>Découvrir le portfolio</a>
+    </section>
+    <section class="directory public-testimonials" id="temoignages" aria-labelledby="testimonials-title">
+      <p class="public-eyebrow">Leurs mots, leurs souvenirs</p>
+      <h2 id="testimonials-title">L’expérience de nos clients.</h2>
+      <p id="testimonials-status" role="status">Chargement des témoignages…</p>
+      <div class="public-review-grid" id="client-testimonials"></div>
+    </section>
+    <section id="how-it-works" class="directory how-it-works">
+      <h2>Comment ça marche ?</h2>
+      <ol><li>Choisissez un photographe</li><li>Demandez une date</li><li>Recevez sa réponse par e-mail ou WhatsApp</li></ol>
+    </section>
+
+
+    <section class="directory public-photographer-payment" aria-labelledby="photographer-payment-title">
+      <p class="public-eyebrow">Espace photographes</p>
+      <h2 id="photographer-payment-title">Votre abonnement, en toute simplicité.</h2>
+      <p class="public-section-lead">Activez ou renouvelez votre forfait pour un mois ou un an. Les moyens de paiement disponibles et le numéro à utiliser sont indiqués dans le formulaire.</p>
+      <a class="primary public-section-link" href="/tarifs#souscrire">Payer ou renouveler</a>
+    </section>
+<section class="team-banner" aria-labelledby="team-banner-title">
+      <div><h2 id="team-banner-title">Devenez photographe<br>sur Kentra Pix</h2><p>Présentez votre travail et rejoignez notre équipe de photographes.</p></div>
+      <a href="/reservation#devenir-photographe" data-open-application>Présenter ma candidature <span aria-hidden="true">↗</span></a>
+    </section>
+    <section id="partenaires" class="directory partner-section" aria-labelledby="partners-title">
+      <h2 id="partners-title">Nos partenaires</h2>
+      <div id="partner-logos" class="partner-logos"></div>
+      <p id="partner-status" role="status"></p>
+    </section>
+  </main>
+  <dialog id="application-dialog" class="booking-screen reservation-page" aria-labelledby="application-title">
+    <header class="booking-screen-bar"><strong id="application-title">Devenir photographe</strong><form method="dialog"><button class="outline">Fermer ×</button></form></header>
+    <div class="booking-screen-content" id="application-content"></div>
+  </dialog>
+  <footer class="site-footer">
+    <div class="footer-content">
+      <div><a class="public-footer-logo" href="/photographes" aria-label="KentraPix"><img src="/logo/kentrapix-icon.svg" alt="" width="48" height="48" loading="lazy"><span>Kentra<b>Pix</b></span></a><p>Photographes, réservations et galeries privées en Haïti.</p></div>
+      <nav aria-label="Liens utiles"><strong>Explorer</strong><a href="/photographes#annuaire">Photographes</a><a href="/reservation#devenir-photographe" data-open-application>Devenir photographe</a><a href="/login">Espace client</a></nav>
+      <div><strong>Contact</strong><a href="https://wa.me/50935022418">WhatsApp · +509 3502-2418</a><a href="mailto:kentrapix@gmail.com">kentrapix@gmail.com</a></div>
+    </div>
+    <div class="footer-bottom"><span>© Kentra Pix</span><a href="/conditions">Conditions d’utilisation</a></div>
+  </footer>
+  <script src="/js/photographes.js" defer></script>
+  <script src="/js/public-home.js" defer></script>
+<a class="public-mobile-whatsapp" href="https://wa.me/50935022418" target="_blank" rel="noopener noreferrer" aria-label="Contacter KentraPix sur WhatsApp"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M21 11.5a9 9 0 0 1-13.4 7.9L3 21l1.6-4.6A9 9 0 1 1 21 11.5Z"/><path d="M8 7.5c0 4 4.5 8 8 8l1-2.5-2.5-1-1 1a9 9 0 0 1-3-3l1-1L10 6.5Z"/></svg><span>WhatsApp</span></a>
+    <section class="public-faq public-faq-panel" id="questions" hidden role="region" aria-labelledby="customer-faq-title">
+      <button class="public-faq-close" type="button" aria-label="Fermer les questions">&times;</button><p class="public-eyebrow">Avant votre séance</p>
+      <h2 id="customer-faq-title">Vos questions, simplement.</h2>
+      <details><summary>Comment réserver une séance ?</summary><p>Choisissez un photographe dans l’annuaire, ouvrez son profil et cliquez sur « Réserver une date ». Renseignez vos coordonnées, la date et le type de séance souhaités. Le photographe vous répondra par e-mail ou WhatsApp.</p></details>
+      <details><summary>Ma demande confirme-t-elle ma réservation ?</summary><p>Après l’envoi, consultez la réponse du photographe et le lien de suivi de votre demande pour connaître son statut. Attendez la confirmation avant de vous déplacer.</p></details>
+      <details><summary>Comment connaître le prix et effectuer le paiement ?</summary><p>Consultez les forfaits affichés sur le profil du photographe ou contactez-le pour préciser votre projet. Vérifiez avec lui le montant, l’acompte éventuel et les moyens de paiement avant tout transfert.</p></details>
+      <details><summary>Quand et comment recevrai-je mes photos ?</summary><p>Convenez du délai de livraison avec votre photographe avant la séance. Pour les séances livrées via KentraPix, vous retrouvez les photos dans votre galerie privée avec les accès qui vous sont communiqués.</p></details>
+      <details><summary>Puis-je modifier la date de ma séance ?</summary><p>Contactez votre photographe dès que possible par les coordonnées de son profil. Le report dépend de ses disponibilités et des conditions convenues pour votre séance.</p></details>
+      <p>Une autre question ? <a href="https://wa.me/50935022418" target="_blank" rel="noopener noreferrer">Écrivez-nous sur WhatsApp</a>.</p>
+    </section>
+<button class="public-faq-toggle" type="button" aria-controls="questions" aria-expanded="false" aria-label="Ouvrir les questions fr&#233;quentes"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M21 11a8 8 0 0 1-8 8H8l-5 3V11a9 9 0 0 1 18 0Z"/><path d="M8 10h8M8 14h5"/></svg><span>Aide</span></button>
+<script src="/js/public-faq.js" defer></script>
+</body>
+</html>

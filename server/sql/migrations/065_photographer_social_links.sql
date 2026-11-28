@@ -1,0 +1,3 @@
+ALTER TABLE photographer_profiles
+  ADD COLUMN IF NOT EXISTS facebook VARCHAR(250) NOT NULL DEFAULT '',
+  ADD COLUMN IF NOT EXISTS other_links JSONB NOT NULL DEFAULT '[]'::jsonb;

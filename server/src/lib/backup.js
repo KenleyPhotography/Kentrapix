@@ -186,7 +186,7 @@ export async function restoreBackup(key) {
 }
 
 // ---------- Copie des photos (2e emplacement) ----------
-const MIRROR_FOLDERS = ['originals', 'previews', 'covers', 'avatars', 'music', 'backups'];
+const MIRROR_FOLDERS = ['originals', 'previews', 'covers', 'avatars', 'music', 'portfolios', 'photographer-logos', 'backups'];
 const MIRROR_BATCH = 300; // objets copiés par passage (borne la durée ; la suite au passage suivant)
 
 export const mirrorConfig = () => {

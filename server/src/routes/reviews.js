@@ -1,3 +1,9 @@
+import { trackingToken, trackingLink, subscriptionPrices } from '../lib/public-tracking.js';
+import multer from 'multer';
+import sharp from 'sharp';
+import { isRemote, putFile, removeKeys } from '../lib/storage.js';
+import { publicServices, publicPhotographers } from '../lib/public-services.js';
+import { monthSlots } from '../lib/booking.js';
 import { Router } from 'express';
 import crypto from 'node:crypto';
 import { z } from 'zod';
@@ -7,7 +13,7 @@ import { uuid, CLIENT_HAS, NOT_EXPIRED } from '../lib/data.js';
 import rateLimit from 'express-rate-limit';
 import { pushLater } from '../lib/push.js';
 import { sendMail } from '../lib/mailer.js';
-import { inquiryEmail } from '../lib/emails.js';
+import { inquiryEmail, messageEmail } from '../lib/emails.js';
 import { needsPlace, settingsOf, slotConflict, studioToday } from '../lib/booking.js';
 
 // Avis des clients après livraison : 1 à 5 étoiles + commentaire, un par galerie (modifiable).
@@ -115,6 +121,28 @@ publicApi.get('/studio', async (req, res) => {
   res.set('Cache-Control', 'public, max-age=300').json({ name: o.sender_name || o.name, sessionTypes: settings.sessionTypes });
 });
 
+publicApi.get('/public-services', async (_req, res) => {
+  const [{ portfolio_enabled }, staff] = await Promise.all([publicServices(), publicPhotographers()]);
+  res.set('Cache-Control', 'no-store').json({
+    portfolioEnabled: portfolio_enabled,
+    photographers: staff.map(({ id, name, sender_name }) => ({ id, name: sender_name || name })),
+  });
+});
+
+async function bookingPhotographer(id) {
+  const staff = await publicPhotographers();
+  const person = id ? staff.find((member) => member.id === id) : staff[0];
+  if (!person) throw httpError(400, 'Ce photographe ne reçoit pas de réservations.');
+  return person;
+}
+
+publicApi.get('/reservation/:id', async (req, res) => {
+  const person = await bookingPhotographer(z.string().uuid().parse(req.params.id));
+  const { month } = z.object({ month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/) }).parse(req.query);
+  const { settings, days } = await monthSlots(person.id, month, { includePublic: true });
+  res.set('Cache-Control', 'no-store').json({ days, sessionTypes: settings.sessionTypes });
+});
+
 const inquiryLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   limit: 5,
@@ -125,6 +153,8 @@ const inquiryLimiter = rateLimit({
 // Pas de retours à la ligne ni de caractères de contrôle dans les champs courts (objet d'e-mail, journaux).
 const oneLine = (max) => z.string().trim().max(max).regex(/^[^\u0000-\u001f\u007f]*$/, 'Caractères non valides.');
 const inquiry = z.object({
+  staffId: z.string().uuid().optional(),
+  manual: z.boolean().optional().default(false),
   name: oneLine(80).min(2, 'Entrez votre nom.'),
   email: z.union([z.literal(''), z.string().trim().toLowerCase().email('E-mail invalide.').max(190)]).optional().default(''), // facultatif
   phone: oneLine(40).refine((v) => v.replace(/\D/g, '').length >= 6, 'Entrez votre numéro de téléphone.'), // obligatoire
@@ -147,28 +177,176 @@ publicApi.get('/slot-check', async (req, res) => {
   res.set('Cache-Control', 'no-store').json(c ? { ok: false, error: 'Cette date et cette heure sont déjà prises. Choisissez un autre moment.', ...c, today } : { ok: true, today });
 });
 
+async function applicationPayment() {
+  const [row] = await query('SELECT booking_payment FROM site_public_services WHERE id = 1');
+  const { applicationAmount, moncash, natcash } = row.booking_payment;
+  return applicationAmount && (moncash || natcash) ? { amount: applicationAmount, moncash, natcash } : null;
+}
+
+publicApi.get('/photographer-applications/payment', async (_req, res) => {
+  res.set('Cache-Control', 'no-store').json({ payment: await applicationPayment() });
+});
+
+const applicationLogo = multer({ storage: multer.memoryStorage(), limits: { fileSize: 4 * 1024 * 1024, files: 1, fields: 8 } }).single('logo');
+
+async function validateLogo(file) {
+  const message = 'Ajoutez un logo PNG transparent et non entièrement blanc.';
+  if (!file) throw httpError(400, message);
+  try {
+    const source = sharp(file.buffer, { limitInputPixels: 16_000_000 });
+    const info = await source.metadata();
+    if (info.format !== 'png' || !info.hasAlpha) throw new Error();
+    const logo = await source.resize({ width: 800, height: 800, fit: 'inside', withoutEnlargement: true }).png().toBuffer();
+    const pixels = await sharp(logo).ensureAlpha().toColourspace('srgb').raw().toBuffer();
+    let transparent = false, colored = false;
+    for (let i = 0; i < pixels.length; i += 4) {
+      if (pixels[i + 3] === 0) transparent = true;
+      if (pixels[i + 3] >= 32 && Math.min(pixels[i], pixels[i + 1], pixels[i + 2]) < 245) colored = true;
+    }
+    if (!transparent || !colored) throw new Error();
+    return logo;
+  } catch { throw httpError(400, message); }
+}
+
+publicApi.post('/photographer-applications', inquiryLimiter, applicationLogo, async (req, res) => {
+  const data = z.object({
+    name: oneLine(80).min(2),
+    email: z.string().trim().email().max(190),
+    phone: oneLine(40).refine(value => value.replace(/\D/g, '').length >= 6),
+    message: z.string().trim().max(1000),
+    website: z.string().max(200).optional(),
+    method: z.enum(['moncash', 'natcash']).optional(),
+    transferCode: z.string().trim().regex(/^[A-Za-z0-9-]{3,60}$/).optional(),
+  }).parse(req.body);
+  const token = trackingToken();
+  if (!data.website) {
+    const payment = await applicationPayment();
+    if (payment && (!data.method || !payment[data.method] || !data.transferCode)) {
+      throw httpError(400, 'Choisissez le service de paiement et indiquez le TransCode.');
+    }
+    if (!isRemote) throw httpError(503, 'Le stockage des logos est indisponible.');
+    const logo = await validateLogo(req.file);
+    const id = crypto.randomUUID();
+    const logoKey = `photographer-logos/${id}.png`;
+    await putFile(logoKey, logo, 'image/png');
+    try {
+      const [saved] = await query(`INSERT INTO photographer_applications
+        (id, name, email, phone, message, payment_method, transfer_code, payment_amount, logo_key, tracking_token)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING RETURNING id`,
+      [id, data.name, data.email, data.phone, data.message,
+        payment ? data.method : null, payment ? data.transferCode : null, payment?.amount ?? null, logoKey, token]);
+      if (!saved) throw httpError(409, 'Ce TransCode a déjà été utilisé.');
+    } catch (error) {
+      await removeKeys([logoKey]);
+      throw error;
+    }
+    const recipient = await owner();
+    if (recipient) await sendMail({
+      to: recipient.email, userId: recipient.id, kind: 'photographer_application',
+      ...messageEmail({
+        name: recipient.name,
+        subject: 'Nouvelle candidature photographe',
+        message: `${data.name} souhaite devenir photographe sur Kentra Pix. Consultez Équipe dans votre espace propriétaire.`,
+      }),
+    }).catch(error => console.error('Notification candidature :', error.name));
+  }
+  res.set('Cache-Control', 'no-store').status(201).json({ ok: true, tracking: trackingLink('candidature', token) });
+});
+
 publicApi.post('/inquiry', inquiryLimiter, async (req, res) => {
   const d = inquiry.parse(req.body);
   if (d.website) return res.status(201).json({ ok: true }); // robot : on fait semblant
-  const o = await owner();
-  if (!o) throw httpError(503, 'Studio indisponible.');
+  const o = await bookingPhotographer(d.staffId);
+  if (d.staffId && (!d.date || !d.time)) throw httpError(400, 'Choisissez une date et une heure disponibles.');
+  if (d.staffId) {
+    const date = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])-([0-2]\d|3[01])$/).parse(d.date);
+    const { days, settings } = await monthSlots(o.id, date.slice(0, 7), { includePublic: true });
+    if (!d.manual && !days[date]?.includes(d.time)) throw httpError(409, 'Ce créneau n’est plus disponible.');
+    if (!settings.sessionTypes.includes(d.sessionType)) throw httpError(400, 'Choisissez un type de séance proposé par ce photographe.');
+  }
   if (!d.sessionType) throw httpError(400, 'Choisissez le type de séance.');
   if (needsPlace(d.sessionType) && d.location.length < 2) throw httpError(400, 'Indiquez le lieu de la séance.');
   if (d.date) {
     const today = studioToday();
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(d.date) || d.date < today) throw httpError(400, 'Choisissez une date à venir.');
+    const parsed = new Date(d.date + 'T12:00:00Z');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d.date) || !Number.isFinite(+parsed) || parsed.toISOString().slice(0, 10) !== d.date || d.date < today) throw httpError(400, 'Choisissez une date à venir.');
     if (!d.time) throw httpError(400, 'Choisissez aussi une heure.');
     const c = await slotConflict(o.id, d.date, d.time);
     if (c) return res.status(409).json({ error: 'Cette date et cette heure sont déjà prises. Choisissez un autre moment.', ...c });
   }
-  try {
-    await query(
-      'INSERT INTO portfolio_requests (id, staff_id, name, email, phone, session_type, location, wished_date, wished_time, message) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [crypto.randomUUID(), o.id, d.name, d.email, d.phone, d.sessionType, d.location, d.date, d.time, d.message],
-    );
-  } catch (err) { console.error('Demande portfolio non enregistrée (migration 039 appliquée ?) :', err.message); }
+  const [settings] = await query('SELECT booking_payment FROM site_public_services WHERE id = 1');
+  const methods = settings.booking_payment;
+  const payment = methods.amount && (methods.moncash || methods.natcash)
+    ? { ...methods, code: 'KP-' + crypto.randomBytes(8).toString('hex').toUpperCase() }
+    : null;
+  const token = trackingToken();
+  await query(
+    'INSERT INTO portfolio_requests (id, staff_id, name, email, phone, session_type, location, wished_date, wished_time, message, payment_code, payment_amount, tracking_token) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    [crypto.randomUUID(), o.id, d.name, d.email, d.phone, d.sessionType, d.location, d.date, d.time, d.message, payment?.code ?? null, payment?.amount ?? null, token],
+  );
   pushLater(o.id, { title: 'Nouvelle demande de séance', body: `${d.name}${d.sessionType ? ` · ${d.sessionType}` : ''}`, url: '/admin', tag: `inquiry-${Date.now()}` });
   sendMail({ to: o.email, userId: o.id, kind: 'inquiry', replyTo: d.email || undefined, ...inquiryEmail({ staffName: o.name, ...d }) })
     .catch((err) => console.error('E-mail demande portfolio :', err.message));
-  res.status(201).json({ ok: true });
+  res.set('Cache-Control', 'no-store').status(201).json({ ok: true, payment, tracking: trackingLink('reservation', token) });
+});
+
+const tokenSchema = z.string().regex(/^[a-f0-9]{64}$/);
+const trackingSchema = z.object({ kind: z.enum(['reservation', 'candidature', 'abonnement']), token: tokenSchema });
+publicApi.post('/tracking', async (req, res) => {
+  const { kind, token } = trackingSchema.parse(req.body);
+  const sql = {
+    reservation: 'SELECT status, wished_date, wished_time, proposed_date, proposed_time FROM portfolio_requests WHERE tracking_token = ?',
+    candidature: "SELECT CASE WHEN approved_staff_id IS NOT NULL THEN 'approved' WHEN reviewed_at IS NOT NULL THEN 'reviewed' ELSE 'pending' END AS status FROM photographer_applications WHERE tracking_token = ?",
+    abonnement: `SELECT s.plan, s.period, s.amount, s.expires_at, CASE
+      WHEN u.subscription_suspended THEN 'suspended' WHEN s.activated_at IS NULL THEN 'pending'
+      WHEN s.expires_at <= CURRENT_TIMESTAMP THEN 'expired'
+      WHEN s.expires_at <= CURRENT_TIMESTAMP + INTERVAL '7 days' THEN 'expiring' ELSE 'active' END AS status
+      FROM photographer_subscriptions s LEFT JOIN users u ON u.id = s.staff_id WHERE s.tracking_token = ?`,
+  }[kind];
+  const [record] = await query(sql, [token]);
+  if (!record) throw httpError(404, 'Référence introuvable.');
+  res.set('Cache-Control', 'no-store').json(record);
+});
+
+publicApi.post('/tracking/respond', inquiryLimiter, async (req, res) => {
+  const { token, accept } = z.object({ token: tokenSchema, accept: z.boolean() }).parse(req.body);
+  const [request] = await query("SELECT id, staff_id, name, proposed_date, proposed_time FROM portfolio_requests WHERE tracking_token = ? AND status = 'declined' AND proposed_date IS NOT NULL", [token]);
+  if (!request) throw httpError(409, 'Cette proposition n’est plus disponible.');
+  if (accept && (request.proposed_date < studioToday() || await slotConflict(request.staff_id, request.proposed_date, request.proposed_time))) {
+    throw httpError(409, 'Ce créneau n’est plus disponible.');
+  }
+  const [updated] = await query(`UPDATE portfolio_requests SET status = ?,
+    wished_date = CASE WHEN ? THEN proposed_date ELSE wished_date END,
+    wished_time = CASE WHEN ? THEN proposed_time ELSE wished_time END,
+    proposed_date = NULL, proposed_time = NULL
+    WHERE id = ? AND status = 'declined' AND proposed_date = ? AND proposed_time = ? RETURNING id`,
+    [accept ? 'pending' : 'declined', accept, accept, request.id, request.proposed_date, request.proposed_time]);
+  if (!updated) throw httpError(409, 'Cette proposition a déjà reçu une réponse.');
+  pushLater(request.staff_id, { title: 'Réponse à votre proposition', body: request.name + (accept ? ' souhaite confirmer ce créneau.' : ' a refusé le créneau.'), url: '/admin' });
+  res.json({ ok: true });
+});
+
+publicApi.get('/subscriptions/payment', async (_req, res) => {
+  const [row] = await query('SELECT booking_payment FROM site_public_services WHERE id = 1');
+  const { moncash = '', natcash = '' } = row.booking_payment;
+  res.set('Cache-Control', 'no-store').json({ moncash, natcash, prices: subscriptionPrices });
+});
+
+publicApi.post('/subscriptions', inquiryLimiter, async (req, res) => {
+  const data = z.object({
+    email: z.string().trim().toLowerCase().email().max(190),
+    plan: z.enum(['portfolio', 'studio']),
+    period: z.enum(['month', 'year']),
+    method: z.enum(['moncash', 'natcash']),
+    transferCode: z.string().trim().regex(/^[A-Za-z0-9-]{3,60}$/),
+  }).parse(req.body);
+  const [row] = await query('SELECT booking_payment FROM site_public_services WHERE id = 1');
+  if (!row.booking_payment[data.method]) throw httpError(400, 'Moyen de paiement indisponible.');
+  const token = trackingToken();
+  const [saved] = await query(`INSERT INTO photographer_subscriptions
+    (id,email,plan,period,amount,method,transfer_code,tracking_token)
+    VALUES (?,?,?,?,?,?,?,?) ON CONFLICT DO NOTHING RETURNING id`,
+    [crypto.randomUUID(), data.email, data.plan, data.period, subscriptionPrices[data.plan][data.period], data.method, data.transferCode, token]);
+  if (!saved) throw httpError(409, 'Ce TransCode a déjà été utilisé.');
+  res.status(201).json({ tracking: trackingLink('abonnement', token) });
 });

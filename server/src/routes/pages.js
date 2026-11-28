@@ -1,3 +1,4 @@
+import { publicServices } from '../lib/public-services.js';
 import { Router } from 'express';
 import express from 'express';
 import path from 'node:path';
@@ -76,8 +77,21 @@ router.get('/favicon.ico', (req, res) => res.type('image/png').set('Cache-Contro
 
 // Conditions d'utilisation : page publique (liée depuis la connexion et la barre latérale).
 // Photos ajoutées au portfolio depuis le studio (lues sur GitHub, puis gardées par le CDN).
+router.use(['/studio', '/portfolio', '/portfolio.html', '/portfolio-media'], async (_req, res, next) => {
+  res.set('Cache-Control', 'no-store');
+  if (!(await publicServices()).portfolio_enabled) return res.status(404).sendFile(page('404.html'));
+  next();
+});
 router.get('/portfolio-media/:file', ...portfolioMedia);
 // Portfolio public du studio : vitrine + demande de séance (sans compte).
+router.get(['/', '/photographes', '/photographes.html'], (req, res) => {
+  if (req.path === '/' && !req.user) recordVisit(req, '/');
+  res.sendFile(page('photographes.html'));
+});
+router.get('/suivi', (_req, res) => res.set({ 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer', 'X-Robots-Tag': 'noindex, nofollow' }).sendFile(page('suivi.html')));
+router.get(['/tarifs', '/tarifs.html'], (_req, res) => res.sendFile(page('tarifs.html')));
+router.get(['/reservation', '/reservation.html'], (_req, res) => res.sendFile(page('reservation.html')));
+router.get(['/portfolio', '/portfolio.html'], (_req, res) => res.redirect(302, '/studio'));
 router.get('/studio', (req, res) => { recordVisit(req, '/studio'); res.sendFile(page('portfolio.html')); });
 // Une page par catégorie (même vitrine, filtre présélectionné par js/portfolio.js).
 ['outdoor', 'graduation', 'evenement', 'mariage', 'studio'].forEach((slug) => {
@@ -115,17 +129,10 @@ router.get('/login', (req, res) => {
   res.set({ 'Cache-Control': 'no-cache', Vary: 'Cookie' }).sendFile(page('login.html'));
 });
 
-// Espace client : connexion obligatoire ; un admin est envoyé vers le studio.
-// L'équipe arrive sur le studio depuis « / », mais peut ouvrir client.html pour ses propres
-// photos (« Mes photos ») ou l'aperçu d'un client (?preview=<id>).
-router.get(['/', '/client', '/gallery'], (req, res) => {
-  // Visiteur (et Google) sur « / » : la page de connexion directement, sans redirection,
-  // pour que l'adresse principale du site soit celle qui est indexée.
-  if (!ready(req.user) && req.path === '/') recordVisit(req, '/');
-  if (!ready(req.user) && req.path === '/') return res.set({ 'Cache-Control': 'no-cache', Vary: 'Cookie' }).sendFile(page('login.html'));
+// Les pages de l’espace client nécessitent une session.
+router.get(['/client', '/gallery'], (req, res) => {
   if (!ready(req.user)) return res.redirect('/login');
-  if (staff(req.user) && req.path === '/') return res.redirect('/admin');
-  res.sendFile(page(req.path === '/' ? 'index.html' : `${req.path.slice(1)}.html`));
+  res.sendFile(page(`${req.path.slice(1)}.html`));
 });
 
 // Studio : invisible pour tout le monde sauf l'équipe connectée (propriétaire + admins).

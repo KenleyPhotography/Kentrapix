@@ -180,7 +180,7 @@
     try { history.replaceState(null, '', current === 'Tout' ? '/studio' : '/studio/' + slugOf(current)); } catch (e) {}
   }
 
-  $('year').textContent = new Date().getFullYear();
+  if ($('year')) $('year').textContent = new Date().getFullYear();
 
   function renderFilters() {
     var cats = ['Tout'].concat(PHOTOS.map(function (p) { return p.cat; }).filter(function (c, i, a) { return a.indexOf(c) === i; }));
@@ -234,99 +234,5 @@
   }).catch(function () {});
   if (current !== 'Tout') $('galerie').scrollIntoView();
 
-  fetch('/api/public/studio').then(function (r) { return r.ok ? r.json() : null; }).then(function (s) {
-    if (!s) return;
-    (s.sessionTypes || []).forEach(function (t) { var o = document.createElement('option'); o.value = o.textContent = t; $('types').appendChild(o); });
-  }).catch(function () {});
-
-  // Date + heure déjà prises : on le dit tout de suite et on propose d'autres moments à choisir d'un clic.
-  var frDate = function (d) { return new Date(d + 'T12:00:00Z').toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'long', timeZone: 'UTC' }); };
-  var checking = 0;
-  function showAlt(c, date) {
-    var box = $('alt'); box.innerHTML = '';
-    var opts = (c.times || []).map(function (t) { return { label: t, day: date, time: t }; })
-      .concat((c.dates || []).map(function (d) { return { label: frDate(d.day) + ' à ' + d.time, day: d.day, time: d.time }; }));
-    if (!opts.length) { box.hidden = true; return; }
-    var t = document.createElement('span'); t.textContent = 'Moments libres :'; box.appendChild(t);
-    opts.forEach(function (o) {
-      var b = document.createElement('button'); b.type = 'button'; b.textContent = o.label;
-      b.onclick = function () { $('wish').value = o.day; $('wishtime').value = o.time; checkSlot(); };
-      box.appendChild(b);
-    });
-    box.hidden = false;
-  }
-  // Vérifie la date et l'heure choisies (promesse : true = libre ou pas encore complet).
-  function checkSlot() {
-    var d = $('wish').value, t = $('wishtime').value, msg = $('msg'), id = ++checking;
-    var clear = function () { if (msg.dataset.taken) { msg.textContent = ''; msg.className = 'pf-msg'; delete msg.dataset.taken; } $('alt').hidden = true; };
-    if (!d || !t) { clear(); return Promise.resolve(true); }
-    return fetch('/api/public/slot-check?date=' + encodeURIComponent(d) + '&time=' + encodeURIComponent(t))
-      .then(function (r) { return r.ok ? r.json() : { ok: true }; })
-      .then(function (j) {
-        if (id !== checking) return true;
-        if (j.ok) { clear(); return true; }
-        msg.className = 'pf-msg err'; msg.dataset.taken = '1'; msg.textContent = j.error; showAlt(j, d); return false;
-      })
-      .catch(function () { return true; });
-  }
-  // Lieu de la séance selon le type : portrait et shoot studio se passent toujours au studio ;
-  // l'anniversaire a le choix (studio ou ailleurs) ; le shoot dehors peut rester « à déterminer » ;
-  // graduation, mariage, baptême, autre : la personne doit dire où.
-  var AT_STUDIO = 'Au studio', TBD = 'Lieu à déterminer';
-  function placeKind(t) {
-    if (!t) return '';
-    if (/portrait|studio/i.test(t)) return 'studio';
-    if (/anniv|birthday/i.test(t)) return 'choice';
-    if (/outdoor|ext[ée]rieur|dehors|plein air/i.test(t)) return 'outdoor';
-    return 'away';
-  }
-  var pickedStudio = function () { return $('placePick').querySelector('input[value="studio"]').checked; };
-  // Lieu envoyé au studio : « Au studio », « Lieu à déterminer » ou l'adresse écrite.
-  function placeValue() {
-    var kind = placeKind($('types').value);
-    if (kind === 'studio' || (kind === 'choice' && pickedStudio())) return AT_STUDIO;
-    if (kind === 'outdoor' && $('placeTbd').checked) return TBD;
-    return String($('place').value || '').trim();
-  }
-  function syncPlace() {
-    var kind = placeKind($('types').value);
-    var studio = kind === 'studio' || (kind === 'choice' && pickedStudio());
-    var tbd = kind === 'outdoor' && $('placeTbd').checked;
-    var ask = !!kind && !studio && !tbd;
-    $('placePick').hidden = kind !== 'choice';
-    $('placeTbdRow').hidden = kind !== 'outdoor';
-    if (kind !== 'outdoor') $('placeTbd').checked = false;
-    $('placeRow').hidden = !ask; $('place').required = ask;
-    if (!ask) $('place').value = '';
-    $('placeHint').textContent = kind === 'studio' ? 'Cette séance se passe au studio.'
-      : kind === 'outdoor' ? 'Shoot dehors : dites où, ou cochez « à déterminer » si ce n’est pas encore décidé.' : '';
-    $('placeHint').hidden = !$('placeHint').textContent;
-  }
-  $('types').addEventListener('change', syncPlace);
-  $('placePick').addEventListener('change', syncPlace);
-  $('placeTbd').addEventListener('change', syncPlace);
-  syncPlace();
-  $('wish').addEventListener('change', checkSlot);
-  $('wishtime').addEventListener('change', checkSlot);
-  $('wish').min = new Date().toISOString().slice(0, 10);
-
-  $('form').addEventListener('submit', function (e) {
-    e.preventDefault();
-    var f = e.target, msg = $('msg'), btn = $('send');
-    var data = {}; new FormData(f).forEach(function (v, k) { data[k] = v; });
-    if (!data.name || String(data.phone || '').replace(/\D/g, '').length < 6) { msg.className = 'pf-msg err'; msg.textContent = 'Entrez votre nom et votre numéro de téléphone.'; return; }
-    if (!data.sessionType) { msg.className = 'pf-msg err'; msg.textContent = 'Choisissez le type de séance.'; return; }
-    delete data.placeMode; data.location = placeValue();
-    if (!data.location) { msg.className = 'pf-msg err'; msg.textContent = 'Indiquez le lieu de la séance.'; $('place').focus(); return; }
-    if (data.date && !data.time) { msg.className = 'pf-msg err'; msg.textContent = 'Choisissez aussi l’heure souhaitée.'; return; }
-    btn.disabled = true; msg.className = 'pf-msg'; msg.textContent = 'Envoi…';
-    fetch('/api/public/inquiry', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
-      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { return { ok: r.ok, j: j }; }); })
-      .then(function (r) {
-        if (r.ok) { f.reset(); syncPlace(); msg.className = 'pf-msg ok'; msg.textContent = 'Merci ! Votre demande est envoyée, on vous répond très vite.'; }
-        else { msg.className = 'pf-msg err'; msg.textContent = (r.j && (r.j.error || r.j.message)) || 'Envoi impossible. Écrivez-nous sur WhatsApp.'; if (r.j && (r.j.times || r.j.dates)) showAlt(r.j, data.date); }
-      })
-      .catch(function () { msg.className = 'pf-msg err'; msg.textContent = 'Connexion impossible. Réessayez.'; })
-      .then(function () { btn.disabled = false; });
-  });
+  if (location.hash === '#reserver') location.replace('/reservation');
 })();

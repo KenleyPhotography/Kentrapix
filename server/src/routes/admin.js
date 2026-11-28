@@ -1,3 +1,5 @@
+import { publicServices, bookingStaff, publicPhotographers } from '../lib/public-services.js';
+import { subscriptionAllows } from '../lib/public-tracking.js';
 import { Router } from 'express';
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
@@ -6,7 +8,7 @@ import rateLimit from 'express-rate-limit';
 import { query, transaction, toIso } from '../db.js';
 import { httpError } from '../lib/errors.js';
 import {
-  upload, uploadAudio, storePhoto, storeCover, storeMusic, removeKeys, removeWatermarks, isRemote, prepareDirectUpload, confirmDirectUpload,
+  upload, uploadAudio, readFile, storePhoto, storeCover, storeMusic, removeKeys, removeWatermarks, isRemote, prepareDirectUpload, confirmDirectUpload,
   storedName,
 } from '../lib/storage.js';
 import {
@@ -51,6 +53,18 @@ import {
 // Studio : propriétaire + admins. La gestion de l'équipe (/team) est réservée au propriétaire.
 const router = Router();
 router.use(requireStudio);
+router.use(async (req, _res, next) => {
+  if (req.user.role !== 'admin') return next();
+  const [access] = await query(`SELECT ${subscriptionAllows('u.id')} AS portfolio, ${subscriptionAllows('u.id', true)} AS studio,
+    u.subscription_exempt, u.subscription_suspended FROM users u WHERE u.id = ?`, [req.user.id]);
+  req.subscriptionAccess = access;
+  if (req.path === '/bootstrap') return next();
+  const portfolio = /^\/portfolio(?:\/|$)/.test(req.path);
+  if (portfolio && req.method === 'GET') return next();
+  if (!access?.[portfolio ? 'portfolio' : 'studio']) throw httpError(403,
+    access?.subscription_suspended ? 'Votre abonnement est suspendu. Contactez le propriétaire.' : 'Un abonnement actif est nécessaire. Payez ou renouvelez sur la page Tarifs.');
+  next();
+});
 // Administration : factures, paiements, rappels (billing.js).
 router.use(billingRouter);
 router.use('/booking', staffBooking);
@@ -59,7 +73,7 @@ router.use('/portfolio', staffPortfolio);
 router.get('/visits', requireOwner, async (req, res) => { res.set('Cache-Control', 'no-store').json(await visitStats()); });
 router.use('/contracts', staffContracts);
 // Contrats de site internet : liste indépendante (la signature, elle, reste celle du studio : /contracts/signature).
-router.use('/websites', staffWebContracts);
+router.use('/websites', requireOwner, staffWebContracts);
 router.use('/reviews', staffReviews);
 router.use('/todo', staffTodo);
 router.use('/orders', staffOrders);
@@ -160,6 +174,7 @@ router.get('/bootstrap', async (req, res) => {
     // Site fermé pour maintenance : visible par toute l'équipe, réglable par le propriétaire principal.
     maintenance,
     platformOwner,
+    subscriptionAccess: req.subscriptionAccess || { portfolio: true, studio: true },
     // Photos en ligne : le navigateur les envoie directement au bucket (sans passer par ce serveur).
     upload: { direct: isRemote, maxMb: config.maxUploadMb, previewWidth: config.previewWidth },
     mail: { configured: mailConfigured(), from: fromLine(studioName(req)) },
@@ -428,8 +443,11 @@ router.get('/clients/:id/preview', async (req, res) => {
 // ---------- Équipe (propriétaire uniquement) ----------
 // Nouvel admin : compte créé avec un mot de passe temporaire.
 router.post('/team', requireOwner, async (req, res) => {
-  const data = accountSchema.extend({ password: passwordRule, sendEmail: sendFlag }).parse(req.body);
+  const data = accountSchema.extend({ password: passwordRule, sendEmail: sendFlag, publish: z.boolean().optional() }).parse(req.body);
+  if (data.publish && !(await isPlatformOwner(req.user))) throw httpError(403, 'Seul le propriétaire principal peut publier un photographe.');
   const admin = await createAccount(req, 'admin', data);
+  if (data.publish) await query(`UPDATE site_public_services SET team_staff = team_staff || jsonb_build_array(?::varchar)
+    WHERE id = 1 AND NOT team_staff @> jsonb_build_array(?::varchar)`, [admin.id, admin.id]);
   audit(req, 'team.create', { entity: 'user', entityId: admin.id, details: { email: data.email } });
   const email = data.sendEmail ? queueMail(mailTo(req, admin, adminInviteEmail({ ...admin, password: data.password }), { kind: 'admin_invite' })) : null;
   res.status(201).json({ account: mapClient(admin), email });
@@ -1291,3 +1309,151 @@ router.put('/permissions', requireOwner, async (req, res) => {
 });
 
 export default router;
+
+router.get('/public-services', requirePlatformOwner, async (_req, res) => {
+  const [settings, staff, selected] = await Promise.all([publicServices(), bookingStaff(), publicPhotographers({ enforceSubscription: false })]);
+  res.json({ portfolioEnabled: settings.portfolio_enabled, staff: staff.map(({ id, name, portfolio_photo_limit }) => ({ id, name, portfolioPhotoLimit: portfolio_photo_limit })), selected: selected.map(({ id }) => id), teamSelected: staff.filter(({ id }) => settings.team_staff.includes(id)).map(({ id }) => id) });
+});
+
+router.put('/public-services', requirePlatformOwner, async (req, res) => {
+  const { portfolioEnabled, selected, teamSelected } = z.object({ portfolioEnabled: z.boolean(), selected: z.array(uuid).max(100), teamSelected: z.array(uuid).max(100).optional() }).strict().parse(req.body);
+  const allowed = new Set((await bookingStaff()).map(({ id }) => id));
+  if ([...selected, ...(teamSelected || [])].some((id) => !allowed.has(id))) throw httpError(400, 'Sélectionnez uniquement des photographes actifs.');
+  await query('UPDATE site_public_services SET portfolio_enabled = ?, booking_staff = ?::jsonb, team_staff = COALESCE(?::jsonb, team_staff) WHERE id = 1', [portfolioEnabled, JSON.stringify([...new Set(selected)]), teamSelected === undefined ? null : JSON.stringify([...new Set(teamSelected)])]);
+  audit(req, 'site.public_services', { entity: 'site', details: { portfolioEnabled, selected, teamSelected } });
+  res.json({ ok: true });
+});
+
+router.put('/public-services/:id/portfolio-limit', requirePlatformOwner, async (req, res) => {
+  const id = uuid.parse(req.params.id);
+  const { limit } = z.object({ limit: z.number().int().min(10).max(2147483647) }).strict().parse(req.body);
+  const [staff] = await query("UPDATE users SET portfolio_photo_limit = ? WHERE id = ? AND active = 1 AND role IN ('owner', 'admin') RETURNING id", [limit, id]);
+  if (!staff) throw httpError(404, 'Photographe actif introuvable.');
+  audit(req, 'portfolio.limit', { entity: 'user', entityId: id, details: { limit } });
+  res.json({ limit });
+});
+
+router.get('/booking-operations', requirePlatformOwner, async (_req, res) => {
+  const [[settings], applications, payments, team] = await Promise.all([
+    query('SELECT booking_payment FROM site_public_services WHERE id = 1'),
+    query('SELECT id, name, email, phone, message, reviewed_at, payment_method, transfer_code, payment_amount, approved_staff_id, logo_key IS NOT NULL AS has_logo FROM photographer_applications ORDER BY reviewed_at NULLS FIRST, created_at DESC LIMIT 100'),
+    query('SELECT id, name, payment_code, payment_amount, payment_verified_at FROM portfolio_requests WHERE payment_code IS NOT NULL ORDER BY payment_verified_at NULLS FIRST, created_at DESC LIMIT 100'),
+    bookingStaff(),
+  ]);
+  res.set('Cache-Control', 'no-store').json({ settings: settings.booking_payment, applications, payments, team: team.map(({ id, name }) => ({ id, name })) });
+});
+
+router.put('/booking-operations/payment', requirePlatformOwner, async (req, res) => {
+  const number = z.string().trim().regex(/^(?:\+?509)?[0-9]{8}$|^$/, 'Saisissez 8 chiffres, avec ou sans indicatif +509.');
+  const settings = z.object({ moncash: number, natcash: number, amount: z.number().int().min(0).max(10000000), applicationAmount: z.number().int().min(0).max(10000000).optional().default(0) }).strict().parse(req.body);
+  if (settings.applicationAmount && !settings.moncash && !settings.natcash) throw httpError(400, 'Ajoutez un numéro MonCash ou NatCash pour les frais de candidature.');
+  await query('UPDATE site_public_services SET booking_payment = ?::jsonb WHERE id = 1', [JSON.stringify(settings)]);
+  res.json({ ok: true });
+});
+
+router.put('/booking-operations/applications/:id/review', requirePlatformOwner, async (req, res) => {
+  const [row] = await query('UPDATE photographer_applications SET reviewed_at = COALESCE(reviewed_at, CURRENT_TIMESTAMP) WHERE id = ? RETURNING id', [uuid.parse(req.params.id)]);
+  if (!row) throw httpError(404, 'Candidature introuvable.');
+  res.json({ ok: true });
+});
+
+router.put('/booking-operations/payments/:id/verify', requirePlatformOwner, async (req, res) => {
+  const [row] = await query('UPDATE portfolio_requests SET payment_verified_at = COALESCE(payment_verified_at, CURRENT_TIMESTAMP) WHERE id = ? AND payment_code IS NOT NULL RETURNING id', [uuid.parse(req.params.id)]);
+  if (!row) throw httpError(404, 'Paiement introuvable.');
+  audit(req, 'booking.payment_verified', { entity: 'portfolio_request', entityId: row.id });
+  res.json({ ok: true });
+});
+
+router.get('/booking-operations/applications/:id/logo', requirePlatformOwner, async (req, res) => {
+  const [application] = await query('SELECT logo_key FROM photographer_applications WHERE id = ?', [uuid.parse(req.params.id)]);
+  if (!application?.logo_key) throw httpError(404, 'Logo introuvable.');
+  res.set('Cache-Control', 'private, no-store').type('image/png').send(await readFile(application.logo_key));
+});
+
+router.put('/booking-operations/applications/:id/logo', requirePlatformOwner, async (req, res) => {
+  const id = uuid.parse(req.params.id);
+  const { staffId } = z.object({ staffId: uuid }).strict().parse(req.body);
+  const [result] = await query(`INSERT INTO photographer_profiles (staff_id, logo_key)
+    SELECT u.id, a.logo_key FROM users u CROSS JOIN photographer_applications a
+    WHERE u.id = ? AND u.active = 1 AND u.role IN ('owner', 'admin')
+      AND a.id = ? AND a.logo_key IS NOT NULL
+    ON CONFLICT (staff_id) DO UPDATE SET logo_key = EXCLUDED.logo_key RETURNING staff_id`, [staffId, id]);
+  if (!result) throw httpError(404, 'Logo ou photographe introuvable.');
+  audit(req, 'photographer.logo_assigned', { entity: 'user', entityId: staffId });
+  res.json({ ok: true });
+});
+
+router.put('/team/applications/:id/approve', requirePlatformOwner, async (req, res) => {
+  const id = uuid.parse(req.params.id);
+  const result = await transaction(async conn => {
+    const [[candidate]] = await conn.execute('SELECT * FROM photographer_applications WHERE id = ? FOR UPDATE', [id]);
+    if (!candidate) throw httpError(404, 'Candidature introuvable.');
+    if (candidate.approved_staff_id) return { staffId: candidate.approved_staff_id };
+    const [[existing]] = await conn.execute('SELECT id, role, active FROM users WHERE lower(email) = ? FOR UPDATE', [candidate.email.toLowerCase()]);
+    if (existing && (!existing.active || !STAFF_ROLES.includes(existing.role))) {
+      throw httpError(409, 'Ce compte existe déjà. Activez-le comme photographe dans Équipe avant d’approuver sa candidature.');
+    }
+    const staffId = existing?.id || crypto.randomUUID();
+    const password = existing ? null : crypto.randomBytes(16).toString('base64url');
+    if (!existing) {
+      await conn.execute(`INSERT INTO users (id, role, created_by, name, email, phone, password_hash, must_change_password, access_code)
+        VALUES (?, 'admin', ?, ?, ?, ?, ?, 1, ?)`,
+      [staffId, req.user.id, candidate.name, candidate.email.toLowerCase(), candidate.phone, await hashPassword(password), await freshCode()]);
+    }
+    await conn.execute(`INSERT INTO photographer_profiles (staff_id, logo_key) VALUES (?, ?)
+      ON CONFLICT (staff_id) DO UPDATE SET logo_key = COALESCE(EXCLUDED.logo_key, photographer_profiles.logo_key)`, [staffId, candidate.logo_key]);
+    await conn.execute(`UPDATE site_public_services SET team_staff = team_staff || jsonb_build_array(?::varchar)
+      WHERE id = 1 AND NOT team_staff @> jsonb_build_array(?::varchar)`, [staffId, staffId]);
+    await conn.execute('UPDATE photographer_applications SET approved_staff_id = ?, reviewed_at = CURRENT_TIMESTAMP WHERE id = ?', [staffId, id]);
+    return { staffId, password, name: candidate.name, email: candidate.email };
+  });
+  let invitation = null;
+  if (result.password) {
+    invitation = await mailTo(req, { id: result.staffId, email: result.email },
+      adminInviteEmail({ name: result.name, email: result.email, password: result.password }), { kind: 'admin_invite' });
+  }
+  audit(req, 'photographer.application_approved', { entity: 'user', entityId: result.staffId });
+  res.json({ staffId: result.staffId, invitation });
+});
+
+router.get('/subscriptions', requirePlatformOwner, async (_req, res) => {
+  const subscriptions = await query(`SELECT id,email,plan,period,amount,method,transfer_code,activated_at,expires_at
+    FROM photographer_subscriptions ORDER BY activated_at NULLS FIRST, created_at DESC LIMIT 150`);
+  const photographers = await query(`SELECT u.id, u.name, u.email, u.subscription_exempt AS exempt, u.subscription_suspended AS suspended,
+    s.plan, s.period, s.activated_at, s.expires_at,
+    CASE WHEN u.subscription_suspended THEN 'suspended' WHEN u.subscription_exempt THEN 'exempt'
+      WHEN s.id IS NULL THEN 'unpaid' WHEN s.expires_at <= CURRENT_TIMESTAMP THEN 'expired'
+      WHEN s.expires_at <= CURRENT_TIMESTAMP + INTERVAL '7 days' THEN 'expiring' ELSE 'active' END AS status,
+    CEIL(EXTRACT(EPOCH FROM (s.expires_at - CURRENT_TIMESTAMP)) / 86400)::int AS days_left
+    FROM users u LEFT JOIN LATERAL (SELECT * FROM photographer_subscriptions WHERE staff_id = u.id
+      AND activated_at IS NOT NULL ORDER BY activated_at DESC, id DESC LIMIT 1) s ON TRUE
+    WHERE u.role = 'admin' AND u.active = 1 ORDER BY u.name, u.id`);
+  res.set('Cache-Control', 'no-store').json({ subscriptions, photographers });
+});
+
+router.put('/subscriptions/access/:id', requirePlatformOwner, async (req, res) => {
+  const { suspended, exempt } = z.object({ suspended: z.boolean(), exempt: z.boolean() }).strict().parse(req.body);
+  const [staff] = await query(`UPDATE users SET subscription_suspended = ?, subscription_exempt = ?
+    WHERE id = ? AND role = 'admin' RETURNING id`, [suspended, exempt, uuid.parse(req.params.id)]);
+  if (!staff) throw httpError(404, 'Photographe introuvable.');
+  audit(req, 'subscription.access', { entity: 'user', entityId: staff.id, details: { suspended, exempt } });
+  res.json({ ok: true });
+});
+
+router.put('/subscriptions/:id/activate', requirePlatformOwner, async (req, res) => {
+  const id = uuid.parse(req.params.id);
+  const subscription = await transaction(async conn => {
+    const [[row]] = await conn.execute('SELECT * FROM photographer_subscriptions WHERE id = ? FOR UPDATE', [id]);
+    if (!row) throw httpError(404, 'Abonnement introuvable.');
+    if (row.activated_at) return row;
+    const [[staff]] = await conn.execute("SELECT id FROM users WHERE lower(email) = ? AND active = 1 AND role IN ('owner','admin') FOR UPDATE", [row.email]);
+    if (!staff) throw httpError(409, 'Créez ou approuvez d’abord le compte photographe associé à cet e-mail.');
+    const [[updated]] = await conn.execute(`UPDATE photographer_subscriptions SET staff_id = ?, activated_at = CURRENT_TIMESTAMP,
+      expires_at = GREATEST(CURRENT_TIMESTAMP, COALESCE((SELECT MAX(expires_at) FROM photographer_subscriptions WHERE staff_id = ? AND plan = ?), CURRENT_TIMESTAMP))
+      + CASE WHEN period = 'year' THEN INTERVAL '1 year' ELSE INTERVAL '1 month' END
+      WHERE id = ? RETURNING id, plan, period, expires_at`, [staff.id, staff.id, row.plan, id]);
+    return updated;
+  });
+  audit(req, 'subscription.activate', { entity: 'subscription', entityId: id });
+  res.json({ id: subscription.id, plan: subscription.plan, expiresAt: subscription.expires_at });
+});
