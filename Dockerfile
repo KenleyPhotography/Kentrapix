@@ -15,10 +15,10 @@ RUN npm ci --omit=dev && npm cache clean --force
 
 # The Express app also serves selected frontend files from /app.
 WORKDIR /app
-COPY . .
+COPY --chown=node:node . .
 
 RUN mkdir -p /app/server/storage \
-    && chown -R node:node /app
+    && chown node:node /app/server/storage
 
 WORKDIR /app/server
 USER node
